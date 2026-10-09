@@ -56,6 +56,8 @@ neoForge {
 
         gameTestServer {
             type = 'gameTestServer'
+            // Own directory: run/mods holds Distant Horizons for the dev client, which crashes the game test server.
+            gameDirectory = project.file('run/gametest')
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
@@ -82,15 +84,30 @@ neoForge {
 // Dependencies added to localRuntime are available in dev runs but are not published as dependencies.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
+    distantHorizons {
+        transitive = false
+    }
 }
 
 dependencies {
-    // Distant Horizons ships its API inside the mod jar; compile against it, run it in the dev client only:
-    // it crashes the game test server (it casts every non-integrated server to DedicatedServer).
+    // Distant Horizons ships its API inside the mod jar; compile against it.
     compileOnly "maven.modrinth:distanthorizons:${distanthorizons_version}"
-    add(neoForge.runs.client.additionalRuntimeClasspathConfiguration.name,
-            "maven.modrinth:distanthorizons:${distanthorizons_version}")
+    distantHorizons "maven.modrinth:distanthorizons:${distanthorizons_version}"
 }
+
+// Distant Horizons runs in the dev client and server as a real mod from their mods/ folders (on the classpath FML
+// does not load it as a mod). Not in the game test server: DH crashes it (casts every non-integrated server to
+// DedicatedServer).
+var installDistantHorizonsClient = tasks.register('installDistantHorizonsClient', Copy) {
+    from configurations.distantHorizons
+    into 'run/mods'
+}
+var installDistantHorizonsServer = tasks.register('installDistantHorizonsServer', Copy) {
+    from configurations.distantHorizons
+    into 'run-server/mods'
+}
+tasks.named('runClient') { dependsOn installDistantHorizonsClient }
+tasks.named('runServer') { dependsOn installDistantHorizonsServer }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
     var replaceProperties = [
