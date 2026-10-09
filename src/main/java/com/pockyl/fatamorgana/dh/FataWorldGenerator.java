@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -45,7 +45,13 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     /** Detail levels DH may ask for: 0 = one block per column, 12 = 4096 blocks per column. */
     private static final byte MAX_DETAIL = 12;
     private static final int MAX_LIGHT = 15;
-    private static final int STATS_EVERY = 500;
+    /**
+     * Generation step recorded for every column. DH re-requests a tile while its columns are below the step its
+     * generator plan requires, which is {@code FEATURES} for full-detail tiles under the default
+     * {@code SURFACE_THEN_CHUNKS} plan: marking our columns {@code SURFACE} made DH regenerate the tiles around the
+     * player forever. Real chunks ({@code LIGHT}) still replace this data when the player loads them.
+     */
+    private static final EDhApiWorldGenerationStep STEP = EDhApiWorldGenerationStep.FEATURES;
 
     private final IDhApiLevelWrapper levelWrapper;
     private final SurfaceSampler sampler;
@@ -55,9 +61,8 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private final boolean fakeTrees;
     private final Map<BlockState, IDhApiBlockStateWrapper> blockWrappers = new ConcurrentHashMap<>();
     private final Map<Holder<Biome>, IDhApiBiomeWrapper> biomeWrappers = new ConcurrentHashMap<>();
-    private final AtomicLong tiles = new AtomicLong();
-    private final AtomicLong surfaceNanos = new AtomicLong();
-    private final AtomicLong totalNanos = new AtomicLong();
+    private final GeneratorStats stats;
+    private final AtomicInteger loggedErrors = new AtomicInteger();
 
     FataWorldGenerator(IDhApiLevelWrapper levelWrapper, ServerLevel level, NoiseBasedChunkGenerator generator) {
         NoiseGeneratorSettings settings = generator.generatorSettings().value();
@@ -67,6 +72,7 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
         this.seed = level.getSeed();
         this.stride = Config.FULL_RESOLUTION.get() ? 1 : 2;
         this.fakeTrees = Config.FAKE_TREES.get();
+        this.stats = new GeneratorStats(level, levelWrapper.getDimensionName());
     }
 
     @Override
@@ -94,8 +100,22 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
                                               byte detailLevel, IDhApiFullDataSource dataSource,
                                               EDhApiDistantGeneratorMode generatorMode, ExecutorService dhThreadPool,
                                               Consumer<IDhApiFullDataSource> resultConsumer) {
+        int minX = chunkPosMinX * 16;
+        int minZ = chunkPosMinZ * 16;
+        int spacing = 1 << detailLevel;
+        int halfWidth = dataSource.getWidthInDataColumns() * spacing / 2;
+        stats.request(detailLevel, lodPosX, lodPosZ, minX + halfWidth, minZ + halfWidth);
         return CompletableFuture.runAsync(() -> {
-            fill(chunkPosMinX * 16, chunkPosMinZ * 16, 1 << detailLevel, dataSource);
+            try {
+                fill(minX, minZ, spacing, dataSource);
+            } catch (RuntimeException e) {
+                // DH swallows failed futures silently; without this a broken tile is just a hole in the horizon.
+                stats.error();
+                if (loggedErrors.incrementAndGet() <= 10) {
+                    Fatamorgana.LOGGER.error("Failed to generate LOD tile at block {} {}, detail {}", minX, minZ, detailLevel, e);
+                }
+                throw e;
+            }
             resultConsumer.accept(dataSource);
         }, WorkerPool.get());
     }
@@ -104,17 +124,16 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
         long start = System.nanoTime();
         int width = dataSource.getWidthInDataColumns();
         SurfaceTile tile = SurfaceTile.generate(sampler, minX, minZ, spacing, width, stride);
-        long surfaceDone = System.nanoTime();
 
         List<DhApiTerrainDataPoint> points = new ArrayList<>();
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < width; j++) {
                 points.clear();
                 column(points, minX + i * spacing, minZ + j * spacing, spacing, tile.height(i, j), tile.biome(i, j));
-                dataSource.setApiDataPointColumn(i, j, EDhApiWorldGenerationStep.SURFACE, points);
+                dataSource.setApiDataPointColumn(i, j, STEP, points);
             }
         }
-        record(start, surfaceDone, System.nanoTime());
+        stats.done(System.nanoTime() - start);
     }
 
     /** Builds a column bottom to top; heights in data points are relative to the bottom of the level. */
@@ -187,17 +206,6 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private IDhApiBiomeWrapper biomeWrapper(Holder<Biome> biome) {
         return biomeWrappers.computeIfAbsent(biome,
                 key -> DhApi.Delayed.wrapperFactory.getBiomeWrapper(new Object[]{key}, levelWrapper));
-    }
-
-    private void record(long start, long surfaceDone, long end) {
-        long surface = surfaceNanos.addAndGet(surfaceDone - start);
-        long total = totalNanos.addAndGet(end - start);
-        long count = tiles.incrementAndGet();
-        if (count % STATS_EVERY == 0) {
-            Fatamorgana.LOGGER.info("{} LOD tiles generated for {}: {} ms per tile on average ({} ms surface search)",
-                    count, levelWrapper.getDimensionName(), String.format("%.1f", total / 1e6 / count),
-                    String.format("%.1f", surface / 1e6 / count));
-        }
     }
 
     @Override

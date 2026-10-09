@@ -3,6 +3,7 @@ package com.pockyl.fatamorgana.surface;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.util.KeyDispatchDataCodec;
 import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.DensityFunctions;
 
@@ -22,7 +23,7 @@ import java.util.Set;
  * recognised by structural equality with the cave functions rewritten by the same visitor.
  */
 final class CaveStripper implements DensityFunction.Visitor {
-    private static final DensityFunction SOLID = DensityFunctions.constant(64.0);
+    private static final DensityFunction SOLID = new Solid();
     private static final int MAX_PASSES = 8;
 
     private final Set<DensityFunction> caveNodes = new HashSet<>();
@@ -53,5 +54,31 @@ final class CaveStripper implements DensityFunction.Visitor {
     @Override
     public DensityFunction apply(DensityFunction function) {
         return caveNodes.contains(function) ? SOLID : function;
+    }
+
+    /**
+     * Always solid. Declares an unbounded range: with a constant's exact range vanilla logs a huge warning for every
+     * {@code min}/{@code max} whose inputs cannot overlap, which is the whole point here.
+     */
+    private static final class Solid implements DensityFunction.SimpleFunction {
+        @Override
+        public double compute(FunctionContext context) {
+            return 64.0;
+        }
+
+        @Override
+        public double minValue() {
+            return Double.NEGATIVE_INFINITY;
+        }
+
+        @Override
+        public double maxValue() {
+            return Double.POSITIVE_INFINITY;
+        }
+
+        @Override
+        public KeyDispatchDataCodec<? extends DensityFunction> codec() {
+            throw new UnsupportedOperationException("Cave placeholders are not serializable");
+        }
     }
 }
