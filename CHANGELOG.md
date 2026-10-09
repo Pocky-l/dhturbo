@@ -7,4 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - Unreleased
 
 ### Added
-- Initial release.
+- Distant terrain for [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) generated
+  straight from the world noise, without generating chunks: many times faster than the Distant Horizons generator.
+- Each terrain tile is generated on all worker threads at once.
+- The game's own trees on detailed terrain near the player; species-shaped trees in distant forests.
+- Snow, ice, bare rock on steep slopes, badlands terracotta bands and biome-specific seabeds in the distance.
+- Distant terrain no longer vanishes for a moment while Distant Horizons switches it to more detail.
+- Config: generator on/off, worker threads, full resolution, distant trees, real trees.
