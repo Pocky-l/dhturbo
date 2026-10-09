@@ -5,6 +5,12 @@ terrain straight from the world noise, many times faster, with the game's own tr
 
 *Not affiliated with the Distant Horizons team.*
 
+## Video showcase
+
+[![Turbo for Distant Horizons showcase video](https://img.youtube.com/vi/scB_5JrGfXc/hqdefault.jpg)](https://www.youtube.com/watch?v=scB_5JrGfXc)
+
+*Watch the showcase on [YouTube](https://www.youtube.com/watch?v=scB_5JrGfXc)*
+
 ## Features
 
 - **Fast distant terrain.** Replaces the Distant Horizons world generator: level-of-detail terrain is built straight
