@@ -104,10 +104,15 @@ var installDistantHorizonsClient = tasks.register('installDistantHorizonsClient'
 }
 // -PserverDh=false runs the dev server without Distant Horizons (tests client-side generation).
 var serverDh = providers.gradleProperty('serverDh').map { it != 'false' }.getOrElse(true)
-var installDistantHorizonsServer = tasks.register('installDistantHorizonsServer', Sync) {
-    from(serverDh ? configurations.distantHorizons : files())
-    into 'run-server/mods'
-}
+var installDistantHorizonsServer = serverDh
+        ? tasks.register('installDistantHorizonsServer', Copy) {
+            from configurations.distantHorizons
+            into 'run-server/mods'
+        }
+        : tasks.register('removeDistantHorizonsServer', Delete) {
+            // An empty copy would be skipped (NO-SOURCE) and leave the jar of an earlier run behind.
+            delete fileTree('run-server/mods') { include 'distanthorizons-*.jar' }
+        }
 tasks.named('runClient') { dependsOn installDistantHorizonsClient }
 tasks.named('runServer') { dependsOn installDistantHorizonsServer }
 

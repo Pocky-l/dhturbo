@@ -29,7 +29,7 @@ public final class DhTurbo {
         if (ModList.get().isLoaded("distanthorizons")) {
             DhIntegration.register();
         } else {
-            LOGGER.warn("Distant Horizons is not installed, DH Turbo has nothing to generate for");
+            LOGGER.info("Distant Horizons is not installed: DH Turbo only shares the world generation with players");
         }
     }
 
