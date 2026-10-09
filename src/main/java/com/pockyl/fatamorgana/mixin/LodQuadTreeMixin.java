@@ -10,6 +10,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.fatamorgana.Config;
@@ -51,7 +52,22 @@ abstract class LodQuadTreeMixin {
         // deletes these children as usual.
         cover.forEach(tickNodeHolder::addEnableNode);
         tickNodeHolder.addDisableNode(quadNode);
+        HoleStats.covered();
         callback.setReturnValue(true);
+    }
+
+    @Inject(method = "onDesiredDetailLevel", at = @At("RETURN"))
+    private void fatamorgana$collectHoleCandidates(QuadNode<LodRenderSection> quadNode, QuadNode<LodRenderSection> parentNode,
+                                                   CallbackInfoReturnable<Boolean> callback) {
+        // Not rendering itself; whether an ancestor covers it is only known once the whole tree is updated.
+        if (!callback.getReturnValueZ()) {
+            HoleStats.candidate(quadNode);
+        }
+    }
+
+    @Inject(method = "updateAllRenderSections", at = @At("TAIL"))
+    private void fatamorgana$countHoles(CallbackInfo callback) {
+        HoleStats.endTick(tickNodeHolder.getEnabledNodes(), tickNodeHolder.getEnableDeleteChildrenNodes());
     }
 
     private static boolean coveredByFiner(QuadNode<LodRenderSection> node, List<QuadNode<LodRenderSection>> cover, int depth) {
