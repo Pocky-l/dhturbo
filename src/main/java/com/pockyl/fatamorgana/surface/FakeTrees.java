@@ -1,29 +1,33 @@
 package com.pockyl.fatamorgana.surface;
 
 import net.minecraft.util.Mth;
+import net.minecraft.world.level.block.state.BlockState;
 
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Deterministic stand-ins for trees: no features are generated, a hash of the position decides where canopies are.
+ * Deterministic stand-ins for trees: no features are generated, a hash of the position decides where crowns are.
  * <p>
- * Close LOD columns (a few blocks wide) get round canopies with a trunk and an air gap below, so single trees read
- * as trees. Wide columns only get a leaf block of the right height with the biome's canopy coverage as probability,
- * which averages out to the right shade of forest from afar.
+ * Close LOD columns (a few blocks wide) get crowns shaped like the species ({@link BiomeLook.Shape}) with a trunk and
+ * air below, so single trees read as trees. Wide columns only get a leaf block of the right height with the biome's
+ * canopy coverage as probability, which averages out to the right shade of forest from afar.
  */
 public final class FakeTrees {
     /** Columns up to this width get individual tree shapes. */
-    private static final int SHAPED_MAX_SPACING = 4;
+    public static final int SHAPED_MAX_SPACING = 4;
 
     private FakeTrees() {
     }
 
     /**
-     * Canopy over a column, heights in blocks above the ground.
+     * Leaves over a column, heights in blocks above the ground.
      *
-     * @param trunk whether the column is the trunk of a tree (log under the leaves instead of air)
+     * @param trunk whether the column holds the trunk ({@code log} under the leaves instead of air)
      */
-    public record Canopy(BiomeLook.Tree tree, boolean trunk, int leavesBottom, int leavesTop) {
+    public record Canopy(BlockState leaves, BlockState log, boolean trunk, int leavesBottom, int leavesTop) {
+        public boolean higherThan(@Nullable Canopy other) {
+            return other == null || leavesTop > other.leavesTop;
+        }
     }
 
     @Nullable
@@ -37,9 +41,55 @@ public final class FakeTrees {
             if (unit(hash) >= look.treeCoverage()) {
                 return null;
             }
-            return new Canopy(tree, false, 0, height(tree, hash & 0xFFFFFF));
+            return new Canopy(tree.leaves(), tree.log(), false, 0, height(tree, hash & 0xFFFFFF));
         }
         return shaped(seed, x, z, tree, look.treeCoverage());
+    }
+
+    /**
+     * The part of a crown above a column {@code distance} blocks from the trunk, or null when the column is outside.
+     *
+     * @param height height of the tree top above the ground
+     */
+    @Nullable
+    public static Canopy crown(BiomeLook.Tree tree, int height, double distance, double radius) {
+        boolean trunk = distance < 0.75;
+        if (distance > radius) {
+            return null;
+        }
+        double edge = Math.sqrt(Math.max(0, 1 - (distance / radius) * (distance / radius)));
+        int bottom;
+        int top;
+        switch (tree.shape()) {
+            case CONE -> {
+                bottom = Math.max(1, height / 4);
+                top = height - (int) Math.round(distance / radius * (height - bottom));
+            }
+            case UMBRELLA -> {
+                bottom = height - 2;
+                top = height;
+            }
+            case DOME -> {
+                int crown = Math.max(3, Mth.ceil(radius * 1.2));
+                bottom = height - crown;
+                top = bottom + Math.max(1, (int) Math.round(crown * edge));
+            }
+            default -> {
+                int crown = Math.max(3, Mth.ceil(radius * 1.6));
+                int center = height - crown / 2;
+                int half = Math.max(1, (int) Math.round(crown / 2.0 * edge));
+                bottom = center - half;
+                top = center + half;
+            }
+        }
+        bottom = Math.max(1, bottom);
+        if (top <= bottom) {
+            if (!trunk) {
+                return null;
+            }
+            top = bottom + 1;
+        }
+        return new Canopy(tree.leaves(), tree.log(), trunk, bottom, top);
     }
 
     @Nullable
@@ -58,15 +108,10 @@ public final class FakeTrees {
                 }
                 int centerX = (cellX + dx) * cell + (int) (hash & 0xFF) % cell;
                 int centerZ = (cellZ + dz) * cell + (int) ((hash >>> 8) & 0xFF) % cell;
-                int distanceSq = (x - centerX) * (x - centerX) + (z - centerZ) * (z - centerZ);
-                if (distanceSq > tree.radius() * tree.radius()) {
-                    continue;
-                }
-                int top = height(tree, (hash >>> 16) & 0xFFFFFF);
-                if (best == null || top > best.leavesTop()) {
-                    // Spruce-like tall trees have leaves almost down to the ground, round trees a crown on top.
-                    int crown = tree.maxHeight() > 12 ? top * 3 / 4 : Math.min(top - 1, Mth.ceil(tree.radius() * 2));
-                    best = new Canopy(tree, distanceSq == 0, top - crown, top);
+                double distance = Math.sqrt((double) (x - centerX) * (x - centerX) + (double) (z - centerZ) * (z - centerZ));
+                Canopy canopy = crown(tree, height(tree, (hash >>> 16) & 0xFFFFFF), distance, tree.radius());
+                if (canopy != null && canopy.higherThan(best)) {
+                    best = canopy;
                 }
             }
         }
@@ -82,7 +127,7 @@ public final class FakeTrees {
         return (hash >>> 40) / (double) (1L << 24);
     }
 
-    private static long hash(long seed, int x, int z) {
+    static long hash(long seed, int x, int z) {
         long h = seed ^ (x * 0x9E3779B97F4A7C15L) ^ (z * 0xC2B2AE3D27D4EB4FL);
         h = (h ^ (h >>> 30)) * 0xBF58476D1CE4E5B9L;
         h = (h ^ (h >>> 27)) * 0x94D049BB133111EBL;

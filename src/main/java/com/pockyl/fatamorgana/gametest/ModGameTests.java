@@ -4,6 +4,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
@@ -50,6 +51,38 @@ public final class ModGameTests {
         Fatamorgana.LOGGER.info("Surface vs vanilla on cell corners: {}", accuracy);
         if (accuracy.withinTwo() < 0.85) {
             helper.fail("Surface too far from vanilla: " + accuracy);
+        }
+        helper.succeed();
+    }
+
+    /** Vanilla tree features must run on the virtual level without failing and produce trees in a forest. */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void realTreesGrowInForests(GameTestHelper helper) {
+        SurfaceBenchmark benchmark = overworldBenchmark(helper.getLevel().registryAccess());
+        Random random = new Random(7);
+        int forests = 0;
+        int treeColumns = 0;
+        long failures = 0;
+        for (int attempt = 0; attempt < 400 && forests < 5; attempt++) {
+            int x = (random.nextInt(40_000) - 20_000) & ~63;
+            int z = (random.nextInt(40_000) - 20_000) & ~63;
+            int y = benchmark.fast().surfaceHeight(x + 32, z + 32, benchmark.fast().seaLevel());
+            if (y <= benchmark.fast().seaLevel() || !benchmark.fast().biome(x + 32, y, z + 32).is(BiomeTags.IS_FOREST)) {
+                continue;
+            }
+            forests++;
+            SurfaceBenchmark.Planted planted = benchmark.plant(x, z, 1);
+            treeColumns += planted.treeColumns();
+            failures += planted.failures();
+        }
+        Fatamorgana.LOGGER.info("Real trees in {} forest tiles: {} tree columns, {} failed features", forests, treeColumns,
+                failures);
+        if (forests == 0) {
+            helper.fail("No forest found to test trees in");
+        } else if (failures > 0) {
+            helper.fail(failures + " tree features failed on the virtual level");
+        } else if (treeColumns < forests * 500) {
+            helper.fail("Too few trees in forests: " + treeColumns + " columns in " + forests + " tiles");
         }
         helper.succeed();
     }

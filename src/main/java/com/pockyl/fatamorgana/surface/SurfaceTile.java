@@ -18,12 +18,18 @@ public final class SurfaceTile {
     /** Sample rows per parallel band; small enough to spread a tile over many threads. */
     private static final int BAND_ROWS = 4;
 
+    public final int minX;
+    public final int minZ;
+    public final int spacing;
     public final int width;
     public final int[] heights;
     public final Holder<Biome>[] biomes;
 
     @SuppressWarnings("unchecked")
-    private SurfaceTile(int width) {
+    private SurfaceTile(int minX, int minZ, int spacing, int width) {
+        this.minX = minX;
+        this.minZ = minZ;
+        this.spacing = spacing;
         this.width = width;
         this.heights = new int[width * width];
         this.biomes = (Holder<Biome>[]) new Holder[width * width];
@@ -37,6 +43,31 @@ public final class SurfaceTile {
         return biomes[i + j * width];
     }
 
+    /** Column index of block X (or Z), clamped to the tile. */
+    public int index(int block, int min) {
+        return Math.clamp(Math.floorDiv(block - min, spacing), 0, width - 1);
+    }
+
+    /** Height of the column containing the block, the nearest edge column outside the tile. */
+    public int heightAt(int x, int z) {
+        return height(index(x, minX), index(z, minZ));
+    }
+
+    public Holder<Biome> biomeAt(int x, int z) {
+        return biome(index(x, minX), index(z, minZ));
+    }
+
+    /** Steepness at a column: height change per block, the larger of the two horizontal directions. */
+    public double slope(int i, int j) {
+        int dx = height(Math.min(i + 1, width - 1), j) - height(Math.max(i - 1, 0), j);
+        int dz = height(i, Math.min(j + 1, width - 1)) - height(i, Math.max(j - 1, 0));
+        int span = (Math.min(i + 1, width - 1) - Math.max(i - 1, 0));
+        int spanZ = (Math.min(j + 1, width - 1) - Math.max(j - 1, 0));
+        double sx = span == 0 ? 0 : Math.abs(dx) / (double) (span * spacing);
+        double sz = spanZ == 0 ? 0 : Math.abs(dz) / (double) (spanZ * spacing);
+        return Math.max(sx, sz);
+    }
+
     /**
      * Generates a tile. When called from a fork-join worker, the tile is split into bands of rows computed in
      * parallel by that pool, so a single tile uses every worker.
@@ -45,7 +76,7 @@ public final class SurfaceTile {
      *               vanilla cell are always interpolated, since the real terrain is linear between cell corners anyway
      */
     public static SurfaceTile generate(SurfaceSampler sampler, int minX, int minZ, int spacing, int width, int stride) {
-        SurfaceTile tile = new SurfaceTile(width);
+        SurfaceTile tile = new SurfaceTile(minX, minZ, spacing, width);
         int step = Math.max(stride, Math.max(1, CELL_WIDTH / spacing));
         int samples = (width - 1 + step - 1) / step + 1;
         Lattice lattice = new Lattice(samples);
@@ -75,7 +106,8 @@ public final class SurfaceTile {
         return tile;
     }
 
-    private static void run(List<Runnable> tasks) {
+    /** Runs the tasks in parallel when called from a fork-join worker, otherwise one after another. */
+    static void run(List<Runnable> tasks) {
         if (!ForkJoinTask.inForkJoinPool()) {
             tasks.forEach(Runnable::run);
             return;

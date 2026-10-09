@@ -10,7 +10,9 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 
+import com.pockyl.fatamorgana.surface.RealTrees;
 import com.pockyl.fatamorgana.surface.SurfaceSampler;
 import com.pockyl.fatamorgana.surface.SurfaceTile;
 
@@ -42,6 +44,7 @@ public final class SurfaceBenchmark {
     private final NoiseBasedChunkGenerator vanilla;
     private final RandomState randomState;
     private final LevelHeightAccessor heightAccessor;
+    private final RealTrees realTrees;
 
     public SurfaceBenchmark(RegistryAccess registries, Holder<NoiseGeneratorSettings> settings, BiomeSource biomeSource,
                             long seed) {
@@ -51,6 +54,29 @@ public final class SurfaceBenchmark {
         this.dhStyle = new DhStyleSurface(randomState, biomeSource, fast.minY(), fast.maxY());
         this.vanilla = new NoiseBasedChunkGenerator(biomeSource, settings);
         this.heightAccessor = LevelHeightAccessor.create(value.noiseSettings().minY(), value.noiseSettings().height());
+        this.realTrees = new RealTrees(vanilla, fast, seed, registries,
+                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD));
+    }
+
+    /** Result of planting the real trees of one tile. */
+    public record Planted(int treeColumns, long failures, double millis) {
+    }
+
+    /** Plants the trees of a full-detail tile at the given corner, the way the generator does. */
+    public Planted plant(int minX, int minZ, int spacing) {
+        long start = System.nanoTime();
+        int margin = RealTrees.MARGIN / spacing + 1;
+        SurfaceTile area = SurfaceTile.generate(fast, minX - margin * spacing, minZ - margin * spacing, spacing,
+                TILE_WIDTH + 2 * margin, 1);
+        RealTrees.TileTrees trees = realTrees.plant(area, minX, minZ, TILE_WIDTH);
+        double millis = (System.nanoTime() - start) / 1e6;
+        int columns = 0;
+        for (var canopy : trees.canopies()) {
+            if (canopy != null) {
+                columns++;
+            }
+        }
+        return new Planted(columns, realTrees.takeFailures(), millis);
     }
 
     /** Result of comparing heights of one algorithm with vanilla. */
@@ -87,6 +113,31 @@ public final class SurfaceBenchmark {
                     millis(fastNanos, origins.length), (double) dhNanos / fastNanos,
                     millis(fastStrideNanos, origins.length), (double) dhNanos / fastStrideNanos));
             report.add("  height error vs vanilla: DH-style " + dhAccuracy + " | Fata " + fastAccuracy);
+        }
+        for (int spacing : new int[]{1, 2}) {
+            int[][] origins = origins(random, tilesPerSpacing, spacing);
+            long surfaceOnly = time(origins, origin -> SurfaceTile.generate(fast, origins[origin][0] - 17 * spacing,
+                    origins[origin][1] - 17 * spacing, spacing, TILE_WIDTH + 34, 1));
+            double plantMillis = 0;
+            long failures = 0;
+            int columns = 0;
+            for (int[] origin : origins) {
+                Planted planted = plant(origin[0], origin[1], spacing);
+                plantMillis += planted.millis();
+                failures += planted.failures();
+                columns += planted.treeColumns();
+            }
+            ForkJoinPool pool = new ForkJoinPool(threads);
+            long split;
+            try {
+                split = time(origins, origin -> pool.invoke(ForkJoinTask.adapt(() -> plant(origins[origin][0], origins[origin][1], spacing))));
+            } finally {
+                pool.shutdown();
+            }
+            report.add(String.format(Locale.ROOT,
+                    "real trees, detail %d: %.1f ms/tile with trees vs %.1f ms surface only (%.1f ms split over %d threads), %d tree columns per tile, %d failed features",
+                    Integer.numberOfTrailingZeros(spacing), plantMillis / origins.length, millis(surfaceOnly, origins.length),
+                    millis(split, origins.length), threads, columns / origins.length, failures));
         }
         if (threads > 1) {
             int[][] origins = origins(random, threads * 4, 16);

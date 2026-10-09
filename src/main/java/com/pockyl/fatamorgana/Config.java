@@ -18,15 +18,26 @@ public final class Config {
             .defineInRange("threads", 0, 0, 64);
 
     public static final ModConfigSpec.BooleanValue FULL_RESOLUTION = BUILDER
-            .comment("Compute the height of every LOD column instead of one in four (the rest is interpolated).",
+            .comment("Compute the height of every LOD column everywhere instead of one in four (the rest is interpolated).",
                     "About 3x slower, sharper distant cliffs.")
             .translation("fatamorgana.configuration.full_resolution")
             .define("full_resolution", false);
+
+    public static final ModConfigSpec.IntValue FULL_RESOLUTION_RADIUS = BUILDER
+            .comment("Within this many blocks of a player every LOD column is computed, also with full_resolution off.")
+            .translation("fatamorgana.configuration.full_resolution_radius")
+            .defineInRange("full_resolution_radius", 768, 0, 16384);
 
     public static final ModConfigSpec.BooleanValue FAKE_TREES = BUILDER
             .comment("Add approximate tree canopies to forests, so they are not bald until real chunks load.")
             .translation("fatamorgana.configuration.fake_trees")
             .define("fake_trees", true);
+
+    public static final ModConfigSpec.BooleanValue REAL_TREES = BUILDER
+            .comment("On detailed LODs near the player, replay the game's own tree placement: trees stand where and as",
+                    "they will in the real world. Otherwise (and farther away) trees are approximate.")
+            .translation("fatamorgana.configuration.real_trees")
+            .define("real_trees", true);
 
     public static final ModConfigSpec SPEC = BUILDER.build();
 

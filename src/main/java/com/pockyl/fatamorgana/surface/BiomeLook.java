@@ -27,26 +27,40 @@ import java.util.concurrent.ConcurrentHashMap;
 public record BiomeLook(BlockState top, BlockState underwater, @Nullable Tree tree, double treeCoverage) {
     private static final Map<Holder<Biome>, BiomeLook> CACHE = new ConcurrentHashMap<>();
 
+    /** Silhouette of a crown, see {@link FakeTrees#crown}. */
+    public enum Shape {
+        /** Ellipsoid crown on a trunk: oak, birch. */
+        ROUND,
+        /** Cone from low on the trunk to the tip: spruce, pine. */
+        CONE,
+        /** Flat layer on top: acacia. */
+        UMBRELLA,
+        /** Wide half-ellipsoid: dark oak, jungle, cherry, mangrove. */
+        DOME
+    }
+
     /**
-     * Tree shape: canopy of {@code leaves} with a {@code log} trunk; heights in blocks above the ground.
+     * Tree shape: crown of {@code leaves} with a {@code log} trunk; heights in blocks above the ground.
      *
-     * @param radius canopy radius in blocks
+     * @param radius crown radius in blocks
      */
-    public record Tree(BlockState leaves, BlockState log, int minHeight, int maxHeight, double radius) {
-        static Tree of(Block leaves, Block log, int minHeight, int maxHeight, double radius) {
-            return new Tree(leaves.defaultBlockState(), log.defaultBlockState(), minHeight, maxHeight, radius);
+    public record Tree(BlockState leaves, BlockState log, int minHeight, int maxHeight, double radius, Shape shape) {
+        static Tree of(Block leaves, Block log, int minHeight, int maxHeight, double radius, Shape shape) {
+            return new Tree(leaves.defaultBlockState(), log.defaultBlockState(), minHeight, maxHeight, radius, shape);
         }
     }
 
-    private static final Tree OAK = Tree.of(Blocks.OAK_LEAVES, Blocks.OAK_LOG, 5, 7, 2.5);
-    private static final Tree BIRCH = Tree.of(Blocks.BIRCH_LEAVES, Blocks.BIRCH_LOG, 6, 9, 2.0);
-    private static final Tree SPRUCE = Tree.of(Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_LOG, 7, 14, 2.0);
-    private static final Tree OLD_SPRUCE = Tree.of(Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_LOG, 14, 28, 3.0);
-    private static final Tree DARK_OAK = Tree.of(Blocks.DARK_OAK_LEAVES, Blocks.DARK_OAK_LOG, 6, 9, 3.5);
-    private static final Tree JUNGLE = Tree.of(Blocks.JUNGLE_LEAVES, Blocks.JUNGLE_LOG, 8, 22, 3.5);
-    private static final Tree ACACIA = Tree.of(Blocks.ACACIA_LEAVES, Blocks.ACACIA_LOG, 5, 8, 3.0);
-    private static final Tree CHERRY = Tree.of(Blocks.CHERRY_LEAVES, Blocks.CHERRY_LOG, 5, 8, 3.0);
-    private static final Tree MANGROVE = Tree.of(Blocks.MANGROVE_LEAVES, Blocks.MANGROVE_LOG, 6, 10, 3.0);
+    // Sizes follow the vanilla features (trunk placer heights, foliage radii).
+    private static final Tree OAK = Tree.of(Blocks.OAK_LEAVES, Blocks.OAK_LOG, 5, 7, 2.5, Shape.ROUND);
+    private static final Tree BIRCH = Tree.of(Blocks.BIRCH_LEAVES, Blocks.BIRCH_LOG, 6, 8, 2.0, Shape.ROUND);
+    private static final Tree TALL_BIRCH = Tree.of(Blocks.BIRCH_LEAVES, Blocks.BIRCH_LOG, 9, 15, 2.0, Shape.ROUND);
+    private static final Tree SPRUCE = Tree.of(Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_LOG, 7, 10, 2.5, Shape.CONE);
+    private static final Tree OLD_SPRUCE = Tree.of(Blocks.SPRUCE_LEAVES, Blocks.SPRUCE_LOG, 15, 30, 4.0, Shape.CONE);
+    private static final Tree DARK_OAK = Tree.of(Blocks.DARK_OAK_LEAVES, Blocks.DARK_OAK_LOG, 7, 9, 4.0, Shape.DOME);
+    private static final Tree JUNGLE = Tree.of(Blocks.JUNGLE_LEAVES, Blocks.JUNGLE_LOG, 10, 30, 4.5, Shape.DOME);
+    private static final Tree ACACIA = Tree.of(Blocks.ACACIA_LEAVES, Blocks.ACACIA_LOG, 6, 8, 3.5, Shape.UMBRELLA);
+    private static final Tree CHERRY = Tree.of(Blocks.CHERRY_LEAVES, Blocks.CHERRY_LOG, 7, 9, 4.0, Shape.DOME);
+    private static final Tree MANGROVE = Tree.of(Blocks.MANGROVE_LEAVES, Blocks.MANGROVE_LOG, 7, 12, 3.5, Shape.DOME);
 
     public static BiomeLook of(Holder<Biome> biome) {
         return CACHE.computeIfAbsent(biome, BiomeLook::create);
@@ -58,8 +72,11 @@ public record BiomeLook(BlockState top, BlockState underwater, @Nullable Tree tr
         if (is(biome, Biomes.DARK_FOREST)) {
             return new BiomeLook(top, underwater, DARK_OAK, 0.85);
         }
-        if (is(biome, Biomes.BIRCH_FOREST) || is(biome, Biomes.OLD_GROWTH_BIRCH_FOREST)) {
+        if (is(biome, Biomes.BIRCH_FOREST)) {
             return new BiomeLook(top, underwater, BIRCH, 0.55);
+        }
+        if (is(biome, Biomes.OLD_GROWTH_BIRCH_FOREST)) {
+            return new BiomeLook(top, underwater, TALL_BIRCH, 0.55);
         }
         if (is(biome, Biomes.CHERRY_GROVE)) {
             return new BiomeLook(top, underwater, CHERRY, 0.3);
@@ -128,9 +145,6 @@ public record BiomeLook(BlockState top, BlockState underwater, @Nullable Tree tr
         }
         if (is(biome, Biomes.OLD_GROWTH_PINE_TAIGA) || is(biome, Biomes.OLD_GROWTH_SPRUCE_TAIGA)) {
             return Blocks.PODZOL;
-        }
-        if (!biome.is(BiomeTags.IS_OVERWORLD)) {
-            return Blocks.STONE;
         }
         return Blocks.GRASS_BLOCK;
     }

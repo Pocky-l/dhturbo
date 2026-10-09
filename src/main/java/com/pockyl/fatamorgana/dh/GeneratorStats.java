@@ -1,11 +1,9 @@
 package com.pockyl.fatamorgana.dh;
 
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 
 import com.pockyl.fatamorgana.Fatamorgana;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,6 +26,7 @@ final class GeneratorStats {
     private final LongAdder[] distanceSum = adders();
     private final LongAdder nanos = new LongAdder();
     private final LongAdder errors = new LongAdder();
+    private final LongAdder treeFailures = new LongAdder();
     private final Set<Long> seen = ConcurrentHashMap.newKeySet();
     private final AtomicLong nextReport = new AtomicLong(System.nanoTime() + INTERVAL_NANOS);
     private volatile long total;
@@ -56,6 +55,10 @@ final class GeneratorStats {
         errors.increment();
     }
 
+    void treeFailures(long count) {
+        treeFailures.add(count);
+    }
+
     private void report() {
         long now = System.nanoTime();
         long due = nextReport.get();
@@ -78,22 +81,14 @@ final class GeneratorStats {
         long tileNanos = nanos.sumThenReset();
         total += count;
         Fatamorgana.LOGGER.info(String.format(Locale.ROOT,
-                "[stats %s] last 10 s: %d tiles, %.1f ms/tile, %d errors, %d total |%s", name, count,
-                count == 0 ? 0 : tileNanos / 1e6 / count, errors.sumThenReset(), total, levels));
+                "[stats %s] last 10 s: %d tiles, %.1f ms/tile, %d errors, %d failed tree features, %d total |%s", name,
+                count, count == 0 ? 0 : tileNanos / 1e6 / count, errors.sumThenReset(), treeFailures.sumThenReset(), total,
+                levels));
     }
 
     private int distanceToPlayer(int x, int z) {
-        try {
-            List<ServerPlayer> players = level.players();
-            if (players.isEmpty()) {
-                return -1;
-            }
-            ServerPlayer player = players.get(0);
-            return (int) Math.sqrt((player.getX() - x) * (player.getX() - x) + (player.getZ() - z) * (player.getZ() - z));
-        } catch (RuntimeException e) {
-            // The player list belongs to the server thread; a racy read is fine for statistics.
-            return -1;
-        }
+        double distance = Players.nearestDistance(level, x, z);
+        return distance == Double.MAX_VALUE ? -1 : (int) distance;
     }
 
     private static LongAdder[] adders() {

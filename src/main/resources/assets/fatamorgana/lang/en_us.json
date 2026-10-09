@@ -10,5 +10,9 @@
   "fatamorgana.configuration.full_resolution": "Full Resolution",
   "fatamorgana.configuration.full_resolution.tooltip": "Compute every LOD column instead of one in four. About 3x slower, sharper distant cliffs.",
   "fatamorgana.configuration.fake_trees": "Fake Trees",
-  "fatamorgana.configuration.fake_trees.tooltip": "Add approximate tree canopies to forests, so they are not bald until real chunks load."
+  "fatamorgana.configuration.fake_trees.tooltip": "Add approximate tree canopies to forests, so they are not bald until real chunks load.",
+  "fatamorgana.configuration.full_resolution_radius": "Full Resolution Radius",
+  "fatamorgana.configuration.full_resolution_radius.tooltip": "Within this many blocks of a player every LOD column is computed, even with Full Resolution off.",
+  "fatamorgana.configuration.real_trees": "Real Trees",
+  "fatamorgana.configuration.real_trees.tooltip": "On detailed LODs near the player, replay the game's own tree placement: trees stand where and as they will in the real world."
 }

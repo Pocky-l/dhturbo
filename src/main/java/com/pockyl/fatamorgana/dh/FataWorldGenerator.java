@@ -25,6 +25,8 @@ import com.pockyl.fatamorgana.Config;
 import com.pockyl.fatamorgana.Fatamorgana;
 import com.pockyl.fatamorgana.surface.BiomeLook;
 import com.pockyl.fatamorgana.surface.FakeTrees;
+import com.pockyl.fatamorgana.surface.RealTrees;
+import com.pockyl.fatamorgana.surface.SurfaceDetail;
 import com.pockyl.fatamorgana.surface.SurfaceSampler;
 import com.pockyl.fatamorgana.surface.SurfaceTile;
 
@@ -39,7 +41,7 @@ import java.util.function.Consumer;
 
 /**
  * Distant Horizons world generator that builds LODs straight from the terrain noise: surface, water, snow, ice and
- * fake trees, no chunks. Every detail level costs the same, so the far horizon fills as fast as the near one.
+ * fake trees, no chunks. Every detail level costs about the same, so the far horizon fills as fast as the near one.
  */
 final class FataWorldGenerator implements IDhApiWorldGenerator {
     /** Detail levels DH may ask for: 0 = one block per column, 12 = 4096 blocks per column. */
@@ -53,11 +55,17 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
      */
     private static final EDhApiWorldGenerationStep STEP = EDhApiWorldGenerationStep.FEATURES;
 
+    /** Columns at most this wide get the game's own trees (when enabled); wider ones approximate trees. */
+    private static final int REAL_TREES_MAX_SPACING = 2;
+
     private final IDhApiLevelWrapper levelWrapper;
+    private final ServerLevel level;
     private final SurfaceSampler sampler;
+    private final RealTrees realTrees;
     private final BlockState defaultBlock;
     private final long seed;
-    private final int stride;
+    private final boolean fullResolution;
+    private final int fullResolutionRadius;
     private final boolean fakeTrees;
     private final Map<BlockState, IDhApiBlockStateWrapper> blockWrappers = new ConcurrentHashMap<>();
     private final Map<Holder<Biome>, IDhApiBiomeWrapper> biomeWrappers = new ConcurrentHashMap<>();
@@ -67,11 +75,16 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     FataWorldGenerator(IDhApiLevelWrapper levelWrapper, ServerLevel level, NoiseBasedChunkGenerator generator) {
         NoiseGeneratorSettings settings = generator.generatorSettings().value();
         this.levelWrapper = levelWrapper;
+        this.level = level;
         this.sampler = new SurfaceSampler(level.registryAccess(), settings, generator.getBiomeSource(), level.getSeed());
+        this.fakeTrees = Config.FAKE_TREES.get();
+        this.realTrees = fakeTrees && Config.REAL_TREES.get()
+                ? new RealTrees(generator, sampler, level.getSeed(), level.registryAccess(), level.dimensionType())
+                : null;
         this.defaultBlock = settings.defaultBlock();
         this.seed = level.getSeed();
-        this.stride = Config.FULL_RESOLUTION.get() ? 1 : 2;
-        this.fakeTrees = Config.FAKE_TREES.get();
+        this.fullResolution = Config.FULL_RESOLUTION.get();
+        this.fullResolutionRadius = Config.FULL_RESOLUTION_RADIUS.get();
         this.stats = new GeneratorStats(level, levelWrapper.getDimensionName());
     }
 
@@ -123,21 +136,49 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private void fill(int minX, int minZ, int spacing, IDhApiFullDataSource dataSource) {
         long start = System.nanoTime();
         int width = dataSource.getWidthInDataColumns();
-        SurfaceTile tile = SurfaceTile.generate(sampler, minX, minZ, spacing, width, stride);
+        int half = width * spacing / 2;
+        boolean near = fullResolution || Players.nearestDistance(level, minX + half, minZ + half) <= fullResolutionRadius;
+        boolean real = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
+        // A margin of columns around the tile: slopes at the edges, and trees of neighbouring chunks.
+        int margin = real ? RealTrees.MARGIN / spacing + 1 : 1;
+        SurfaceTile area = SurfaceTile.generate(sampler, minX - margin * spacing, minZ - margin * spacing, spacing,
+                width + 2 * margin, near ? 1 : 2);
+        RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width) : null;
+        if (real) {
+            stats.treeFailures(realTrees.takeFailures());
+        }
 
         List<DhApiTerrainDataPoint> points = new ArrayList<>();
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < width; j++) {
                 points.clear();
-                column(points, minX + i * spacing, minZ + j * spacing, spacing, tile.height(i, j), tile.biome(i, j));
+                int x = minX + i * spacing;
+                int z = minZ + j * spacing;
+                FakeTrees.Canopy canopy = null;
+                BlockState treeTop = null;
+                if (trees != null) {
+                    canopy = trees.canopies()[i + j * width];
+                    treeTop = trees.tops()[i + j * width];
+                } else if (fakeTrees) {
+                    canopy = FakeTrees.at(seed, x, z, spacing, BiomeLook.of(area.biome(i + margin, j + margin)));
+                }
+                column(points, x, z, area, i + margin, j + margin, canopy, treeTop);
                 dataSource.setApiDataPointColumn(i, j, STEP, points);
             }
         }
         stats.done(System.nanoTime() - start);
     }
 
-    /** Builds a column bottom to top; heights in data points are relative to the bottom of the level. */
-    private void column(List<DhApiTerrainDataPoint> points, int x, int z, int spacing, int ground, Holder<Biome> biome) {
+    /**
+     * Builds a column bottom to top; heights in data points are relative to the bottom of the level.
+     *
+     * @param canopy  tree over the column, or null
+     * @param treeTop top block the trees replaced (podzol under giant spruces), or null
+     */
+    private void column(List<DhApiTerrainDataPoint> points, int x, int z, SurfaceTile area, int i, int j,
+                        FakeTrees.Canopy canopy, BlockState treeTop) {
+        int ground = area.height(i, j);
+        Holder<Biome> biome = area.biome(i, j);
         int minY = sampler.minY();
         int top = sampler.maxY() - minY;
         int seaLevel = sampler.seaLevel();
@@ -166,26 +207,29 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
             return;
         }
 
-        BlockState surface = overworld ? look.top() : defaultBlock;
-        if (overworld && biome.value().coldEnoughToSnow(new BlockPos(x, ground, z))) {
-            surface = Blocks.SNOW_BLOCK.defaultBlockState();
+        BlockState surface;
+        if (!overworld) {
+            surface = defaultBlock;
+        } else if (treeTop != null) {
+            surface = treeTop;
+        } else {
+            surface = SurfaceDetail.top(biome, look, seed, x, ground, z, area.slope(i, j));
         }
         if (groundRel > 0) {
             points.add(point(surface, MAX_LIGHT, 0, groundRel, biomeWrapper));
         }
         int airFrom = groundRel;
-        FakeTrees.Canopy canopy = fakeTrees && overworld ? FakeTrees.at(seed, x, z, spacing, look) : null;
-        if (canopy != null) {
-            int leavesBottom = Math.min(top, groundRel + canopy.leavesBottom());
+        if (canopy != null && overworld) {
+            int leavesBottom = Math.min(top, groundRel + Math.max(0, canopy.leavesBottom()));
             int leavesTop = Math.min(top, groundRel + canopy.leavesTop());
             if (leavesBottom > groundRel) {
-                BlockState under = canopy.trunk() ? canopy.tree().log() : Blocks.AIR.defaultBlockState();
+                BlockState under = canopy.trunk() ? canopy.log() : Blocks.AIR.defaultBlockState();
                 points.add(point(under, MAX_LIGHT, groundRel, leavesBottom, biomeWrapper));
             }
             if (leavesTop > leavesBottom) {
-                points.add(point(canopy.tree().leaves(), MAX_LIGHT, leavesBottom, leavesTop, biomeWrapper));
+                points.add(point(canopy.leaves(), MAX_LIGHT, leavesBottom, leavesTop, biomeWrapper));
             }
-            airFrom = leavesTop;
+            airFrom = Math.max(groundRel, Math.max(leavesBottom, leavesTop));
         }
         if (airFrom < top) {
             points.add(point(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, top, biomeWrapper));
