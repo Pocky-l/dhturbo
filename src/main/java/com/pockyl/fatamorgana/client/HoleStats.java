@@ -1,4 +1,4 @@
-package com.pockyl.fatamorgana.mixin;
+package com.pockyl.fatamorgana.client;
 
 import com.seibel.distanthorizons.core.pos.DhSectionPos;
 import com.seibel.distanthorizons.core.render.QuadTree.LodRenderSection;
@@ -18,12 +18,13 @@ import java.util.Set;
 /**
  * Diagnostics for LODs that should be on screen but are not: every 10 seconds logs how many sections were holes
  * while the player looked around, why (no section yet, waiting to load, loading, loaded without data), how far away
- * and at which detail level. Called from the quad tree thread only.
+ * and at which detail level. Called from the quad tree thread only, through {@code LodQuadTreeMixin}; it lives outside
+ * the mixin package because classes there cannot be loaded directly.
  */
-final class HoleStats {
+public final class HoleStats {
     private static final long INTERVAL_NANOS = 10_000_000_000L;
-    /** Section detail levels above any real tree root. */
-    private static final int MAX_SECTION_DETAIL = 32;
+    /** Levels above a section that can hold a rendering ancestor; DH trees are far shallower. */
+    private static final int MAX_ANCESTOR_LEVELS = 16;
     private static final String[] REASONS = {"no section", "waiting to load", "loading", "no data"};
 
     private static final Set<Long> HOLES = new HashSet<>();
@@ -37,19 +38,19 @@ final class HoleStats {
     private HoleStats() {
     }
 
-    static void covered() {
+    public static void covered() {
         coveredTicks++;
     }
 
     private static final List<QuadNode<LodRenderSection>> CANDIDATES = new ArrayList<>();
     private static final Set<Long> RENDERED = new HashSet<>();
 
-    static void candidate(QuadNode<LodRenderSection> node) {
+    public static void candidate(QuadNode<LodRenderSection> node) {
         CANDIDATES.add(node);
     }
 
     /** Candidates not covered by a rendering ancestor are holes on screen. */
-    static void endTick(Collection<QuadNode<LodRenderSection>> enabled, Collection<QuadNode<LodRenderSection>> enabledDeleteChildren) {
+    public static void endTick(Collection<QuadNode<LodRenderSection>> enabled, Collection<QuadNode<LodRenderSection>> enabledDeleteChildren) {
         RENDERED.clear();
         enabled.forEach(node -> RENDERED.add(node.sectionPos));
         enabledDeleteChildren.forEach(node -> RENDERED.add(node.sectionPos));
@@ -64,7 +65,7 @@ final class HoleStats {
 
     private static boolean coveredByAncestor(long pos) {
         long current = pos;
-        for (int level = DhSectionPos.getDetailLevel(pos); level < MAX_SECTION_DETAIL; level++) {
+        for (int level = 0; level < MAX_ANCESTOR_LEVELS; level++) {
             current = DhSectionPos.getParentPos(current);
             if (RENDERED.contains(current)) {
                 return true;

@@ -8,12 +8,15 @@ import com.seibel.distanthorizons.core.util.objects.quadTree.QuadTree;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.fatamorgana.Config;
+import com.pockyl.fatamorgana.Fatamorgana;
+import com.pockyl.fatamorgana.client.HoleStats;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,9 +39,29 @@ abstract class LodQuadTreeMixin {
     @Final
     private QuadTreeTickNodeHolder tickNodeHolder;
 
+    /**
+     * Set when our code failed inside DH's tree update. DH only catches {@code Exception} there; anything else
+     * escaping would stop all LOD rendering, so every hook catches everything and switches itself off instead.
+     */
+    @Unique
+    private static volatile boolean fatamorgana$broken;
+
     @Inject(method = "onDesiredDetailLevel", at = @At("HEAD"), cancellable = true)
     private void fatamorgana$keepFinerUntilReady(QuadNode<LodRenderSection> quadNode, QuadNode<LodRenderSection> parentNode,
                                                 CallbackInfoReturnable<Boolean> callback) {
+        if (fatamorgana$broken) {
+            return;
+        }
+        try {
+            keepFinerUntilReady(quadNode, parentNode, callback);
+        } catch (Throwable e) {
+            fatamorgana$fail(e);
+        }
+    }
+
+    @Unique
+    private void keepFinerUntilReady(QuadNode<LodRenderSection> quadNode, QuadNode<LodRenderSection> parentNode,
+                                     CallbackInfoReturnable<Boolean> callback) {
         if (!Config.ENABLED.get() || renders(quadNode)
                 || !((QuadTree<?>) (Object) this).isSectionPosInBounds(quadNode.sectionPos)
                 || tickNodeHolder.getEnabledNodes().contains(parentNode)) {
@@ -60,14 +83,32 @@ abstract class LodQuadTreeMixin {
     private void fatamorgana$collectHoleCandidates(QuadNode<LodRenderSection> quadNode, QuadNode<LodRenderSection> parentNode,
                                                    CallbackInfoReturnable<Boolean> callback) {
         // Not rendering itself; whether an ancestor covers it is only known once the whole tree is updated.
-        if (!callback.getReturnValueZ()) {
+        if (fatamorgana$broken || callback.getReturnValueZ()) {
+            return;
+        }
+        try {
             HoleStats.candidate(quadNode);
+        } catch (Throwable e) {
+            fatamorgana$fail(e);
         }
     }
 
     @Inject(method = "updateAllRenderSections", at = @At("TAIL"))
     private void fatamorgana$countHoles(CallbackInfo callback) {
-        HoleStats.endTick(tickNodeHolder.getEnabledNodes(), tickNodeHolder.getEnableDeleteChildrenNodes());
+        if (fatamorgana$broken) {
+            return;
+        }
+        try {
+            HoleStats.endTick(tickNodeHolder.getEnabledNodes(), tickNodeHolder.getEnableDeleteChildrenNodes());
+        } catch (Throwable e) {
+            fatamorgana$fail(e);
+        }
+    }
+
+    @Unique
+    private static void fatamorgana$fail(Throwable error) {
+        fatamorgana$broken = true;
+        Fatamorgana.LOGGER.error("Fata Morgana's Distant Horizons render hooks failed and are switched off", error);
     }
 
     private static boolean coveredByFiner(QuadNode<LodRenderSection> node, List<QuadNode<LodRenderSection>> cover, int depth) {
