@@ -26,6 +26,9 @@ import com.pockyl.dhturbo.client.ClientLevelState;
 abstract class DhClientLevelMixin implements ClientLevelState {
     @Unique
     private static volatile boolean dhturbo$broken;
+    /** Last answer of {@code shouldDoWorldGen} with its reason, logged on change while debugging. */
+    @Unique
+    private volatile String dhturbo$lastWorldGen;
 
     @Shadow
     @Final
@@ -50,13 +53,36 @@ abstract class DhClientLevelMixin implements ClientLevelState {
         }
         try {
             // Same conditions DH uses for downloading: the level the player is in, while LODs are being rendered.
-            if (Minecraft.getInstance().level == levelWrapper.getWrappedMcObject() && clientside.isRendering()
-                    && ClientGeneration.active((DhClientLevel) (Object) this)) {
+            boolean current = Minecraft.getInstance().level == levelWrapper.getWrappedMcObject();
+            boolean rendering = clientside.isRendering();
+            boolean active = current && rendering && ClientGeneration.active((DhClientLevel) (Object) this);
+            if (active) {
                 callback.setReturnValue(true);
+            }
+            if (DhTurbo.DEBUG) {
+                dhturbo$report(active, "client generation: current level " + current + ", rendering " + rendering
+                        + ", generator ready " + (current && rendering ? active : "not checked"));
             }
         } catch (Throwable e) {
             dhturbo$broken = true;
             DhTurbo.LOGGER.error("DH Turbo's client generation hook failed and is switched off", e);
+        }
+    }
+
+    @Inject(method = "shouldDoWorldGen", at = @At("RETURN"))
+    private void dhturbo$reportDhWorldGen(CallbackInfoReturnable<Boolean> callback) {
+        // Only reached when the HEAD hook left the answer to DH.
+        if (DhTurbo.DEBUG && !dhturbo$broken && dhturbo$serverSendsLods()) {
+            dhturbo$report(callback.getReturnValueZ(), "the server runs Distant Horizons");
+        }
+    }
+
+    @Unique
+    private void dhturbo$report(boolean worldGen, String reason) {
+        String state = worldGen + " (" + reason + ")";
+        if (!state.equals(dhturbo$lastWorldGen)) {
+            dhturbo$lastWorldGen = state;
+            DhTurbo.LOGGER.info("[client gen] {} shouldDoWorldGen: {}", levelWrapper.getDhIdentifier(), state);
         }
     }
 }
