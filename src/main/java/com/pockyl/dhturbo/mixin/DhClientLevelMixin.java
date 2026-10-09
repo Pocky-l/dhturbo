@@ -37,14 +37,15 @@ abstract class DhClientLevelMixin implements ClientLevelState {
     @Final
     public ClientLevelModule clientside;
 
+    /** DH always has a network state on a server; it is ready only once a server running Distant Horizons answered. */
     @Override
     public boolean dhturbo$serverSendsLods() {
-        return networkState != null;
+        return networkState != null && networkState.isReady();
     }
 
     @Inject(method = "shouldDoWorldGen", at = @At("HEAD"), cancellable = true)
     private void dhturbo$generateOnClient(CallbackInfoReturnable<Boolean> callback) {
-        if (dhturbo$broken || networkState != null) {
+        if (dhturbo$broken || dhturbo$serverSendsLods()) {
             return;
         }
         try {
