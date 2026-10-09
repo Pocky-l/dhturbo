@@ -10,6 +10,11 @@ import com.seibel.distanthorizons.api.interfaces.override.worldGenerator.IDhApiW
 import com.seibel.distanthorizons.api.interfaces.world.IDhApiLevelWrapper;
 import com.seibel.distanthorizons.api.objects.data.DhApiTerrainDataPoint;
 import com.seibel.distanthorizons.api.objects.data.IDhApiFullDataSource;
+import com.seibel.distanthorizons.core.api.internal.SharedApi;
+import com.seibel.distanthorizons.core.generation.DhWorldGenerator;
+import com.seibel.distanthorizons.core.level.IDhLevel;
+import com.seibel.distanthorizons.core.level.IDhServerLevel;
+import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
@@ -73,6 +78,9 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private final Map<Holder<Biome>, IDhApiBiomeWrapper> biomeWrappers = new ConcurrentHashMap<>();
     private final GeneratorStats stats;
     private final AtomicInteger loggedErrors = new AtomicInteger();
+    /** DH's own generator, which takes over while Fata Morgana is switched off. Created on first use. */
+    private volatile IDhApiWorldGenerator dhGenerator;
+    private volatile boolean dhGeneratorUnavailable;
 
     FataWorldGenerator(IDhApiLevelWrapper levelWrapper, ServerLevel level, NoiseBasedChunkGenerator generator) {
         NoiseGeneratorSettings settings = generator.generatorSettings().value();
@@ -89,24 +97,54 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
         this.stats = new GeneratorStats(level, levelWrapper.getDimensionName());
     }
 
+    /** The generator answering requests right now: DH's own one while Fata Morgana is switched off. */
+    private IDhApiWorldGenerator delegate() {
+        if (DhIntegration.active() || dhGeneratorUnavailable) {
+            return null;
+        }
+        IDhApiWorldGenerator generator = dhGenerator;
+        if (generator == null) {
+            synchronized (this) {
+                generator = dhGenerator;
+                if (generator == null) {
+                    try {
+                        // DH internals: its generator needs the DH level, which exists once the level finished loading.
+                        IDhLevel dhLevel = SharedApi.getAbstractDhWorld().getLevel((ILevelWrapper) levelWrapper);
+                        generator = new DhWorldGenerator((IDhServerLevel) dhLevel);
+                        dhGenerator = generator;
+                    } catch (RuntimeException | LinkageError e) {
+                        dhGeneratorUnavailable = true;
+                        Fatamorgana.LOGGER.error("Cannot hand generation back to Distant Horizons; Fata Morgana keeps generating", e);
+                        return null;
+                    }
+                }
+            }
+        }
+        return generator;
+    }
+
     @Override
     public byte getSmallestDataDetailLevel() {
-        return 0;
+        IDhApiWorldGenerator delegate = delegate();
+        return delegate != null ? delegate.getSmallestDataDetailLevel() : 0;
     }
 
     @Override
     public byte getLargestDataDetailLevel() {
-        return MAX_DETAIL;
+        IDhApiWorldGenerator delegate = delegate();
+        return delegate != null ? delegate.getLargestDataDetailLevel() : MAX_DETAIL;
     }
 
     @Override
     public EDhApiWorldGeneratorReturnType getReturnType() {
-        return EDhApiWorldGeneratorReturnType.API_DATA_SOURCES;
+        IDhApiWorldGenerator delegate = delegate();
+        return delegate != null ? delegate.getReturnType() : EDhApiWorldGeneratorReturnType.API_DATA_SOURCES;
     }
 
     @Override
     public boolean runApiValidation() {
-        return !FMLEnvironment.production;
+        IDhApiWorldGenerator delegate = delegate();
+        return delegate != null ? delegate.runApiValidation() : !FMLEnvironment.production;
     }
 
     @Override
@@ -114,6 +152,11 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
                                               byte detailLevel, IDhApiFullDataSource dataSource,
                                               EDhApiDistantGeneratorMode generatorMode, ExecutorService dhThreadPool,
                                               Consumer<IDhApiFullDataSource> resultConsumer) {
+        IDhApiWorldGenerator delegate = delegate();
+        if (delegate != null) {
+            return delegate.generateLod(chunkPosMinX, chunkPosMinZ, lodPosX, lodPosZ, detailLevel, dataSource,
+                    generatorMode, dhThreadPool, resultConsumer);
+        }
         int minX = chunkPosMinX * 16;
         int minZ = chunkPosMinZ * 16;
         int spacing = 1 << detailLevel;
@@ -253,9 +296,17 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
 
     @Override
     public void preGeneratorTaskStart() {
+        IDhApiWorldGenerator generator = dhGenerator;
+        if (generator != null) {
+            generator.preGeneratorTaskStart();
+        }
     }
 
     @Override
     public void close() {
+        IDhApiWorldGenerator generator = dhGenerator;
+        if (generator != null) {
+            generator.close();
+        }
     }
 }

@@ -6,8 +6,8 @@ public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.BooleanValue ENABLED = BUILDER
-            .comment("Replace the Distant Horizons world generator with the Fata Morgana surface generator.",
-                    "Takes effect when a world is loaded.")
+            .comment("Generate distant terrain with Fata Morgana instead of the Distant Horizons generator.",
+                    "Also switched in game with a key (F7 by default).")
             .translation("fatamorgana.configuration.enabled")
             .define("enabled", true);
 

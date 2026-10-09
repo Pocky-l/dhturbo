@@ -4,7 +4,7 @@
   "fatamorgana.configuration.section.fatamorgana.common.toml": "Настройки Fata Morgana",
   "fatamorgana.configuration.section.fatamorgana.common.toml.title": "Настройки Fata Morgana",
   "fatamorgana.configuration.enabled": "Генерировать дальний ландшафт",
-  "fatamorgana.configuration.enabled.tooltip": "Заменить генератор Distant Horizons быстрым генератором поверхности. Применяется при загрузке мира.",
+  "fatamorgana.configuration.enabled.tooltip": "Генерировать дальний ландшафт с помощью Fata Morgana вместо генератора Distant Horizons. Также переключается клавишей в игре (по умолчанию F7).",
   "fatamorgana.configuration.threads": "Рабочие потоки",
   "fatamorgana.configuration.threads.tooltip": "0 = половина ядер процессора. Каждый LOD-тайл делится между всеми потоками. Применяется после перезапуска.",
   "fatamorgana.configuration.full_resolution": "Полное разрешение",
@@ -12,5 +12,15 @@
   "fatamorgana.configuration.fake_trees": "Фейковые деревья",
   "fatamorgana.configuration.fake_trees.tooltip": "Добавлять в леса примерные кроны, чтобы они не были лысыми до загрузки настоящих чанков.",
   "fatamorgana.configuration.real_trees": "Настоящие деревья",
-  "fatamorgana.configuration.real_trees.tooltip": "На подробных LOD рядом с игроком повторять ванильную расстановку деревьев: деревья стоят там и такие, какими будут в настоящем мире."
+  "fatamorgana.configuration.real_trees.tooltip": "На подробных LOD рядом с игроком повторять ванильную расстановку деревьев: деревья стоят там и такие, какими будут в настоящем мире.",
+  "key.categories.fatamorgana": "Fata Morgana",
+  "key.fatamorgana.toggle": "Переключить генератор (Fata Morgana / Distant Horizons)",
+  "key.fatamorgana.clear_lods": "Очистить дальний ландшафт",
+  "fatamorgana.message.enabled": "включено, дальний ландшафт из шума мира",
+  "fatamorgana.message.disabled": "выключено, работает генератор Distant Horizons",
+  "fatamorgana.message.clearing": "очищаю дальний ландшафт...",
+  "fatamorgana.message.cleared": "дальний ландшафт очищен, генерируется заново",
+  "fatamorgana.message.clear_unavailable": "нечего очищать: дальний ландшафт генерируется заново только в одиночной игре",
+  "fatamorgana.message.clear_failed": "не удалось очистить дальний ландшафт, подробности в логе",
+  "fatamorgana.message.no_distant_horizons": "Distant Horizons не установлен"
 }
