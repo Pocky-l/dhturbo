@@ -11,8 +11,6 @@
   "fatamorgana.configuration.full_resolution.tooltip": "Считать каждую LOD-колонку, а не одну из четырёх. Примерно в 3 раза медленнее, резче дальние обрывы.",
   "fatamorgana.configuration.fake_trees": "Фейковые деревья",
   "fatamorgana.configuration.fake_trees.tooltip": "Добавлять в леса примерные кроны, чтобы они не были лысыми до загрузки настоящих чанков.",
-  "fatamorgana.configuration.full_resolution_radius": "Радиус полного разрешения",
-  "fatamorgana.configuration.full_resolution_radius.tooltip": "В этом радиусе от игрока считается каждая LOD-колонка, даже при выключенном полном разрешении.",
   "fatamorgana.configuration.real_trees": "Настоящие деревья",
   "fatamorgana.configuration.real_trees.tooltip": "На подробных LOD рядом с игроком повторять ванильную расстановку деревьев: деревья стоят там и такие, какими будут в настоящем мире."
 }

@@ -24,7 +24,7 @@ final class GeneratorStats {
     private final LongAdder[] requests = adders();
     private final LongAdder[] repeats = adders();
     private final LongAdder[] distanceSum = adders();
-    private final LongAdder nanos = new LongAdder();
+    private final LongAdder[] nanos = adders();
     private final LongAdder errors = new LongAdder();
     private final LongAdder treeFailures = new LongAdder();
     private final Set<Long> seen = ConcurrentHashMap.newKeySet();
@@ -46,8 +46,8 @@ final class GeneratorStats {
         distanceSum[index].add(distanceToPlayer(centerX, centerZ));
     }
 
-    void done(long tileNanos) {
-        nanos.add(tileNanos);
+    void done(int detail, long tileNanos) {
+        nanos[Math.min(detail, LEVELS - 1)].add(tileNanos);
         report();
     }
 
@@ -67,18 +67,20 @@ final class GeneratorStats {
         }
         StringBuilder levels = new StringBuilder();
         long count = 0;
+        long tileNanos = 0;
         for (int i = 0; i < LEVELS; i++) {
             long n = requests[i].sumThenReset();
             long repeated = repeats[i].sumThenReset();
             long distance = distanceSum[i].sumThenReset();
+            long levelNanos = nanos[i].sumThenReset();
+            tileNanos += levelNanos;
             if (n == 0) {
                 continue;
             }
             count += n;
-            levels.append(String.format(Locale.ROOT, " d%d: %d (%d repeated, ~%d blocks away);", i, n, repeated,
-                    distance / n));
+            levels.append(String.format(Locale.ROOT, " d%d: %d, %.0f ms (%d repeated, ~%d blocks away);", i, n,
+                    levelNanos / 1e6 / n, repeated, distance / n));
         }
-        long tileNanos = nanos.sumThenReset();
         total += count;
         Fatamorgana.LOGGER.info(String.format(Locale.ROOT,
                 "[stats %s] last 10 s: %d tiles, %.1f ms/tile, %d errors, %d failed tree features, %d total |%s", name,

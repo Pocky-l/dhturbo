@@ -23,11 +23,6 @@ public final class Config {
             .translation("fatamorgana.configuration.full_resolution")
             .define("full_resolution", false);
 
-    public static final ModConfigSpec.IntValue FULL_RESOLUTION_RADIUS = BUILDER
-            .comment("Within this many blocks of a player every LOD column is computed, also with full_resolution off.")
-            .translation("fatamorgana.configuration.full_resolution_radius")
-            .defineInRange("full_resolution_radius", 768, 0, 16384);
-
     public static final ModConfigSpec.BooleanValue FAKE_TREES = BUILDER
             .comment("Add approximate tree canopies to forests, so they are not bald until real chunks load.")
             .translation("fatamorgana.configuration.fake_trees")

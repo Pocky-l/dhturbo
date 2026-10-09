@@ -55,8 +55,11 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
      */
     private static final EDhApiWorldGenerationStep STEP = EDhApiWorldGenerationStep.FEATURES;
 
-    /** Columns at most this wide get the game's own trees (when enabled); wider ones approximate trees. */
-    private static final int REAL_TREES_MAX_SPACING = 2;
+    /**
+     * Columns at most this wide get the game's own trees (when enabled); wider ones approximate trees. Only full-detail
+     * tiles: with 2-block columns the replay tripled the cost of tiles that are already 500+ blocks away.
+     */
+    private static final int REAL_TREES_MAX_SPACING = 1;
 
     private final IDhApiLevelWrapper levelWrapper;
     private final ServerLevel level;
@@ -65,7 +68,6 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private final BlockState defaultBlock;
     private final long seed;
     private final boolean fullResolution;
-    private final int fullResolutionRadius;
     private final boolean fakeTrees;
     private final Map<BlockState, IDhApiBlockStateWrapper> blockWrappers = new ConcurrentHashMap<>();
     private final Map<Holder<Biome>, IDhApiBiomeWrapper> biomeWrappers = new ConcurrentHashMap<>();
@@ -84,7 +86,6 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
         this.defaultBlock = settings.defaultBlock();
         this.seed = level.getSeed();
         this.fullResolution = Config.FULL_RESOLUTION.get();
-        this.fullResolutionRadius = Config.FULL_RESOLUTION_RADIUS.get();
         this.stats = new GeneratorStats(level, levelWrapper.getDimensionName());
     }
 
@@ -136,13 +137,11 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private void fill(int minX, int minZ, int spacing, IDhApiFullDataSource dataSource) {
         long start = System.nanoTime();
         int width = dataSource.getWidthInDataColumns();
-        int half = width * spacing / 2;
-        boolean near = fullResolution || Players.nearestDistance(level, minX + half, minZ + half) <= fullResolutionRadius;
         boolean real = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
         // A margin of columns around the tile: slopes at the edges, and trees of neighbouring chunks.
         int margin = real ? RealTrees.MARGIN / spacing + 1 : 1;
         SurfaceTile area = SurfaceTile.generate(sampler, minX - margin * spacing, minZ - margin * spacing, spacing,
-                width + 2 * margin, near ? 1 : 2);
+                width + 2 * margin, fullResolution ? 1 : 2);
         RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width) : null;
         if (real) {
             stats.treeFailures(realTrees.takeFailures());
@@ -166,7 +165,7 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
                 dataSource.setApiDataPointColumn(i, j, STEP, points);
             }
         }
-        stats.done(System.nanoTime() - start);
+        stats.done(Integer.numberOfTrailingZeros(spacing), System.nanoTime() - start);
     }
 
     /**

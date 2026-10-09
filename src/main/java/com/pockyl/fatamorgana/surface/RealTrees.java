@@ -24,6 +24,8 @@ import net.minecraft.world.level.levelgen.feature.AbstractHugeMushroomFeature;
 import net.minecraft.world.level.levelgen.feature.TreeFeature;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
+import com.pockyl.fatamorgana.Fatamorgana;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -31,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -44,8 +47,13 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class RealTrees {
     private static final int STEP = GenerationStep.Decoration.VEGETAL_DECORATION.ordinal();
-    /** Blocks around a tile whose trees are planted too: crowns reach a few blocks out of their chunk. */
-    public static final int MARGIN = 16;
+    /**
+     * Blocks of terrain needed around a tile: trees standing this close to it can reach in with their crowns. Trees of
+     * every chunk touching the tile's surroundings are replayed, but farther ones only need rough heights.
+     */
+    public static final int MARGIN = 8;
+    /** Chunks within this many blocks of a tile are replayed: a tree's origin can be anywhere in its chunk. */
+    private static final int CHUNK_REACH = 8;
 
     private final ChunkGenerator generator;
     private final SurfaceSampler sampler;
@@ -60,6 +68,7 @@ public final class RealTrees {
     /** Per biome: indices of its tree features in this step, ascending (vanilla's placement order). */
     private final Map<Holder<Biome>, int[]> biomeTrees = new HashMap<>();
     private final LongAdder failures = new LongAdder();
+    private static final Map<String, Boolean> REPORTED = new ConcurrentHashMap<>();
 
     public RealTrees(ChunkGenerator generator, SurfaceSampler sampler, long seed, RegistryAccess registries,
                      DimensionType dimensionType) {
@@ -113,10 +122,13 @@ public final class RealTrees {
 
             @Override
             public Holder<Biome> biome(int x, int y, int z) {
-                return sampler.biome(x, y, z);
+                // Near the ground the tile already holds the biome at the same quart resolution vanilla uses (full
+                // detail tiles are sampled every 4 blocks); only cave depths need a fresh lookup.
+                int ground = area.heightAt(x, z);
+                return Math.abs(y - ground) <= 8 ? area.biomeAt(x, z) : sampler.biome(x, y, z);
             }
         };
-        Long2ObjectMap<BlockState> writes = place(minX - MARGIN, minZ - MARGIN, width * spacing + 2 * MARGIN, terrain);
+        Long2ObjectMap<BlockState> writes = place(minX - CHUNK_REACH, minZ - CHUNK_REACH, width * spacing + 2 * CHUNK_REACH, terrain);
 
         int columns = width * width;
         int[] leavesBottom = new int[columns];
@@ -243,6 +255,10 @@ public final class RealTrees {
                 stepFeatures.get(index).placeWithBiomeCheck(level.proxy, generator, random, origin);
             } catch (RuntimeException e) {
                 failures.increment();
+                String key = stepFeatures.get(index) + ": " + e;
+                if (REPORTED.size() < 20 && REPORTED.putIfAbsent(key, Boolean.TRUE) == null) {
+                    Fatamorgana.LOGGER.info("Tree feature failed on the virtual level and is skipped there: {}", key, e);
+                }
             }
         }
     }

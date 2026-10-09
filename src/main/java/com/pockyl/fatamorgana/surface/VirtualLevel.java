@@ -168,7 +168,7 @@ final class VirtualLevel implements InvocationHandler {
             return InvocationHandler.invokeDefault(proxy, method, args);
         }
         if (REPORTED.putIfAbsent(name, Boolean.TRUE) == null) {
-            Fatamorgana.LOGGER.debug("A feature called unsupported {} on the virtual level", method);
+            Fatamorgana.LOGGER.info("A tree feature called unsupported {} on the virtual level; it is skipped there", method);
         }
         throw new UnsupportedOperationException("Virtual level does not support " + name);
     }

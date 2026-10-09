@@ -63,17 +63,21 @@ public final class ModGameTests {
         int forests = 0;
         int treeColumns = 0;
         long failures = 0;
+        // Forests for the tree count, plus random tiles of every other kind for features that might fail.
         for (int attempt = 0; attempt < 400 && forests < 5; attempt++) {
             int x = (random.nextInt(40_000) - 20_000) & ~63;
             int z = (random.nextInt(40_000) - 20_000) & ~63;
             int y = benchmark.fast().surfaceHeight(x + 32, z + 32, benchmark.fast().seaLevel());
-            if (y <= benchmark.fast().seaLevel() || !benchmark.fast().biome(x + 32, y, z + 32).is(BiomeTags.IS_FOREST)) {
+            boolean forest = y > benchmark.fast().seaLevel() && benchmark.fast().biome(x + 32, y, z + 32).is(BiomeTags.IS_FOREST);
+            if (!forest && attempt % 10 != 0) {
                 continue;
             }
-            forests++;
             SurfaceBenchmark.Planted planted = benchmark.plant(x, z, 1);
-            treeColumns += planted.treeColumns();
             failures += planted.failures();
+            if (forest) {
+                forests++;
+                treeColumns += planted.treeColumns();
+            }
         }
         Fatamorgana.LOGGER.info("Real trees in {} forest tiles: {} tree columns, {} failed features", forests, treeColumns,
                 failures);
