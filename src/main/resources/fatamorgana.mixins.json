@@ -9,7 +9,8 @@
   ],
   "client": [
     "LodQuadTreeMixin",
-    "LodRenderSectionMixin"
+    "LodRenderSectionMixin",
+    "QuadTreeTickNodeHolderMixin"
   ],
   "injectors": {
     "defaultRequire": 0

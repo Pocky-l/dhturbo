@@ -16,6 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.fatamorgana.Config;
 import com.pockyl.fatamorgana.Fatamorgana;
+import com.pockyl.fatamorgana.client.EmptySectionQueue;
 import com.pockyl.fatamorgana.client.HoleStats;
 import com.pockyl.fatamorgana.client.RenderSectionContent;
 
@@ -82,6 +83,8 @@ abstract class LodQuadTreeMixin {
             // Built but empty (no data generated for it yet): report it as not renderable, so the coarser parent
             // that has terrain here keeps rendering instead of a hole. DH itself treats any built section as ready.
             tickNodeHolder.addDisableNode(quadNode);
+            // DH would request its generation only if it were shown; queue it for generation anyway.
+            ((EmptySectionQueue) tickNodeHolder).fatamorgana$queueEmpty(quadNode);
             HoleStats.empty();
             callback.setReturnValue(false);
         }
