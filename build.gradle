@@ -21,6 +21,15 @@ sourceSets.main.resources {
 }
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'Modrinth'
+                url = 'https://api.modrinth.com/maven'
+            }
+        }
+        filter { includeGroup('maven.modrinth') }
+    }
 }
 
 neoForge {
@@ -76,6 +85,11 @@ configurations {
 }
 
 dependencies {
+    // Distant Horizons ships its API inside the mod jar; compile against it, run it in the dev client only:
+    // it crashes the game test server (it casts every non-integrated server to DedicatedServer).
+    compileOnly "maven.modrinth:distanthorizons:${distanthorizons_version}"
+    add(neoForge.runs.client.additionalRuntimeClasspathConfiguration.name,
+            "maven.modrinth:distanthorizons:${distanthorizons_version}")
 }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
@@ -91,6 +105,7 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
             mod_authors            : mod_authors,
             mod_description        : mod_description,
             mod_url                : mod_url,
+            distanthorizons_range  : distanthorizons_range,
     ]
     inputs.properties replaceProperties
     expand replaceProperties

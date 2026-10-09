@@ -35,6 +35,7 @@ public final class SurfaceSampler {
     private final int cellHeight;
     private final int seaLevel;
 
+    @SuppressWarnings("deprecation") // disableMobGeneration has to be copied over to rebuild the settings record
     public SurfaceSampler(RegistryAccess registries, NoiseGeneratorSettings settings, BiomeSource biomeSource, long seed) {
         NoiseRouter router = settings.noiseRouter();
         DensityFunction surfaceDensity = CaveStripper.strip(registries.registryOrThrow(Registries.DENSITY_FUNCTION),

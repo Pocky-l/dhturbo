@@ -1,3 +1,14 @@
 {
-  "itemGroup.pockymods.pocky_mods": "Pocky Mods"
+  "itemGroup.pockymods.pocky_mods": "Pocky Mods",
+  "fatamorgana.configuration.title": "Настройки Fata Morgana",
+  "fatamorgana.configuration.section.fatamorgana.common.toml": "Настройки Fata Morgana",
+  "fatamorgana.configuration.section.fatamorgana.common.toml.title": "Настройки Fata Morgana",
+  "fatamorgana.configuration.enabled": "Генерировать дальний ландшафт",
+  "fatamorgana.configuration.enabled.tooltip": "Заменить генератор Distant Horizons быстрым генератором поверхности. Применяется при загрузке мира.",
+  "fatamorgana.configuration.threads": "Рабочие потоки",
+  "fatamorgana.configuration.threads.tooltip": "0 = половина ядер процессора. Каждый LOD-тайл делится между всеми потоками. Применяется после перезапуска.",
+  "fatamorgana.configuration.full_resolution": "Полное разрешение",
+  "fatamorgana.configuration.full_resolution.tooltip": "Считать каждую LOD-колонку, а не одну из четырёх. Примерно в 3 раза медленнее, резче дальние обрывы.",
+  "fatamorgana.configuration.fake_trees": "Фейковые деревья",
+  "fatamorgana.configuration.fake_trees.tooltip": "Добавлять в леса примерные кроны, чтобы они не были лысыми до загрузки настоящих чанков."
 }

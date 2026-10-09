@@ -21,6 +21,8 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.Future;
 import java.util.function.IntConsumer;
 
@@ -92,6 +94,15 @@ public final class SurfaceBenchmark {
             double fastRate = throughput(origins, threads, origin -> fastTile(origins[origin], 16, 1));
             report.add(String.format(Locale.ROOT, "%d threads, detail 4: DH-style %.1f tiles/s, Fata %.1f tiles/s (x%.1f)",
                     threads, dhRate, fastRate, fastRate / dhRate));
+            ForkJoinPool pool = new ForkJoinPool(threads);
+            try {
+                long single = time(origins, origin -> fastTile(origins[origin], 16, 2));
+                long split = time(origins, origin -> pool.invoke(ForkJoinTask.adapt(() -> fastTile(origins[origin], 16, 2))));
+                report.add(String.format(Locale.ROOT, "one tile, detail 4, 1/4 columns: %.1f ms on 1 thread, %.1f ms split over %d threads",
+                        millis(single, origins.length), millis(split, origins.length), threads));
+            } finally {
+                pool.shutdown();
+            }
         }
         return report;
     }

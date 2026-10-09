@@ -1,3 +1,14 @@
 {
-  "itemGroup.pockymods.pocky_mods": "Pocky Mods"
+  "itemGroup.pockymods.pocky_mods": "Pocky Mods",
+  "fatamorgana.configuration.title": "Fata Morgana Configuration",
+  "fatamorgana.configuration.section.fatamorgana.common.toml": "Fata Morgana Configuration",
+  "fatamorgana.configuration.section.fatamorgana.common.toml.title": "Fata Morgana Configuration",
+  "fatamorgana.configuration.enabled": "Generate Distant Terrain",
+  "fatamorgana.configuration.enabled.tooltip": "Replace the Distant Horizons world generator with the fast surface generator. Takes effect when a world is loaded.",
+  "fatamorgana.configuration.threads": "Worker Threads",
+  "fatamorgana.configuration.threads.tooltip": "0 = half of the CPU cores. One LOD tile is split across all threads. Takes effect after a restart.",
+  "fatamorgana.configuration.full_resolution": "Full Resolution",
+  "fatamorgana.configuration.full_resolution.tooltip": "Compute every LOD column instead of one in four. About 3x slower, sharper distant cliffs.",
+  "fatamorgana.configuration.fake_trees": "Fake Trees",
+  "fatamorgana.configuration.fake_trees.tooltip": "Add approximate tree canopies to forests, so they are not bald until real chunks load."
 }

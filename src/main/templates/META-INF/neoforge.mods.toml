@@ -25,3 +25,12 @@ description='''${mod_description}'''
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+
+# Optional only so the game test server can run without it (Distant Horizons crashes it); without Distant
+# Horizons the mod does nothing. CurseForge lists it as required.
+[[dependencies.${mod_id}]]
+    modId="distanthorizons"
+    type="optional"
+    versionRange="${distanthorizons_range}"
+    ordering="AFTER"
+    side="BOTH"
