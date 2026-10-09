@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="src/main/resources/logo.png" alt="Fata Morgana" width="160">
+  <img src="src/main/resources/logo.png" alt="Turbo for Distant Horizons" width="160">
 </p>
 
-<h1 align="center">Fata Morgana</h1>
+<h1 align="center">Turbo for Distant Horizons</h1>
 
 <p align="center">
   Fast approximate surface generator for Distant Horizons LODs.

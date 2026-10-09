@@ -1,4 +1,4 @@
-# Fata Morgana
+# Turbo for Distant Horizons
 
 Fast approximate surface generator for Distant Horizons LODs.
 
@@ -12,7 +12,7 @@ Fast approximate surface generator for Distant Horizons LODs.
 
 ## Credits
 
-Made by **Pocky**. Source code: [GitHub](https://github.com/Pocky-l/fatamorgana)
+Made by **Pocky**. Source code: [GitHub](https://github.com/Pocky-l/dhturbo)
 
 <!-- more-mods:start -->
 <!-- more-mods:end -->
