@@ -33,6 +33,7 @@ public final class HoleStats {
     private static long distanceSum;
     private static long holeTicks;
     private static long coveredTicks;
+    private static long emptyTicks;
     private static long nextReport = System.nanoTime() + INTERVAL_NANOS;
 
     private HoleStats() {
@@ -40,6 +41,11 @@ public final class HoleStats {
 
     public static void covered() {
         coveredTicks++;
+    }
+
+    /** A built but empty section was kept off screen in favour of its parent. */
+    public static void empty() {
+        emptyTicks++;
     }
 
     private static final List<QuadNode<LodRenderSection>> CANDIDATES = new ArrayList<>();
@@ -125,11 +131,12 @@ public final class HoleStats {
         }
         int sections = HOLES.size();
         Fatamorgana.LOGGER.info(String.format(Locale.ROOT,
-                "[holes] last 10 s: %d sections were holes (~%d blocks away),%s | hole checks:%s | kept finer: %d",
-                sections, sections == 0 ? 0 : distanceSum / sections, details, reasons, coveredTicks));
+                "[holes] last 10 s: %d sections were holes (~%d blocks away),%s | hole checks:%s | kept finer: %d | empty kept off: %d",
+                sections, sections == 0 ? 0 : distanceSum / sections, details, reasons, coveredTicks, emptyTicks));
         HOLES.clear();
         distanceSum = 0;
         holeTicks = 0;
         coveredTicks = 0;
+        emptyTicks = 0;
     }
 }

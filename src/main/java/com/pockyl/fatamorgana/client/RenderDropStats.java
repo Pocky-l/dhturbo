@@ -30,6 +30,7 @@ public final class RenderDropStats {
     private static final LongAdder REBUILDS = new LongAdder();
     private static final LongAdder DROPS = new LongAdder();
     private static final LongAdder EMPTIED = new LongAdder();
+    private static final LongAdder BUILT_EMPTY = new LongAdder();
     private static final ConcurrentLinkedQueue<String> EXAMPLES = new ConcurrentLinkedQueue<>();
     private static final AtomicLong NEXT_REPORT = new AtomicLong(System.nanoTime() + INTERVAL_NANOS);
 
@@ -38,6 +39,9 @@ public final class RenderDropStats {
 
     public static void built(long pos, int quads) {
         BUILDS.increment();
+        if (quads == 0) {
+            BUILT_EMPTY.increment();
+        }
         Integer previous = LAST_QUADS.size() < MAX_TRACKED ? LAST_QUADS.put(pos, quads) : LAST_QUADS.get(pos);
         if (previous != null) {
             REBUILDS.increment();
@@ -77,7 +81,8 @@ public final class RenderDropStats {
         while ((example = EXAMPLES.poll()) != null) {
             examples.append("\n    ").append(example);
         }
-        Fatamorgana.LOGGER.info("[render] last 10 s: {} section builds, {} rebuilds, {} lost over half their terrain ({} to nothing){}",
-                BUILDS.sumThenReset(), REBUILDS.sumThenReset(), DROPS.sumThenReset(), EMPTIED.sumThenReset(), examples);
+        Fatamorgana.LOGGER.info("[render] last 10 s: {} section builds ({} empty), {} rebuilds, {} lost over half their terrain ({} to nothing){}",
+                BUILDS.sumThenReset(), BUILT_EMPTY.sumThenReset(), REBUILDS.sumThenReset(), DROPS.sumThenReset(), EMPTIED.sumThenReset(),
+                examples);
     }
 }

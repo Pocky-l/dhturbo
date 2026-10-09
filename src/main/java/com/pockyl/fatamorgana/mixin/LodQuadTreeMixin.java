@@ -17,18 +17,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.pockyl.fatamorgana.Config;
 import com.pockyl.fatamorgana.Fatamorgana;
 import com.pockyl.fatamorgana.client.HoleStats;
+import com.pockyl.fatamorgana.client.RenderSectionContent;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Keeps finer LODs on screen until the coarser one replacing them is ready.
+ * Keeps LODs with terrain on screen until whatever replaces them has terrain too.
  * <p>
  * When the player moves away from an area, Distant Horizons switches it to a coarser section and stops drawing the
  * finer ones at once, although the coarser section still has to be loaded (and, when its data is missing, generated).
  * The area is a hole meanwhile and "loads again" a moment later. Going the other way DH already waits for all
  * children, so this does the same for the way back: as long as the finer sections below fully cover the area, they
- * keep rendering. Only while Fata Morgana generates, so a comparison with plain DH stays honest.
+ * keep rendering. Likewise going finer: DH counts a section as ready once it is built, also when it was built empty
+ * because its data is not generated yet (a 64-block hole on screen); empty sections are not counted as ready here, so
+ * the coarser parent stays. Only while Fata Morgana generates, so a comparison with plain DH stays honest.
  */
 @Mixin(value = LodQuadTree.class, remap = false)
 abstract class LodQuadTreeMixin {
@@ -68,15 +71,20 @@ abstract class LodQuadTreeMixin {
             return;
         }
         List<QuadNode<LodRenderSection>> cover = new ArrayList<>();
-        if (!coveredByFiner(quadNode, cover, MAX_DEPTH)) {
-            return;
+        if (coveredByFiner(quadNode, cover, MAX_DEPTH)) {
+            // Going coarser: the finer sections stay until this one has terrain. The section itself keeps loading
+            // (queued before this method); once it renders, DH swaps it in and deletes the children as usual.
+            cover.forEach(tickNodeHolder::addEnableNode);
+            tickNodeHolder.addDisableNode(quadNode);
+            HoleStats.covered();
+            callback.setReturnValue(true);
+        } else if (quadNode.value != null && quadNode.value.canRender()) {
+            // Built but empty (no data generated for it yet): report it as not renderable, so the coarser parent
+            // that has terrain here keeps rendering instead of a hole. DH itself treats any built section as ready.
+            tickNodeHolder.addDisableNode(quadNode);
+            HoleStats.empty();
+            callback.setReturnValue(false);
         }
-        // The section itself keeps loading (queued before this method); once it can render, DH swaps it in and
-        // deletes these children as usual.
-        cover.forEach(tickNodeHolder::addEnableNode);
-        tickNodeHolder.addDisableNode(quadNode);
-        HoleStats.covered();
-        callback.setReturnValue(true);
     }
 
     @Inject(method = "onDesiredDetailLevel", at = @At("RETURN"))
@@ -129,7 +137,8 @@ abstract class LodQuadTreeMixin {
         return true;
     }
 
+    /** Has terrain on screen: built, and not built empty. */
     private static boolean renders(QuadNode<LodRenderSection> node) {
-        return node.value != null && node.value.canRender();
+        return node.value != null && node.value.canRender() && ((RenderSectionContent) node.value).fatamorgana$quads() != 0;
     }
 }
