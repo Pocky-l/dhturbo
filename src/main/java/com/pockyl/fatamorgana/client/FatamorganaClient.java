@@ -14,7 +14,9 @@ import com.pockyl.fatamorgana.Fatamorgana;
 public final class FatamorganaClient {
     public FatamorganaClient(IEventBus modBus, ModContainer container) {
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-        modBus.addListener(DemoKeys::register);
-        NeoForge.EVENT_BUS.addListener(DemoKeys::tick);
+        if (Fatamorgana.DEBUG) {
+            modBus.addListener(DemoKeys::register);
+            NeoForge.EVENT_BUS.addListener(DemoKeys::tick);
+        }
     }
 }

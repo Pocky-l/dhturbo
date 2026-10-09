@@ -76,6 +76,7 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
     private final boolean fakeTrees;
     private final Map<BlockState, IDhApiBlockStateWrapper> blockWrappers = new ConcurrentHashMap<>();
     private final Map<Holder<Biome>, IDhApiBiomeWrapper> biomeWrappers = new ConcurrentHashMap<>();
+    /** Request statistics in the log, developer runs only. */
     private final GeneratorStats stats;
     private final AtomicInteger loggedErrors = new AtomicInteger();
     /** DH's own generator, which takes over while Fata Morgana is switched off. Created on first use. */
@@ -94,7 +95,7 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
         this.defaultBlock = settings.defaultBlock();
         this.seed = level.getSeed();
         this.fullResolution = Config.FULL_RESOLUTION.get();
-        this.stats = new GeneratorStats(level, levelWrapper.getDimensionName());
+        this.stats = Fatamorgana.DEBUG ? new GeneratorStats(level, levelWrapper.getDimensionName()) : null;
     }
 
     /** The generator answering requests right now: DH's own one while Fata Morgana is switched off. */
@@ -161,13 +162,17 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
         int minZ = chunkPosMinZ * 16;
         int spacing = 1 << detailLevel;
         int halfWidth = dataSource.getWidthInDataColumns() * spacing / 2;
-        stats.request(detailLevel, lodPosX, lodPosZ, minX + halfWidth, minZ + halfWidth);
+        if (stats != null) {
+            stats.request(detailLevel, lodPosX, lodPosZ, minX + halfWidth, minZ + halfWidth);
+        }
         return CompletableFuture.runAsync(() -> {
             try {
                 fill(minX, minZ, spacing, dataSource);
             } catch (RuntimeException e) {
                 // DH swallows failed futures silently; without this a broken tile is just a hole in the horizon.
-                stats.error();
+                if (stats != null) {
+                    stats.error();
+                }
                 if (loggedErrors.incrementAndGet() <= 10) {
                     Fatamorgana.LOGGER.error("Failed to generate LOD tile at block {} {}, detail {}", minX, minZ, detailLevel, e);
                 }
@@ -187,7 +192,10 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
                 width + 2 * margin, fullResolution ? 1 : 2);
         RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width) : null;
         if (real) {
-            stats.treeFailures(realTrees.takeFailures());
+            long failures = realTrees.takeFailures();
+            if (stats != null) {
+                stats.treeFailures(failures);
+            }
         }
 
         List<DhApiTerrainDataPoint> points = new ArrayList<>();
@@ -208,7 +216,9 @@ final class FataWorldGenerator implements IDhApiWorldGenerator {
                 dataSource.setApiDataPointColumn(i, j, STEP, points);
             }
         }
-        stats.done(Integer.numberOfTrailingZeros(spacing), System.nanoTime() - start);
+        if (stats != null) {
+            stats.done(Integer.numberOfTrailingZeros(spacing), System.nanoTime() - start);
+        }
     }
 
     /**

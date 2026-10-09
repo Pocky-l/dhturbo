@@ -37,7 +37,9 @@ abstract class LodRenderSectionMixin implements RenderSectionContent {
             LodQuadBuilder builder = callback.getReturnValue();
             int quads = builder == null ? 0 : builder.getCurrentOpaqueQuadsCount() + builder.getCurrentTransparentQuadsCount();
             fatamorgana$quads = quads;
-            RenderDropStats.built(((LodRenderSection) (Object) this).pos, quads);
+            if (Fatamorgana.DEBUG) {
+                RenderDropStats.built(((LodRenderSection) (Object) this).pos, quads);
+            }
         } catch (Throwable e) {
             fatamorgana$broken = true;
             Fatamorgana.LOGGER.error("Fata Morgana's render diagnostics failed and are switched off", e);

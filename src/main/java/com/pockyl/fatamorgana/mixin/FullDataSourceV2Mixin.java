@@ -55,7 +55,7 @@ abstract class FullDataSourceV2Mixin {
 
     @Inject(method = "updateFromDataSource", at = @At("HEAD"))
     private void fatamorgana$countBefore(FullDataSourceV2 input, CallbackInfoReturnable<Boolean> callback) {
-        if (fatamorgana$broken) {
+        if (fatamorgana$broken || !Fatamorgana.DEBUG) {
             return;
         }
         try {
@@ -67,7 +67,7 @@ abstract class FullDataSourceV2Mixin {
 
     @Inject(method = "updateFromDataSource", at = @At("RETURN"))
     private void fatamorgana$countAfter(FullDataSourceV2 input, CallbackInfoReturnable<Boolean> callback) {
-        if (fatamorgana$broken) {
+        if (fatamorgana$broken || !Fatamorgana.DEBUG) {
             return;
         }
         try {

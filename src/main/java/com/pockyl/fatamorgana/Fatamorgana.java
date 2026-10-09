@@ -7,6 +7,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
 import com.pockyl.fatamorgana.dh.DhIntegration;
@@ -15,6 +16,11 @@ import com.pockyl.fatamorgana.dh.DhIntegration;
 public final class Fatamorgana {
     public static final String MOD_ID = "fatamorgana";
     public static final Logger LOGGER = LogUtils.getLogger();
+    /**
+     * Developer tools: demo keys and diagnostics logging. On in development runs (the workspace playtest client) or
+     * with {@code -Dfatamorgana.debug=true}; players never see them.
+     */
+    public static final boolean DEBUG = !FMLEnvironment.production || Boolean.getBoolean(MOD_ID + ".debug");
 
     public Fatamorgana(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);

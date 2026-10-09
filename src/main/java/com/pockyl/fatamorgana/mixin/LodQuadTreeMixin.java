@@ -77,7 +77,9 @@ abstract class LodQuadTreeMixin {
             // (queued before this method); once it renders, DH swaps it in and deletes the children as usual.
             cover.forEach(tickNodeHolder::addEnableNode);
             tickNodeHolder.addDisableNode(quadNode);
-            HoleStats.covered();
+            if (Fatamorgana.DEBUG) {
+                HoleStats.covered();
+            }
             callback.setReturnValue(true);
         } else if (quadNode.value != null && quadNode.value.canRender()) {
             // Built but empty (no data generated for it yet): report it as not renderable, so the coarser parent
@@ -85,7 +87,9 @@ abstract class LodQuadTreeMixin {
             tickNodeHolder.addDisableNode(quadNode);
             // DH would request its generation only if it were shown; queue it for generation anyway.
             ((EmptySectionQueue) tickNodeHolder).fatamorgana$queueEmpty(quadNode);
-            HoleStats.empty();
+            if (Fatamorgana.DEBUG) {
+                HoleStats.empty();
+            }
             callback.setReturnValue(false);
         }
     }
@@ -94,7 +98,7 @@ abstract class LodQuadTreeMixin {
     private void fatamorgana$collectHoleCandidates(QuadNode<LodRenderSection> quadNode, QuadNode<LodRenderSection> parentNode,
                                                    CallbackInfoReturnable<Boolean> callback) {
         // Not rendering itself; whether an ancestor covers it is only known once the whole tree is updated.
-        if (fatamorgana$broken || callback.getReturnValueZ()) {
+        if (fatamorgana$broken || !Fatamorgana.DEBUG || callback.getReturnValueZ()) {
             return;
         }
         try {
@@ -106,7 +110,7 @@ abstract class LodQuadTreeMixin {
 
     @Inject(method = "updateAllRenderSections", at = @At("TAIL"))
     private void fatamorgana$countHoles(CallbackInfo callback) {
-        if (fatamorgana$broken) {
+        if (fatamorgana$broken || !Fatamorgana.DEBUG) {
             return;
         }
         try {
