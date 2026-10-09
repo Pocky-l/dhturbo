@@ -33,6 +33,12 @@ public final class Config {
             .translation("dhturbo.configuration.real_trees")
             .define("real_trees", true);
 
+    public static final ModConfigSpec.BooleanValue SHARE_WORLDGEN = BUILDER
+            .comment("Server: send players with this mod the world seed and generation settings, so their client generates",
+                    "distant terrain itself (also on servers without Distant Horizons). Turn off if players must not know the seed.")
+            .translation("dhturbo.configuration.share_worldgen")
+            .define("share_worldgen", true);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private Config() {

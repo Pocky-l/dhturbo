@@ -1,10 +1,12 @@
 package com.pockyl.dhturbo.gametest;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
@@ -13,6 +15,9 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
+import com.pockyl.dhturbo.surface.SurfaceSampler;
+import com.pockyl.dhturbo.world.LevelGenInfo;
+import com.pockyl.dhturbo.world.WorldgenLoader;
 
 import java.util.Random;
 
@@ -87,6 +92,41 @@ public final class ModGameTests {
             helper.fail(failures + " tree features failed on the virtual level");
         } else if (treeColumns < forests * 500) {
             helper.fail("Too few trees in forests: " + treeColumns + " columns in " + forests + " tiles");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A client rebuilds the server's generator from its own data packs: the description must resolve and the rebuilt
+     * generator must produce exactly the server's terrain.
+     */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void worldgenRebuiltFromOwnDataPacks(GameTestHelper helper) {
+        RegistryAccess server = helper.getLevel().registryAccess();
+        Holder<NoiseGeneratorSettings> settings = server.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(server
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+        LevelGenInfo info = LevelGenInfo.describe(Level.OVERWORLD, settings, biomes, server).orElseThrow();
+        RegistryAccess loaded = WorldgenLoader.get();
+        LevelGenInfo.Resolved resolved = info.resolve(loaded);
+        if (resolved == null) {
+            helper.fail("The worldgen loaded from data packs does not match the server's: " + info);
+            return;
+        }
+        SurfaceSampler original = new SurfaceSampler(server, settings.value(), biomes, SEED);
+        SurfaceSampler rebuilt = new SurfaceSampler(loaded, resolved.settings().value(), resolved.biomeSource(), SEED);
+        Random random = new Random(3);
+        for (int i = 0; i < 200; i++) {
+            int x = random.nextInt(200_000) - 100_000;
+            int z = random.nextInt(200_000) - 100_000;
+            int expected = original.surfaceHeight(x, z, 64);
+            int actual = rebuilt.surfaceHeight(x, z, 64);
+            if (expected != actual || !original.biome(x, expected, z).is(rebuilt.biome(x, actual, z).unwrapKey().orElseThrow())) {
+                helper.fail("Rebuilt generator differs at " + x + " " + z + ": " + expected + " vs " + actual);
+                return;
+            }
         }
         helper.succeed();
     }

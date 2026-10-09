@@ -55,7 +55,7 @@ public final class DhIntegration {
      * after a teleport (about 90% of all requests in the first playtest). {@code SURFACE_ONLY} skips that pass. It is
      * set as an API override, so the player's own DH config is left untouched, and removed while we are off.
      */
-    static void applyPlan() {
+    public static void applyPlan() {
         if (active()) {
             DhApi.Delayed.configs.worldGenerator().GeneratorPlan().setValue(EDhApiGeneratorPlan.SURFACE_ONLY, DhTurbo.MOD_ID);
         } else {

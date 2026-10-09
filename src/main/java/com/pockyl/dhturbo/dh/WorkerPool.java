@@ -10,13 +10,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Threads of the generator. A fork-join pool, so a tile task can split itself into bands and wait for them without
  * blocking a worker. Created on first use and kept for the whole game session (daemon threads).
  */
-final class WorkerPool {
+public final class WorkerPool {
     private static volatile ForkJoinPool pool;
 
     private WorkerPool() {
     }
 
-    static ForkJoinPool get() {
+    public static ForkJoinPool get() {
         ForkJoinPool current = pool;
         if (current == null) {
             synchronized (WorkerPool.class) {

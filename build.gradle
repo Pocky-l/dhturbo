@@ -102,8 +102,10 @@ var installDistantHorizonsClient = tasks.register('installDistantHorizonsClient'
     from configurations.distantHorizons
     into 'run/mods'
 }
-var installDistantHorizonsServer = tasks.register('installDistantHorizonsServer', Copy) {
-    from configurations.distantHorizons
+// -PserverDh=false runs the dev server without Distant Horizons (tests client-side generation).
+var serverDh = providers.gradleProperty('serverDh').map { it != 'false' }.getOrElse(true)
+var installDistantHorizonsServer = tasks.register('installDistantHorizonsServer', Sync) {
+    from(serverDh ? configurations.distantHorizons : files())
     into 'run-server/mods'
 }
 tasks.named('runClient') { dependsOn installDistantHorizonsClient }

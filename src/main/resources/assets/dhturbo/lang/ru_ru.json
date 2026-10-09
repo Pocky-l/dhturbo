@@ -22,5 +22,7 @@
   "dhturbo.message.cleared": "дальний ландшафт очищен, генерируется заново",
   "dhturbo.message.clear_unavailable": "нечего очищать: дальний ландшафт генерируется заново только в одиночной игре",
   "dhturbo.message.clear_failed": "не удалось очистить дальний ландшафт, подробности в логе",
-  "dhturbo.message.no_distant_horizons": "Distant Horizons не установлен"
+  "dhturbo.message.no_distant_horizons": "Distant Horizons не установлен",
+  "dhturbo.configuration.share_worldgen": "Делиться генерацией мира",
+  "dhturbo.configuration.share_worldgen.tooltip": "Сервер: отправлять игрокам с этим модом сид и настройки генерации мира, чтобы их клиент сам генерировал дальний ландшафт. Выключите, если игрокам нельзя знать сид."
 }

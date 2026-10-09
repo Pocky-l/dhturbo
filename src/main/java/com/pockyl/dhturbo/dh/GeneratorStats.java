@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.LongAdder;
  * What Distant Horizons asks the generator for and how long it takes, logged every few seconds while requests come
  * in: requests per detail level, repeated requests for the same tile, distance from the player, time per tile.
  */
-final class GeneratorStats {
+public final class GeneratorStats {
     private static final long INTERVAL_NANOS = 10_000_000_000L;
     private static final int LEVELS = 13;
     private static final int MAX_TRACKED_TILES = 1_000_000;

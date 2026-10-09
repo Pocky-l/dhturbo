@@ -22,5 +22,7 @@
   "dhturbo.message.cleared": "distant terrain cleared, generating again",
   "dhturbo.message.clear_unavailable": "nothing to clear: distant terrain only regenerates in singleplayer",
   "dhturbo.message.clear_failed": "could not clear distant terrain, see the log",
-  "dhturbo.message.no_distant_horizons": "Distant Horizons is not installed"
+  "dhturbo.message.no_distant_horizons": "Distant Horizons is not installed",
+  "dhturbo.configuration.share_worldgen": "Share World Generation",
+  "dhturbo.configuration.share_worldgen.tooltip": "Server: send players with this mod the world seed and generation settings, so their client generates distant terrain itself. Turn off if players must not know the seed."
 }
