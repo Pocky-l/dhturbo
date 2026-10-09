@@ -4,6 +4,9 @@
   "package": "com.pockyl.fatamorgana.mixin",
   "plugin": "com.pockyl.fatamorgana.mixin.DhMixinPlugin",
   "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "FullDataSourceV2Mixin"
+  ],
   "client": [
     "LodQuadTreeMixin"
   ],
