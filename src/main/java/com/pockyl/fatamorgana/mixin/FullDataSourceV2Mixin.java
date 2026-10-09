@@ -15,6 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.fatamorgana.Config;
 import com.pockyl.fatamorgana.Fatamorgana;
+import com.pockyl.fatamorgana.dh.DataLossStats;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,34 @@ abstract class FullDataSourceV2Mixin {
 
     @Shadow
     public abstract long getPos();
+
+    @Unique
+    private static final ThreadLocal<int[]> fatamorgana$filledBefore = ThreadLocal.withInitial(() -> new int[1]);
+
+    @Inject(method = "updateFromDataSource", at = @At("HEAD"))
+    private void fatamorgana$countBefore(FullDataSourceV2 input, CallbackInfoReturnable<Boolean> callback) {
+        if (fatamorgana$broken) {
+            return;
+        }
+        try {
+            fatamorgana$filledBefore.get()[0] = DataLossStats.filledColumns((FullDataSourceV2) (Object) this);
+        } catch (Throwable e) {
+            fatamorgana$fail(e);
+        }
+    }
+
+    @Inject(method = "updateFromDataSource", at = @At("RETURN"))
+    private void fatamorgana$countAfter(FullDataSourceV2 input, CallbackInfoReturnable<Boolean> callback) {
+        if (fatamorgana$broken) {
+            return;
+        }
+        try {
+            FullDataSourceV2 self = (FullDataSourceV2) (Object) this;
+            DataLossStats.update(self, input, fatamorgana$filledBefore.get()[0], DataLossStats.filledColumns(self));
+        } catch (Throwable e) {
+            fatamorgana$fail(e);
+        }
+    }
 
     @Inject(method = "updateFromOneBelowDetailLevel", at = @At("HEAD"))
     private void fatamorgana$rememberCoarse(FullDataSourceV2 input, int[] remappedIds, CallbackInfoReturnable<Boolean> callback) {

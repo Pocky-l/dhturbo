@@ -8,7 +8,8 @@
     "FullDataSourceV2Mixin"
   ],
   "client": [
-    "LodQuadTreeMixin"
+    "LodQuadTreeMixin",
+    "LodRenderSectionMixin"
   ],
   "injectors": {
     "defaultRequire": 0
