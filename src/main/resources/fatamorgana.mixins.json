@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.pockyl.fatamorgana.mixin",
+  "plugin": "com.pockyl.fatamorgana.mixin.DhMixinPlugin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "LodQuadTreeMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
