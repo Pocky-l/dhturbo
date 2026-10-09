@@ -16,7 +16,7 @@
   <img alt="License MIT" src="https://img.shields.io/badge/License-MIT-blue">
 </p>
 
-> Experimental. Not affiliated with the Distant Horizons team.
+> Not affiliated with the Distant Horizons team.
 
 ## Features
 

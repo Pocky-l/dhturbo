@@ -3,7 +3,7 @@
 An addon for [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) that generates distant
 terrain straight from the world noise, many times faster, with the game's own trees nearby.
 
-*Experimental. Not affiliated with the Distant Horizons team.*
+*Not affiliated with the Distant Horizons team.*
 
 ## Features
 
