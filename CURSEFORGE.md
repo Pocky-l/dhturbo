@@ -57,6 +57,10 @@ with a lightning bolt added.
 
 **[Holy Staff](https://www.curseforge.com/minecraft/mc-mods/holy-staff)** - A holy staff with three healing skills, aim previews and flying heal numbers. ([source](https://github.com/Pocky-l/holy-staff))
 
+[![Inventory Backups](https://raw.githubusercontent.com/Pocky-l/inventory-backups/main/docs/icon.png)](https://www.curseforge.com/minecraft/mc-mods/inventory-backups)
+
+**[Inventory Backups](https://www.curseforge.com/minecraft/mc-mods/inventory-backups)** - Automatic player inventory and ender chest backups with a clickable chat browser, previews and one-click restore for admins. ([source](https://github.com/Pocky-l/inventory-backups))
+
 [![Lumen Rigs](https://raw.githubusercontent.com/Pocky-l/lumen-rigs/main/docs/icon.png)](https://www.curseforge.com/minecraft/mc-mods/lumen-rigs)
 
 **[Lumen Rigs](https://www.curseforge.com/minecraft/mc-mods/lumen-rigs)** - Aimable spotlights, floodlights, searchlights and soft panels with colored light and visible beams. ([source](https://github.com/Pocky-l/lumen-rigs))
