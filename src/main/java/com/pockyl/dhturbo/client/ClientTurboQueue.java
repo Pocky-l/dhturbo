@@ -74,7 +74,10 @@ public final class ClientTurboQueue implements IFullDataSourceRetrievalQueue {
 
     @Override
     public void startAndSetTargetPos(DhBlockPos2D targetPos) {
-        remote.startAndSetTargetPos(targetPos);
+        // While generating here, the download queue has nobody to talk to (the server has no Distant Horizons).
+        if (!generating()) {
+            remote.startAndSetTargetPos(targetPos);
+        }
     }
 
     @Override
