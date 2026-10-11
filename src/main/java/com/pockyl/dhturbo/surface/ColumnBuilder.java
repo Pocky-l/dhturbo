@@ -86,6 +86,9 @@ public final class ColumnBuilder {
         boolean real = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
         // A margin of columns around the tile: slopes at the edges, and trees of neighbouring chunks.
         int margin = real ? RealTrees.MARGIN / spacing + 1 : 1;
+        // Keep the area's lattice on vanilla's cell corners (multiples of 4 blocks): the tile's own corner is one.
+        int cellColumns = Math.max(1, SurfaceTile.CELL_WIDTH / spacing);
+        margin = (margin + cellColumns - 1) / cellColumns * cellColumns;
         SurfaceTile area = SurfaceTile.generate(sampler, minX - margin * spacing, minZ - margin * spacing, spacing,
                 width + 2 * margin, fullResolution ? 1 : 2);
         RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width) : null;

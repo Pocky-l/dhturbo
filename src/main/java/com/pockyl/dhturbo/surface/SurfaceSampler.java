@@ -7,11 +7,17 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.util.KeyDispatchDataCodec;
 import net.minecraft.world.level.levelgen.DensityFunction;
+import net.minecraft.world.level.levelgen.DensityFunctions;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.NoiseRouter;
 import net.minecraft.world.level.levelgen.NoiseSettings;
 import net.minecraft.world.level.levelgen.RandomState;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
 
 /**
  * Finds the terrain surface of a noise-based world without generating chunks.
@@ -24,12 +30,24 @@ import net.minecraft.world.level.levelgen.RandomState;
  *     <li>caves are removed ({@link CaveStripper}) and the search starts at the height of the previous column, so a
  *     typical column needs two or three probes.</li>
  * </ul>
+ * <p>
+ * The density probed is the one inside vanilla's {@code interpolated} marker, not the final density: vanilla
+ * interpolates that value between cell corners and only then squeezes (and clamps) it, which keeps the sign but bends
+ * the values. Interpolating the squeezed final density put the surface up to several blocks off between corners.
+ * When a world's final density is not a sign-keeping function of a single interpolated value (checked on sample
+ * points), the final density is used.
+ * <p>
  * Thread-safe: every thread gets its own copy of the cached density function.
  */
 public final class SurfaceSampler {
     private final RandomState randomState;
     private final BiomeSource biomeSource;
     private final ThreadLocal<DensityFunction> density;
+    /**
+     * The same value with caves, as vanilla interpolates it: below the surface it carries the cave noises, which pull
+     * the surface between cell corners. Only used inside the cell the cave-free search found.
+     */
+    private final ThreadLocal<DensityFunction> realDensity;
     private final int minY;
     private final int maxY;
     private final int cellHeight;
@@ -52,8 +70,16 @@ public final class SurfaceSampler {
         // Same seed and settings apart from the final density: noises are wired identically to the real world.
         this.randomState = RandomState.create(surfaceSettings, registries.lookupOrThrow(Registries.NOISE), seed);
         this.biomeSource = biomeSource;
-        DensityFunction wired = randomState.router().finalDensity();
+        DensityFunction strippedFinal = randomState.router().finalDensity();
+        DensityFunction wired = signal(strippedFinal, settings.noiseSettings());
         this.density = ThreadLocal.withInitial(() -> wired.mapAll(new ColumnCachingVisitor()));
+        RandomState realState = RandomState.create(settings, registries.lookupOrThrow(Registries.NOISE), seed);
+        // Noodle caves sit outside the interpolated value (vanilla adds them per block), so the sign check cannot pass
+        // with caves; the structure was checked on the cave-free density above.
+        DensityFunction realFinal = realState.router().finalDensity();
+        List<DensityFunction> realInterpolated = interpolated(realFinal);
+        DensityFunction realWired = wired != strippedFinal && realInterpolated.size() == 1 ? realInterpolated.getFirst() : realFinal;
+        this.realDensity = ThreadLocal.withInitial(() -> realWired.mapAll(new ColumnCachingVisitor()));
         NoiseSettings noise = settings.noiseSettings();
         this.minY = noise.minY();
         this.maxY = noise.minY() + noise.height();
@@ -107,6 +133,66 @@ public final class SurfaceSampler {
             y = below;
             value = belowValue;
         }
+    }
+
+    private static final KeyDispatchDataCodec<? extends DensityFunction> INTERPOLATED =
+            DensityFunctions.interpolated(DensityFunctions.zero()).codec();
+    private static final int SIGNAL_CHECKS = 256;
+
+    /**
+     * The value vanilla interpolates between cell corners, if the final density is a sign-keeping function of it
+     * (vanilla: {@code min(squeeze(0.64 * interpolated(...)), caves)} with caves stripped); otherwise the final density.
+     */
+    private static List<DensityFunction> interpolated(DensityFunction function) {
+        List<DensityFunction> interpolated = new ArrayList<>();
+        function.mapAll(node -> {
+            if (node instanceof DensityFunctions.MarkerOrMarked marker && marker.codec() == INTERPOLATED) {
+                interpolated.add(marker.wrapped());
+            }
+            return node;
+        });
+        return interpolated;
+    }
+
+    private static DensityFunction signal(DensityFunction finalDensity, NoiseSettings noise) {
+        List<DensityFunction> interpolated = interpolated(finalDensity);
+        if (interpolated.size() != 1) {
+            return finalDensity;
+        }
+        DensityFunction inner = interpolated.getFirst();
+        DensityFunction plainFinal = finalDensity.mapAll(new ColumnCachingVisitor());
+        DensityFunction plainInner = inner.mapAll(new ColumnCachingVisitor());
+        Random random = new Random(1);
+        for (int i = 0; i < SIGNAL_CHECKS; i++) {
+            int x = random.nextInt(60_000) - 30_000;
+            int z = random.nextInt(60_000) - 30_000;
+            int y = noise.minY() + random.nextInt(noise.height());
+            DensityFunction.SinglePointContext point = new DensityFunction.SinglePointContext(x, y, z);
+            double outer = plainFinal.compute(point);
+            if (Math.abs(outer) > 1e-9 && Math.signum(outer) != Math.signum(plainInner.compute(point))) {
+                return finalDensity;
+            }
+        }
+        return inner;
+    }
+
+    /** A density function rewritten with this mod's column caches (for comparisons). */
+    public static DensityFunction columnCached(DensityFunction function) {
+        return function.mapAll(new ColumnCachingVisitor());
+    }
+
+    /** The probed density at a block: positive is solid. Only meaningful on cell corners. */
+    public double density(int x, int y, int z) {
+        return density.get().compute(new DensityFunction.SinglePointContext(x, y, z));
+    }
+
+    /** The interpolated density with caves at a cell corner, as vanilla interpolates it. */
+    public double realDensity(int x, int y, int z) {
+        return realDensity.get().compute(new DensityFunction.SinglePointContext(x, y, z));
+    }
+
+    public int cellHeight() {
+        return cellHeight;
     }
 
     /** Biome at the given block, sampled the way chunk generation does. */

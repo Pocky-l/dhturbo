@@ -117,7 +117,9 @@ public final class GenerationComparison {
                     Surface real = real(level, chunk, x, z);
                     Surface ours = ours(layers, minY);
                     Holder<Biome> realBiome = level.getBiome(new BlockPos(x, real.height, z));
-                    sink.add(x, z, real, ours, realBiome, biome);
+                    int base = generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, level,
+                            level.getChunkSource().randomState());
+                    sink.add(x, z, real, ours, realBiome, biome, base);
                 });
             }
         }
@@ -143,6 +145,21 @@ public final class GenerationComparison {
                     level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, at),
                     level.getBrightness(net.minecraft.world.level.LightLayer.SKY, at)));
             stats[0].probes.add(line.toString());
+            // Density on the cell corners around the surface: vanilla's router as is, vanilla's router through our
+            // column caches, and the sampler (caves stripped, interpolated value).
+            net.minecraft.world.level.levelgen.DensityFunction vanilla = level.getChunkSource().randomState().router().finalDensity();
+            net.minecraft.world.level.levelgen.DensityFunction cached = com.pockyl.dhturbo.surface.SurfaceSampler.columnCached(vanilla);
+            StringBuilder densities = new StringBuilder("  densities (vanilla / vanilla cached / ours):");
+            int cell = builder.sampler().cellHeight();
+            for (int y = Math.floorDiv(height - 24 - minY, cell) * cell + minY; y <= height + 16; y += cell) {
+                var point = new net.minecraft.world.level.levelgen.DensityFunction.SinglePointContext(x, y, z);
+                densities.append(String.format(Locale.ROOT, " y%d %.3f/%.3f/%.3f", y, vanilla.compute(point),
+                        cached.compute(point), builder.sampler().density(x, y, z)));
+            }
+            densities.append(" | vanilla height ").append(generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG,
+                    level, level.getChunkSource().randomState())).append(", ours ")
+                    .append(builder.sampler().surfaceHeight(x, z, height));
+            stats[0].probes.add(densities.toString());
         }
         report.add(String.format(Locale.ROOT, "Seed %d, %d areas of %dx%d chunks, %.1f s", level.getSeed(), areas,
                 AREA_CHUNKS, AREA_CHUNKS, (System.nanoTime() - start) / 1e9));
@@ -258,6 +275,13 @@ public final class GenerationComparison {
         int plantsOursOnly;
         int biomeMismatch;
         final int[] heightErrors = new int[8];
+        /** Ours minus real, -5..+5 (clamped), and by real height band: [below 60, 60-66, 67-90, above 90] x [exact, ours higher, ours lower]. */
+        final int[] signedErrors = new int[11];
+        final int[][] bands = new int[4][3];
+        int landColumns;
+        int baseIsReal;
+        int baseIsOurs;
+        final List<String> heightExamples = new ArrayList<>();
         final Map<String, Integer> kinds = new TreeMap<>();
         final Map<String, Integer> blocks = new TreeMap<>();
         final Map<String, List<String>> examples = new TreeMap<>();
@@ -268,7 +292,7 @@ public final class GenerationComparison {
         final Map<String, int[]> snowByBiome = new TreeMap<>();
         final List<String> probes = new ArrayList<>();
 
-        void add(int x, int z, Surface real, Surface ours, Holder<Biome> realBiome, Holder<Biome> ourBiome) {
+        void add(int x, int z, Surface real, Surface ours, Holder<Biome> realBiome, Holder<Biome> ourBiome, int base) {
             columns++;
             String biomeName = name(realBiome);
             if (!biomeName.equals(name(ourBiome))) {
@@ -295,6 +319,23 @@ public final class GenerationComparison {
             compared++;
             int error = Math.min(heightErrors.length - 1, Math.abs(real.height - ours.height));
             heightErrors[error]++;
+            int signed = ours.height - real.height;
+            signedErrors[Math.clamp(signed, -5, 5) + 5]++;
+            if (real.height > 66 && !real.kind.equals("water")) {
+                landColumns++;
+                if (base == real.height) {
+                    baseIsReal++;
+                }
+                if (base == ours.height) {
+                    baseIsOurs++;
+                }
+                if (heightExamples.size() < 12 && ours.height != real.height) {
+                    heightExamples.add(String.format(Locale.ROOT, "%d %d: real %d, vanilla noise height %d, ours %d",
+                            x, z, real.height, base, ours.height));
+                }
+            }
+            int band = real.height < 60 ? 0 : real.height <= 66 ? 1 : real.height <= 90 ? 2 : 3;
+            bands[band][signed == 0 ? 0 : signed > 0 ? 1 : 2]++;
             String pair = real.kind + " -> " + ours.kind;
             kinds.merge(pair, 1, Integer::sum);
             if (!real.kind.equals(ours.kind)) {
@@ -342,6 +383,22 @@ public final class GenerationComparison {
                         .append(String.format(Locale.ROOT, "%.1f%%  ", pct(heightErrors[i], compared)));
             }
             out.add(heights.toString());
+            StringBuilder signedLine = new StringBuilder("Ours minus real: ");
+            for (int i = 0; i < signedErrors.length; i++) {
+                signedLine.append(i == 0 ? "<=" : i == signedErrors.length - 1 ? ">=" : "").append(i - 5).append(": ")
+                        .append(String.format(Locale.ROOT, "%.1f%%  ", pct(signedErrors[i], compared)));
+            }
+            out.add(signedLine.toString());
+            out.add(String.format(Locale.ROOT, "Land above y 66 (%d columns): vanilla's own noise height (getBaseHeight) "
+                    + "equals the real top on %.1f%%, ours on %.1f%%", landColumns, pct(baseIsReal, landColumns),
+                    pct(baseIsOurs, landColumns)));
+            heightExamples.forEach(line -> out.add("    " + line));
+            String[] names = {"real y < 60", "60-66", "67-90", "> 90"};
+            for (int b = 0; b < bands.length; b++) {
+                int total = bands[b][0] + bands[b][1] + bands[b][2];
+                out.add(String.format(Locale.ROOT, "  %-12s %6d columns: exact %.1f%%, ours higher %.1f%%, ours lower %.1f%%",
+                        names[b], total, pct(bands[b][0], total), pct(bands[b][1], total), pct(bands[b][2], total)));
+            }
             out.add(String.format(Locale.ROOT, "Trees: both %d, only real %d, only ours %d; plants: both %d, only real %d, "
                     + "only ours %d", bothTrees, realTreeOnly, oursTreeOnly, plantsBoth, plantsRealOnly, plantsOursOnly));
             int white = 0;

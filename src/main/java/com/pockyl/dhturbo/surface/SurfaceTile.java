@@ -14,7 +14,7 @@ import java.util.concurrent.RecursiveAction;
  */
 public final class SurfaceTile {
     /** Vanilla cell width: the terrain is interpolated between density samples this many blocks apart. */
-    private static final int CELL_WIDTH = 4;
+    static final int CELL_WIDTH = 4;
     /** Sample rows per parallel band; small enough to spread a tile over many threads. */
     private static final int BAND_ROWS = 4;
     /** Rise over two blocks from which vanilla's surface rules call a slope steep. */
@@ -109,6 +109,17 @@ public final class SurfaceTile {
             bands.add(() -> lattice.sample(sampler, minX, minZ, step * spacing, from, to));
         }
         run(bands);
+        // On the cell lattice (detailed tiles) columns between corners get vanilla's own interpolation of the density.
+        boolean cellLattice = step * spacing == CELL_WIDTH;
+        if (cellLattice) {
+            List<Runnable> corners = new ArrayList<>();
+            for (int first = 0; first < samples; first += BAND_ROWS) {
+                int from = first;
+                int to = Math.min(samples, first + BAND_ROWS);
+                corners.add(() -> lattice.sampleCorners(sampler, minX, minZ, step * spacing, from, to));
+            }
+            run(corners);
+        }
 
         for (int j = 0; j < width; j++) {
             int sj = j / step;
@@ -118,10 +129,22 @@ public final class SurfaceTile {
                 int si = i / step;
                 int nextI = Math.min(si + 1, samples - 1);
                 double fx = (double) (i - si * step) / step;
-                double top = lerp(fx, lattice.height(si, sj), lattice.height(nextI, sj));
-                double bottom = lerp(fx, lattice.height(si, nextJ), lattice.height(nextI, nextJ));
-                tile.heights[i + j * width] = (int) Math.round(lerp(fz, top, bottom));
-                tile.biomes[i + j * width] = lattice.biome(fx < 0.5 ? si : nextI, fz < 0.5 ? sj : nextJ);
+                int height = Integer.MIN_VALUE;
+                if (fx == 0 && fz == 0) {
+                    height = lattice.height(si, sj);
+                } else if (cellLattice) {
+                    height = lattice.interpolatedHeight(sampler.cellHeight(), si, sj, nextI, nextJ, fx, fz);
+                }
+                if (height == Integer.MIN_VALUE) {
+                    double top = lerp(fx, lattice.height(si, sj), lattice.height(nextI, sj));
+                    double bottom = lerp(fx, lattice.height(si, nextJ), lattice.height(nextI, nextJ));
+                    height = (int) Math.round(lerp(fz, top, bottom));
+                }
+                tile.heights[i + j * width] = height;
+                // On the cell lattice every sample is the corner of a vanilla biome quart (4x4 blocks): the column takes
+                // its own quart's biome. Wider lattices take the nearest sample.
+                tile.biomes[i + j * width] = cellLattice ? lattice.biome(si, sj)
+                        : lattice.biome(fx < 0.5 ? si : nextI, fz < 0.5 ? sj : nextJ);
             }
         }
         return tile;
@@ -154,12 +177,94 @@ public final class SurfaceTile {
         private final int samples;
         private final int[] heights;
         private final Holder<Biome>[] biomes;
+        /** Per corner: density on cell-corner levels from {@code levelBase} up (see {@link #sampleCorners}). */
+        private final double[][] densities;
+        private final int[] levelBase;
 
         @SuppressWarnings("unchecked")
         Lattice(int samples) {
             this.samples = samples;
             this.heights = new int[samples * samples];
             this.biomes = (Holder<Biome>[]) new Holder[samples * samples];
+            this.densities = new double[samples * samples][];
+            this.levelBase = new int[samples * samples];
+        }
+
+        /**
+         * Samples the density of every corner on the cell levels the surface can cross in the four cells around it:
+         * from the cell holding the lowest neighbouring surface to the one above the highest.
+         */
+        void sampleCorners(SurfaceSampler sampler, int minX, int minZ, int blockStep, int fromRow, int toRow) {
+            int cell = sampler.cellHeight();
+            int minY = sampler.minY();
+            for (int sj = fromRow; sj < toRow; sj++) {
+                for (int si = 0; si < samples; si++) {
+                    int low = Integer.MAX_VALUE;
+                    int high = Integer.MIN_VALUE;
+                    for (int nj = Math.max(sj - 1, 0); nj <= Math.min(sj + 1, samples - 1); nj++) {
+                        for (int ni = Math.max(si - 1, 0); ni <= Math.min(si + 1, samples - 1); ni++) {
+                            low = Math.min(low, heights[ni + nj * samples]);
+                            high = Math.max(high, heights[ni + nj * samples]);
+                        }
+                    }
+                    int base = level(low - 1, minY, cell);
+                    int top = level(high - 1, minY, cell) + cell;
+                    int count = (top - base) / cell + 1;
+                    double[] values = new double[count];
+                    int x = minX + si * blockStep;
+                    int z = minZ + sj * blockStep;
+                    for (int k = 0; k < count; k++) {
+                        values[k] = sampler.realDensity(x, base + k * cell, z);
+                    }
+                    densities[si + sj * samples] = values;
+                    levelBase[si + sj * samples] = base;
+                }
+            }
+        }
+
+        /**
+         * Vanilla's terrain between cell corners: the density is interpolated bilinearly between the four corners and
+         * linearly between cell levels; the surface is the first non-solid block above the highest solid level.
+         * Returns {@code Integer.MIN_VALUE} when the corners do not bracket the surface (then heights are lerped).
+         */
+        int interpolatedHeight(int cell, int si, int sj, int ni, int nj, double fx, double fz) {
+            int[] corners = {si + sj * samples, ni + sj * samples, si + nj * samples, ni + nj * samples};
+            double[] weights = {(1 - fx) * (1 - fz), fx * (1 - fz), (1 - fx) * fz, fx * fz};
+            int base = Integer.MIN_VALUE;
+            int top = Integer.MAX_VALUE;
+            for (int corner : corners) {
+                base = Math.max(base, levelBase[corner]);
+                top = Math.min(top, levelBase[corner] + (densities[corner].length - 1) * cell);
+            }
+            if (top < base + cell) {
+                return Integer.MIN_VALUE;
+            }
+            double above = density(corners, weights, top, cell);
+            if (above > 0) {
+                return Integer.MIN_VALUE;
+            }
+            for (int y = top - cell; y >= base; y -= cell) {
+                double value = density(corners, weights, y, cell);
+                if (value > 0) {
+                    double blocks = value / (value - above) * cell;
+                    return y + Math.min(cell, (int) Math.ceil(blocks));
+                }
+                above = value;
+            }
+            return Integer.MIN_VALUE;
+        }
+
+        private double density(int[] corners, double[] weights, int y, int cell) {
+            double sum = 0;
+            for (int c = 0; c < corners.length; c++) {
+                int corner = corners[c];
+                sum += weights[c] * densities[corner][(y - levelBase[corner]) / cell];
+            }
+            return sum;
+        }
+
+        private static int level(int y, int minY, int cell) {
+            return Math.floorDiv(y - minY, cell) * cell + minY;
         }
 
         int height(int si, int sj) {
