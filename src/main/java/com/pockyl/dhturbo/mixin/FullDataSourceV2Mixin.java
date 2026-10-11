@@ -15,7 +15,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
-import com.pockyl.dhturbo.dh.DataLossStats;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,34 +48,6 @@ abstract class FullDataSourceV2Mixin {
 
     @Shadow
     public abstract long getPos();
-
-    @Unique
-    private static final ThreadLocal<int[]> dhturbo$filledBefore = ThreadLocal.withInitial(() -> new int[1]);
-
-    @Inject(method = "updateFromDataSource", at = @At("HEAD"))
-    private void dhturbo$countBefore(FullDataSourceV2 input, CallbackInfoReturnable<Boolean> callback) {
-        if (dhturbo$broken || !DhTurbo.DEBUG) {
-            return;
-        }
-        try {
-            dhturbo$filledBefore.get()[0] = DataLossStats.filledColumns((FullDataSourceV2) (Object) this);
-        } catch (Throwable e) {
-            dhturbo$fail(e);
-        }
-    }
-
-    @Inject(method = "updateFromDataSource", at = @At("RETURN"))
-    private void dhturbo$countAfter(FullDataSourceV2 input, CallbackInfoReturnable<Boolean> callback) {
-        if (dhturbo$broken || !DhTurbo.DEBUG) {
-            return;
-        }
-        try {
-            FullDataSourceV2 self = (FullDataSourceV2) (Object) this;
-            DataLossStats.update(self, input, dhturbo$filledBefore.get()[0], DataLossStats.filledColumns(self));
-        } catch (Throwable e) {
-            dhturbo$fail(e);
-        }
-    }
 
     @Inject(method = "updateFromOneBelowDetailLevel", at = @At("HEAD"))
     private void dhturbo$rememberCoarse(FullDataSourceV2 input, int[] remappedIds, CallbackInfoReturnable<Boolean> callback) {

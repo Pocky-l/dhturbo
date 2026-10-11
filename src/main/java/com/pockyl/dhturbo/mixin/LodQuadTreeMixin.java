@@ -17,7 +17,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.client.EmptySectionQueue;
-import com.pockyl.dhturbo.client.HoleStats;
 import com.pockyl.dhturbo.client.RenderSectionContent;
 
 import java.util.ArrayList;
@@ -77,9 +76,6 @@ abstract class LodQuadTreeMixin {
             // (queued before this method); once it renders, DH swaps it in and deletes the children as usual.
             cover.forEach(tickNodeHolder::addEnableNode);
             tickNodeHolder.addDisableNode(quadNode);
-            if (DhTurbo.DEBUG) {
-                HoleStats.covered();
-            }
             callback.setReturnValue(true);
         } else if (quadNode.value != null && quadNode.value.canRender()) {
             // Built but empty (no data generated for it yet): report it as not renderable, so the coarser parent
@@ -87,36 +83,7 @@ abstract class LodQuadTreeMixin {
             tickNodeHolder.addDisableNode(quadNode);
             // DH would request its generation only if it were shown; queue it for generation anyway.
             ((EmptySectionQueue) tickNodeHolder).dhturbo$queueEmpty(quadNode);
-            if (DhTurbo.DEBUG) {
-                HoleStats.empty();
-            }
             callback.setReturnValue(false);
-        }
-    }
-
-    @Inject(method = "onDesiredDetailLevel", at = @At("RETURN"))
-    private void dhturbo$collectHoleCandidates(QuadNode<LodRenderSection> quadNode, QuadNode<LodRenderSection> parentNode,
-                                                   CallbackInfoReturnable<Boolean> callback) {
-        // Not rendering itself; whether an ancestor covers it is only known once the whole tree is updated.
-        if (dhturbo$broken || !DhTurbo.DEBUG || callback.getReturnValueZ()) {
-            return;
-        }
-        try {
-            HoleStats.candidate(quadNode);
-        } catch (Throwable e) {
-            dhturbo$fail(e);
-        }
-    }
-
-    @Inject(method = "updateAllRenderSections", at = @At("TAIL"))
-    private void dhturbo$countHoles(CallbackInfo callback) {
-        if (dhturbo$broken || !DhTurbo.DEBUG) {
-            return;
-        }
-        try {
-            HoleStats.endTick(tickNodeHolder.getEnabledNodes(), tickNodeHolder.getEnableDeleteChildrenNodes());
-        } catch (Throwable e) {
-            dhturbo$fail(e);
         }
     }
 

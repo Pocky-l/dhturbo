@@ -9,12 +9,11 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import com.pockyl.dhturbo.DhTurbo;
-import com.pockyl.dhturbo.client.RenderDropStats;
 import com.pockyl.dhturbo.client.RenderSectionContent;
 
 /**
  * Remembers how much geometry each LOD section was built with ({@link RenderSectionContent}, used by
- * {@code LodQuadTreeMixin} to not show empty sections) and reports drops ({@link RenderDropStats}).
+ * {@code LodQuadTreeMixin} to not show empty sections).
  */
 @Mixin(value = LodRenderSection.class, remap = false)
 abstract class LodRenderSectionMixin implements RenderSectionContent {
@@ -37,9 +36,6 @@ abstract class LodRenderSectionMixin implements RenderSectionContent {
             LodQuadBuilder builder = callback.getReturnValue();
             int quads = builder == null ? 0 : builder.getCurrentOpaqueQuadsCount() + builder.getCurrentTransparentQuadsCount();
             dhturbo$quads = quads;
-            if (DhTurbo.DEBUG) {
-                RenderDropStats.built(((LodRenderSection) (Object) this).pos, quads);
-            }
         } catch (Throwable e) {
             dhturbo$broken = true;
             DhTurbo.LOGGER.error("DH Turbo's render diagnostics failed and are switched off", e);
