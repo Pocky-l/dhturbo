@@ -12,6 +12,7 @@ import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 
+import com.pockyl.dhturbo.surface.RealLakes;
 import com.pockyl.dhturbo.surface.RealTrees;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
 import com.pockyl.dhturbo.surface.SurfaceTile;
@@ -45,6 +46,7 @@ public final class SurfaceBenchmark {
     private final RandomState randomState;
     private final LevelHeightAccessor heightAccessor;
     private final RealTrees realTrees;
+    private final RealLakes realLakes;
 
     public SurfaceBenchmark(RegistryAccess registries, Holder<NoiseGeneratorSettings> settings, BiomeSource biomeSource,
                             long seed) {
@@ -55,6 +57,8 @@ public final class SurfaceBenchmark {
         this.vanilla = new NoiseBasedChunkGenerator(biomeSource, settings);
         this.heightAccessor = LevelHeightAccessor.create(value.noiseSettings().minY(), value.noiseSettings().height());
         this.realTrees = new RealTrees(vanilla, fast, seed, registries,
+                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD));
+        this.realLakes = new RealLakes(vanilla, fast, seed, registries,
                 registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD));
     }
 
@@ -89,6 +93,10 @@ public final class SurfaceBenchmark {
 
     public int vanillaHeight(int x, int z) {
         return vanilla.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, heightAccessor, randomState);
+    }
+
+    public RealLakes lakes() {
+        return realLakes;
     }
 
     public SurfaceSampler fast() {

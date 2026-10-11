@@ -20,8 +20,9 @@ from the world noise, with the game's own trees nearby.
 - 🧵 **Every core at work** - each tile is split across all worker threads.
 - 🌲 **Real trees nearby** - the game's own tree placement is replayed: same spots, species and shapes; farther away,
   approximate trees shaped like their species.
-- 🏔️ **Surface details** - snow by temperature and height, ice, bare rock on steep slopes, badlands bands, biome
-  seabeds.
+- 🏔️ **Surface details** - snow by temperature and height, ice, badlands bands, biome seabeds; cliffs and ravines
+  show grass on top and dirt and stone on their walls, like the real ones.
+- 🌋 **Lava lakes** - where and as the game places them.
 - 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
   patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
 - 🖼️ **No vanishing terrain** while Distant Horizons swaps tiles for more detailed ones.

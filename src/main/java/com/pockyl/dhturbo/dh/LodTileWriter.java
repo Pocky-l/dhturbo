@@ -21,6 +21,7 @@ import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.surface.BiomeLook;
 import com.pockyl.dhturbo.surface.FakeTrees;
 import com.pockyl.dhturbo.surface.GroundCover;
+import com.pockyl.dhturbo.surface.RealLakes;
 import com.pockyl.dhturbo.surface.RealTrees;
 import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
@@ -57,6 +58,8 @@ public final class LodTileWriter {
     private final SurfaceSampler sampler;
     @Nullable
     private final RealTrees realTrees;
+    @Nullable
+    private final RealLakes realLakes;
     private final BlockState defaultBlock;
     private final long seed;
     private final boolean fullResolution;
@@ -81,6 +84,8 @@ public final class LodTileWriter {
         this.realTrees = fakeTrees && Config.REAL_TREES.get()
                 ? new RealTrees(generator, sampler, seed, registries, dimensionType)
                 : null;
+        RealLakes lakes = new RealLakes(generator, sampler, seed, registries, dimensionType);
+        this.realLakes = lakes.isEmpty() ? null : lakes;
         this.defaultBlock = generator.generatorSettings().value().defaultBlock();
         this.seed = seed;
         this.fullResolution = Config.FULL_RESOLUTION.get();
@@ -99,6 +104,9 @@ public final class LodTileWriter {
         SurfaceTile area = SurfaceTile.generate(sampler, minX - margin * spacing, minZ - margin * spacing, spacing,
                 width + 2 * margin, fullResolution ? 1 : 2);
         RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width) : null;
+        RealLakes.Lake[] lakes = realLakes != null && spacing <= RealLakes.MAX_SPACING
+                ? realLakes.plan(minX, minZ, spacing, width)
+                : null;
         if (real) {
             long failures = realTrees.takeFailures();
             if (stats != null) {
@@ -120,7 +128,12 @@ public final class LodTileWriter {
                 } else if (fakeTrees) {
                     canopy = FakeTrees.at(seed, x, z, spacing, BiomeLook.of(levelBiome.apply(area.biome(i + margin, j + margin))));
                 }
-                column(points, x, z, area, i + margin, j + margin, canopy, treeTop);
+                RealLakes.Lake lake = lakes != null ? lakes[i + j * width] : null;
+                if (lake != null) {
+                    lakeColumn(points, lake, levelBiome.apply(area.biome(i + margin, j + margin)));
+                } else {
+                    column(points, x, z, area, i + margin, j + margin, canopy, treeTop);
+                }
                 dataSource.setApiDataPointColumn(i, j, STEP, points);
             }
         }
@@ -153,7 +166,12 @@ public final class LodTileWriter {
             int depth = seaLevel - ground;
             if (groundRel > 0) {
                 BlockState floor = overworld ? look.underwater() : defaultBlock;
-                points.add(point(floor, Math.max(0, MAX_LIGHT - depth), 0, groundRel, biomeWrapper));
+                int light = Math.max(0, MAX_LIGHT - depth);
+                int floorFrom = Math.max(0, groundRel - 1 - SurfaceDetail.SUBSURFACE_DEPTH);
+                if (floorFrom > 0) {
+                    points.add(point(defaultBlock, light, 0, floorFrom, biomeWrapper));
+                }
+                points.add(point(floor, light, floorFrom, groundRel, biomeWrapper));
             }
             boolean frozen = biome.value().coldEnoughToSnow(new BlockPos(x, seaLevel, z));
             if (frozen && depth >= 1) {
@@ -177,7 +195,7 @@ public final class LodTileWriter {
             surface = SurfaceDetail.top(biome, look, seed, x, ground, z, area.slope(i, j));
         }
         if (groundRel > 0) {
-            points.add(point(surface, MAX_LIGHT, 0, groundRel, biomeWrapper));
+            layers(points, overworld ? biome : null, look, surface, groundRel, biomeWrapper);
         }
         int airFrom = groundRel;
         BlockState plant = groundCover && overworld && canopy == null && groundRel + 1 < top
@@ -203,6 +221,59 @@ public final class LodTileWriter {
         if (airFrom < top) {
             points.add(point(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, top, biomeWrapper));
         }
+    }
+
+    /** A column of a lake: rock up to the lake bed, the fluid (lava glows), air above. */
+    private void lakeColumn(List<DhApiTerrainDataPoint> points, RealLakes.Lake lake, Holder<Biome> biome) {
+        int minY = sampler.minY();
+        int top = sampler.maxY() - minY;
+        int bottomRel = Math.clamp(lake.bottom() - minY, 0, top);
+        int topRel = Math.clamp(lake.top() - minY, bottomRel, top);
+        IDhApiBiomeWrapper biomeWrapper = biomeWrapper(biome);
+        if (bottomRel > 0) {
+            points.add(point(defaultBlock, MAX_LIGHT, 0, bottomRel, biomeWrapper));
+        }
+        if (topRel > bottomRel) {
+            points.add(point(lake.fluid(), MAX_LIGHT, bottomRel, topRel, biomeWrapper));
+        }
+        if (topRel < top) {
+            points.add(point(Blocks.AIR.defaultBlockState(), MAX_LIGHT, topRel, top, biomeWrapper));
+        }
+    }
+
+    /**
+     * The solid part of a land column: rock, the layer under the top block (dirt under grass, sandstone under sand,
+     * clay bands in badlands) and the top block. Distant Horizons draws these on the walls of cliffs and ravines.
+     *
+     * @param biome null outside the overworld (rock with the top block only)
+     */
+    private void layers(List<DhApiTerrainDataPoint> points, @Nullable Holder<Biome> biome, BiomeLook look,
+                        BlockState surface, int groundRel, IDhApiBiomeWrapper biomeWrapper) {
+        int topFrom = groundRel - 1;
+        if (biome != null && biome.is(BiomeTags.IS_BADLANDS)) {
+            int bandFrom = Math.max(0, topFrom - SurfaceDetail.BAND_DEPTH);
+            if (bandFrom > 0) {
+                points.add(point(defaultBlock, MAX_LIGHT, 0, bandFrom, biomeWrapper));
+            }
+            int minY = sampler.minY();
+            int y = bandFrom;
+            while (y < topFrom) {
+                // Bands are two blocks high on even world Y.
+                int end = Math.min(topFrom, y + 2 - Math.floorMod(y + minY, 2));
+                points.add(point(SurfaceDetail.band(seed, y + minY).defaultBlockState(), MAX_LIGHT, y, end, biomeWrapper));
+                y = end;
+            }
+        } else {
+            BlockState under = biome != null ? SurfaceDetail.subsurface(surface, look, defaultBlock) : defaultBlock;
+            int underFrom = Math.max(0, topFrom - SurfaceDetail.SUBSURFACE_DEPTH);
+            if (underFrom > 0) {
+                points.add(point(defaultBlock, MAX_LIGHT, 0, underFrom, biomeWrapper));
+            }
+            if (topFrom > underFrom) {
+                points.add(point(under, MAX_LIGHT, underFrom, topFrom, biomeWrapper));
+            }
+        }
+        points.add(point(surface, MAX_LIGHT, Math.max(0, topFrom), groundRel, biomeWrapper));
     }
 
     private DhApiTerrainDataPoint point(BlockState state, int skyLight, int bottom, int top, IDhApiBiomeWrapper biome) {

@@ -22,7 +22,10 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
+import com.pockyl.dhturbo.surface.BiomeLook;
 import com.pockyl.dhturbo.surface.GroundCover;
+import com.pockyl.dhturbo.surface.RealLakes;
+import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.WorldgenLoader;
@@ -115,6 +118,78 @@ public final class ModGameTests {
             helper.fail(failures + " tree features failed on the virtual level");
         } else if (treeColumns < found * 500) {
             helper.fail("Too few trees: " + treeColumns + " columns in " + found + " tiles");
+        }
+        helper.succeed();
+    }
+
+    /**
+     * Surface lava lakes are found, and a lake seen on a coarse tile is at the same place and height on the
+     * full-detail tile (every tile asks the same terrain, so tiles agree).
+     */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void lavaLakesAgreeAcrossDetail(GameTestHelper helper) {
+        SurfaceBenchmark benchmark = overworldBenchmark(helper.getLevel().registryAccess());
+        RealLakes lakes = benchmark.lakes();
+        int width = SurfaceBenchmark.TILE_WIDTH;
+        int spacing = RealLakes.MAX_SPACING;
+        int found = 0;
+        int checked = 0;
+        long start = System.nanoTime();
+        for (int tile = 0; tile < 6 && checked < 5; tile++) {
+            int minX = tile * width * spacing;
+            int minZ = -tile * width * spacing;
+            RealLakes.Lake[] coarse = lakes.plan(minX, minZ, spacing, width);
+            if (coarse == null) {
+                continue;
+            }
+            for (int index = 0; index < coarse.length && checked < 5; index++) {
+                RealLakes.Lake lake = coarse[index];
+                if (lake == null) {
+                    continue;
+                }
+                found++;
+                int x = minX + index % width * spacing;
+                int z = minZ + index / width * spacing;
+                int fineX = Math.floorDiv(x, width) * width;
+                int fineZ = Math.floorDiv(z, width) * width;
+                RealLakes.Lake[] fine = lakes.plan(fineX, fineZ, 1, width);
+                RealLakes.Lake same = fine == null ? null : fine[(x - fineX) + (z - fineZ) * width];
+                if (same == null || same.top() != lake.top() || !same.fluid().equals(lake.fluid())) {
+                    helper.fail("Lake at " + x + " " + z + " differs on the detailed tile: " + lake + " vs " + same);
+                    return;
+                }
+                checked++;
+            }
+        }
+        DhTurbo.LOGGER.info("Lava lakes: {} lake columns on coarse tiles, {} checked on detailed ones, {} ms", found,
+                checked, (System.nanoTime() - start) / 1_000_000);
+        for (int lakeSpacing : new int[]{1, 4, 16}) {
+            long timer = System.nanoTime();
+            for (int tile = 0; tile < 8; tile++) {
+                lakes.plan(tile * 9_000, 5_000, lakeSpacing, width);
+            }
+            DhTurbo.LOGGER.info("Lava lakes: {} ms per tile with {}-block columns", (System.nanoTime() - timer) / 8e6,
+                    lakeSpacing);
+        }
+        if (checked == 0) {
+            helper.fail("No surface lake found in 6 coarse tiles");
+        }
+        helper.succeed();
+    }
+
+    /** Vanilla keeps grass on steep slopes outside snowy mountains; the walls show the layers under it. */
+    @GameTest(template = "empty")
+    public static void steepSlopesKeepTheirTop(GameTestHelper helper) {
+        var biomes = helper.getLevel().registryAccess().registryOrThrow(Registries.BIOME);
+        Holder<Biome> plains = biomes.getHolderOrThrow(Biomes.PLAINS);
+        Holder<Biome> slopes = biomes.getHolderOrThrow(Biomes.SNOWY_SLOPES);
+        BlockState plainsTop = SurfaceDetail.top(plains, BiomeLook.of(plains), SEED, 0, 90, 0, 3.0);
+        BlockState slopesTop = SurfaceDetail.top(slopes, BiomeLook.of(slopes), SEED, 0, 150, 0, 3.0);
+        BlockState under = SurfaceDetail.subsurface(plainsTop, BiomeLook.of(plains), Blocks.STONE.defaultBlockState());
+        if (!plainsTop.is(Blocks.GRASS_BLOCK) || !under.is(Blocks.DIRT)) {
+            helper.fail("Steep plains should be grass over dirt: " + plainsTop + " over " + under);
+        } else if (!slopesTop.is(Blocks.STONE)) {
+            helper.fail("Steep snowy slopes should be stone: " + slopesTop);
         }
         helper.succeed();
     }
