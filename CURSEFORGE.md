@@ -22,6 +22,8 @@ from the world noise, with the game's own trees nearby.
   approximate trees shaped like their species.
 - 🏔️ **Surface details** - snow by temperature and height, ice, bare rock on steep slopes, badlands bands, biome
   seabeds.
+- 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
+  patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
 - 🖼️ **No vanishing terrain** while Distant Horizons swaps tiles for more detailed ones.
 - 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
   themselves, even without Distant Horizons on the server.
@@ -32,7 +34,7 @@ there.
 ## ⚙️ Configuration
 
 *Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, full resolution, distant and real
-trees. Servers can stop sharing the world seed (`share_worldgen`).
+trees, grass and flowers, soft plant colours. Servers can stop sharing the world seed (`share_worldgen`).
 
 ## 💛 Credits
 

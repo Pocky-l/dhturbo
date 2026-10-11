@@ -6,20 +6,30 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
+import com.pockyl.dhturbo.surface.GroundCover;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.WorldgenLoader;
 
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * In-game tests, run headless by {@code gradlew runGameTestServer}.
@@ -63,37 +73,98 @@ public final class ModGameTests {
     /** Vanilla tree features must run on the virtual level without failing and produce trees in a forest. */
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void realTreesGrowInForests(GameTestHelper helper) {
+        realTreesGrowIn(helper, BiomeTags.IS_FOREST, 7);
+    }
+
+    /**
+     * Jungles place several trees per chunk, often on the same spot: the second one must not grow inside the first
+     * one's trunk (no logs, then vanilla's cocoa decorator crashes).
+     */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void realTreesGrowInJungles(GameTestHelper helper) {
+        realTreesGrowIn(helper, BiomeTags.IS_JUNGLE, 11);
+    }
+
+    private static void realTreesGrowIn(GameTestHelper helper, TagKey<Biome> kind, long randomSeed) {
         SurfaceBenchmark benchmark = overworldBenchmark(helper.getLevel().registryAccess());
-        Random random = new Random(7);
-        int forests = 0;
+        Random random = new Random(randomSeed);
+        int found = 0;
         int treeColumns = 0;
         long failures = 0;
-        // Forests for the tree count, plus random tiles of every other kind for features that might fail.
-        for (int attempt = 0; attempt < 400 && forests < 5; attempt++) {
+        // Tiles of the kind for the tree count, plus random tiles of every other kind for features that might fail.
+        for (int attempt = 0; attempt < 3000 && found < 5; attempt++) {
             int x = (random.nextInt(40_000) - 20_000) & ~63;
             int z = (random.nextInt(40_000) - 20_000) & ~63;
             int y = benchmark.fast().surfaceHeight(x + 32, z + 32, benchmark.fast().seaLevel());
-            boolean forest = y > benchmark.fast().seaLevel() && benchmark.fast().biome(x + 32, y, z + 32).is(BiomeTags.IS_FOREST);
-            if (!forest && attempt % 10 != 0) {
+            boolean wanted = y > benchmark.fast().seaLevel() && benchmark.fast().biome(x + 32, y, z + 32).is(kind);
+            if (!wanted && attempt % 100 != 0) {
                 continue;
             }
             SurfaceBenchmark.Planted planted = benchmark.plant(x, z, 1);
             failures += planted.failures();
-            if (forest) {
-                forests++;
+            if (wanted) {
+                found++;
                 treeColumns += planted.treeColumns();
             }
         }
-        DhTurbo.LOGGER.info("Real trees in {} forest tiles: {} tree columns, {} failed features", forests, treeColumns,
-                failures);
-        if (forests == 0) {
-            helper.fail("No forest found to test trees in");
+        DhTurbo.LOGGER.info("Real trees in {} {} tiles: {} tree columns, {} failed features", found, kind.location(),
+                treeColumns, failures);
+        if (found == 0) {
+            helper.fail("No " + kind.location() + " tile found to test trees in");
         } else if (failures > 0) {
             helper.fail(failures + " tree features failed on the virtual level");
-        } else if (treeColumns < forests * 500) {
-            helper.fail("Too few trees in forests: " + treeColumns + " columns in " + forests + " tiles");
+        } else if (treeColumns < found * 500) {
+            helper.fail("Too few trees: " + treeColumns + " columns in " + found + " tiles");
         }
         helper.succeed();
+    }
+
+    /** Distant ground gets grass and the biome's own flowers, in plausible amounts. */
+    @GameTest(template = "empty")
+    public static void groundCoverFollowsBiomes(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        var biomes = registries.registryOrThrow(Registries.BIOME);
+        Cover flowerForest = cover(biomes.getHolderOrThrow(Biomes.FLOWER_FOREST), Blocks.GRASS_BLOCK);
+        Cover plains = cover(biomes.getHolderOrThrow(Biomes.PLAINS), Blocks.GRASS_BLOCK);
+        Cover desert = cover(biomes.getHolderOrThrow(Biomes.DESERT), Blocks.SAND);
+        DhTurbo.LOGGER.info("Ground cover: flower forest {}, plains {}, desert {}", flowerForest, plains, desert);
+        if (flowerForest.flowers() < 0.2 || flowerForest.species() < 4) {
+            helper.fail("Flower forest has too few flowers: " + flowerForest);
+        } else if (plains.grass() < 0.35 || plains.flowers() > 0.06) {
+            helper.fail("Plains cover is off: " + plains);
+        } else if (desert.grass() > 0 || desert.flowers() > 0 || desert.other() > 0.05) {
+            helper.fail("Desert cover is off: " + desert);
+        }
+        helper.succeed();
+    }
+
+    private record Cover(double flowers, double grass, double other, int species) {
+    }
+
+    private static Cover cover(Holder<Biome> biome, Block ground) {
+        int samples = 4000;
+        int flowers = 0;
+        int grass = 0;
+        int other = 0;
+        Set<Block> species = new HashSet<>();
+        Random random = new Random(5);
+        for (int i = 0; i < samples; i++) {
+            int x = random.nextInt(20_000) - 10_000;
+            int z = random.nextInt(20_000) - 10_000;
+            BlockState plant = GroundCover.at(SEED, x, 70, z, biome, biome, ground.defaultBlockState());
+            if (plant == null) {
+                continue;
+            }
+            if (plant.is(BlockTags.FLOWERS)) {
+                flowers++;
+                species.add(plant.getBlock());
+            } else if (plant.is(Blocks.SHORT_GRASS) || plant.is(Blocks.FERN)) {
+                grass++;
+            } else {
+                other++;
+            }
+        }
+        return new Cover(flowers / (double) samples, grass / (double) samples, other / (double) samples, species.size());
     }
 
     /**

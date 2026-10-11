@@ -24,5 +24,9 @@
   "dhturbo.message.clear_failed": "could not clear distant terrain, see the log",
   "dhturbo.message.no_distant_horizons": "Distant Horizons is not installed",
   "dhturbo.configuration.share_worldgen": "Share World Generation",
-  "dhturbo.configuration.share_worldgen.tooltip": "Server: send players with this mod the world seed and generation settings, so their client generates distant terrain itself. Turn off if players must not know the seed."
+  "dhturbo.configuration.share_worldgen.tooltip": "Server: send players with this mod the world seed and generation settings, so their client generates distant terrain itself. Turn off if players must not know the seed.",
+  "dhturbo.configuration.ground_cover": "Grass and Flowers",
+  "dhturbo.configuration.ground_cover.tooltip": "Put grass and the biome's flowers on generated distant ground, so meadows and flower fields look like they do up close.",
+  "dhturbo.configuration.soft_plant_colors": "Soft Plant Colors",
+  "dhturbo.configuration.soft_plant_colors.tooltip": "Blend the colour of plants into the ground under them instead of painting the whole block (a poppy no longer turns a grass block red). Applies to LODs built after the change."
 }

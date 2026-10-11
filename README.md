@@ -31,6 +31,8 @@
   approximate trees shaped like their species.
 - 🏔️ **Surface details** - snow by temperature and height, ice, bare rock on steep slopes, badlands bands, biome
   seabeds.
+- 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
+  patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
 - 🖼️ **No vanishing terrain** while Distant Horizons swaps tiles for more detailed ones.
 - 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
   themselves, even without Distant Horizons on the server.
@@ -57,6 +59,8 @@ The mod adds no blocks or items.
 | `full_resolution` | `false` | Compute every terrain column instead of one in four; about 3x slower, sharper distant cliffs |
 | `fake_trees` | `true` | Draw trees in distant forests |
 | `real_trees` | `true` | Replay the game's tree placement on detailed terrain near the player |
+| `ground_cover` | `true` | Put grass and the biome's flowers on distant ground |
+| `soft_plant_colors` | `true` | Client: blend plant colours into the ground under them instead of painting the whole block (all LODs, also from real chunks) |
 | `share_worldgen` | `true` | Server: send players with this mod the world seed and terrain settings, so they generate distant terrain themselves; turn off if players must not know the seed |
 
 While enabled, the mod switches the Distant Horizons generator plan to "surface only" at runtime, so Distant Horizons

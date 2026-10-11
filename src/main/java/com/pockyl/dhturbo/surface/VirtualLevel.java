@@ -1,8 +1,11 @@
 package com.pockyl.dhturbo.surface;
 
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
 import net.minecraft.core.RegistryAccess;
@@ -55,6 +58,12 @@ final class VirtualLevel implements InvocationHandler {
     private final RegistryAccess registries;
     private final DimensionType dimensionType;
     private final Long2ObjectMap<BlockState> writes = new Long2ObjectOpenHashMap<>();
+    /**
+     * Per column (x, z): one above the highest block placed there. Heightmaps include placed trees, like vanilla's,
+     * so a second tree drawn on an occupied spot lands on the first one's crown and fails its survival check instead
+     * of growing inside its trunk (that left jungle trees without logs and crashed vanilla's cocoa decorator).
+     */
+    private final Long2IntMap placedTops = new Long2IntOpenHashMap();
     final WorldGenLevel proxy;
 
     VirtualLevel(Terrain terrain, long seed, int minY, int height, int seaLevel, RegistryAccess registries,
@@ -92,10 +101,21 @@ final class VirtualLevel implements InvocationHandler {
 
     private int height(Heightmap.Types type, int x, int z) {
         int ground = terrain.ground(x, z);
-        return switch (type) {
+        int natural = switch (type) {
             case OCEAN_FLOOR, OCEAN_FLOOR_WG -> ground;
             default -> Math.max(ground, seaLevel);
         };
+        return Math.max(natural, placedTops.getOrDefault(ChunkPos.asLong(x, z), Integer.MIN_VALUE));
+    }
+
+    private void place(BlockPos pos, BlockState state) {
+        writes.put(pos.asLong(), state);
+        if (!state.isAir()) {
+            long column = ChunkPos.asLong(pos.getX(), pos.getZ());
+            if (pos.getY() + 1 > placedTops.getOrDefault(column, Integer.MIN_VALUE)) {
+                placedTops.put(column, pos.getY() + 1);
+            }
+        }
     }
 
     @Override
@@ -113,7 +133,7 @@ final class VirtualLevel implements InvocationHandler {
             case "isFluidAtPosition":
                 return ((Predicate<FluidState>) args[1]).test(blockState((BlockPos) args[0]).getFluidState());
             case "setBlock":
-                writes.put(((BlockPos) args[0]).asLong(), (BlockState) args[1]);
+                place((BlockPos) args[0], (BlockState) args[1]);
                 return true;
             case "removeBlock", "destroyBlock":
                 writes.put(((BlockPos) args[0]).asLong(), Blocks.AIR.defaultBlockState());

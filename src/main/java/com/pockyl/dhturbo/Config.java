@@ -33,6 +33,19 @@ public final class Config {
             .translation("dhturbo.configuration.real_trees")
             .define("real_trees", true);
 
+    public static final ModConfigSpec.BooleanValue GROUND_COVER = BUILDER
+            .comment("Put grass and the biome's flowers on generated distant ground. Distant Horizons shows them as a tint of",
+                    "the ground, so meadows and flower fields look like they do up close.")
+            .translation("dhturbo.configuration.ground_cover")
+            .define("ground_cover", true);
+
+    public static final ModConfigSpec.BooleanValue SOFT_PLANT_COLORS = BUILDER
+            .comment("Client: when Distant Horizons tints the ground with the plants on it, blend their colour in softly instead",
+                    "of painting the whole block (a poppy no longer turns a grass block red). Also for terrain from real chunks.",
+                    "Takes effect for LODs built after the change (re-enter the world).")
+            .translation("dhturbo.configuration.soft_plant_colors")
+            .define("soft_plant_colors", true);
+
     public static final ModConfigSpec.BooleanValue SHARE_WORLDGEN = BUILDER
             .comment("Server: send players with this mod the world seed and generation settings, so their client generates",
                     "distant terrain itself (also on servers without Distant Horizons). Turn off if players must not know the seed.")

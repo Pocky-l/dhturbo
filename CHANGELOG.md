@@ -4,6 +4,19 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - Unreleased
+### Added
+- Grass and flowers on distant ground: meadows, plains and flower forests get grass and the biome's own flowers, with
+  tulip fields and flower patches where the game puts them. Config `ground_cover`.
+### Changed
+- Flowers and other small plants no longer paint the whole block under them in the distance (a poppy made a red block,
+  a dandelion a yellow one): their colour is blended softly into the ground, grass shades it a little, and the ground
+  keeps its material for shaders. Works for all distant terrain, also the one built from real chunks. Config
+  `soft_plant_colors`.
+### Fixed
+- Jungle trees near the player failed to appear in distant terrain, and trees could grow inside each other: trees are
+  now placed on the terrain as the game does, with trees already standing there taken into account.
+
 ## [1.0.0] - 2026-10-09
 ### Added
 - Distant terrain for [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) generated

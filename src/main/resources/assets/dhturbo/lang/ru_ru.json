@@ -24,5 +24,9 @@
   "dhturbo.message.clear_failed": "не удалось очистить дальний ландшафт, подробности в логе",
   "dhturbo.message.no_distant_horizons": "Distant Horizons не установлен",
   "dhturbo.configuration.share_worldgen": "Делиться генерацией мира",
-  "dhturbo.configuration.share_worldgen.tooltip": "Сервер: отправлять игрокам с этим модом сид и настройки генерации мира, чтобы их клиент сам генерировал дальний ландшафт. Выключите, если игрокам нельзя знать сид."
+  "dhturbo.configuration.share_worldgen.tooltip": "Сервер: отправлять игрокам с этим модом сид и настройки генерации мира, чтобы их клиент сам генерировал дальний ландшафт. Выключите, если игрокам нельзя знать сид.",
+  "dhturbo.configuration.ground_cover": "Трава и цветы",
+  "dhturbo.configuration.ground_cover.tooltip": "Добавлять траву и цветы биома на сгенерированную дальнюю землю, чтобы луга и цветочные поля выглядели как вблизи.",
+  "dhturbo.configuration.soft_plant_colors": "Мягкие цвета растений",
+  "dhturbo.configuration.soft_plant_colors.tooltip": "Подмешивать цвет растений к земле под ними, а не перекрашивать весь блок (мак больше не делает блок травы красным). Действует на LOD, построенные после изменения."
 }

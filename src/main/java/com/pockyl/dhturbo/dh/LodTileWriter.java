@@ -20,6 +20,7 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.surface.BiomeLook;
 import com.pockyl.dhturbo.surface.FakeTrees;
+import com.pockyl.dhturbo.surface.GroundCover;
 import com.pockyl.dhturbo.surface.RealTrees;
 import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
@@ -60,6 +61,7 @@ public final class LodTileWriter {
     private final long seed;
     private final boolean fullResolution;
     private final boolean fakeTrees;
+    private final boolean groundCover;
     /**
      * Maps biomes of the generator's registries to the level's own. They differ on a client, where the generator's
      * registries come from local data packs without tags.
@@ -82,6 +84,7 @@ public final class LodTileWriter {
         this.defaultBlock = generator.generatorSettings().value().defaultBlock();
         this.seed = seed;
         this.fullResolution = Config.FULL_RESOLUTION.get();
+        this.groundCover = Config.GROUND_COVER.get();
         this.levelBiome = levelBiome;
         this.stats = stats;
     }
@@ -177,6 +180,14 @@ public final class LodTileWriter {
             points.add(point(surface, MAX_LIGHT, 0, groundRel, biomeWrapper));
         }
         int airFrom = groundRel;
+        BlockState plant = groundCover && overworld && canopy == null && groundRel + 1 < top
+                ? GroundCover.at(seed, x, ground, z, area.biome(i, j), biome, surface)
+                : null;
+        if (plant != null) {
+            // One block of plant: Distant Horizons does not draw it, it tints the ground under it.
+            points.add(point(plant, MAX_LIGHT, groundRel, groundRel + 1, biomeWrapper));
+            airFrom = groundRel + 1;
+        }
         if (canopy != null && overworld) {
             int leavesBottom = Math.min(top, groundRel + Math.max(0, canopy.leavesBottom()));
             int leavesTop = Math.min(top, groundRel + canopy.leavesTop());

@@ -12,7 +12,8 @@
     "LodRenderSectionMixin",
     "QuadTreeTickNodeHolderMixin",
     "DhClientLevelMixin",
-    "AbstractLodRequestStateMixin"
+    "AbstractLodRequestStateMixin",
+    "FullDataToRenderDataTransformerMixin"
   ],
   "injectors": {
     "defaultRequire": 0
