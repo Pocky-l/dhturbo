@@ -118,6 +118,15 @@ The jar is written to `build/libs/`. `./gradlew runGameTestServer` runs the game
   </tr>
 </table>
 
+**🎨 Graphics & performance**
+
+<table>
+  <tr>
+    <td width="56"><a href="https://www.curseforge.com/minecraft/mc-mods/pocky-shaders"><img src="docs/more-mods/pocky_shaders.png" width="48" alt="Pocky Shaders"></a></td>
+    <td><a href="https://www.curseforge.com/minecraft/mc-mods/pocky-shaders"><b>Pocky Shaders</b></a> - a cosy, natural shader pack that sets itself up (<a href="https://github.com/Pocky-l/pocky-shaders">source</a>)</td>
+  </tr>
+</table>
+
 **⚔️ Gear & gameplay**
 
 <table>

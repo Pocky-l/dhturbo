@@ -57,6 +57,10 @@ Seibel and the Distant Horizons team; the logo is the Distant Horizons icon with
 
 [![Neon Glowsticks](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/neon_glowsticks.png)](https://www.curseforge.com/minecraft/mc-mods/neon-glowsticks) **[Neon Glowsticks](https://www.curseforge.com/minecraft/mc-mods/neon-glowsticks)** - throwable glowsticks that bounce, roll and light up the dark
 
+**🎨 Graphics & performance**
+
+[![Pocky Shaders](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/pocky_shaders.png)](https://www.curseforge.com/minecraft/mc-mods/pocky-shaders) **[Pocky Shaders](https://www.curseforge.com/minecraft/mc-mods/pocky-shaders)** - a cosy, natural shader pack that sets itself up
+
 **⚔️ Gear & gameplay**
 
 [![Holy Staff](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/holy_staff.png)](https://www.curseforge.com/minecraft/mc-mods/holy-staff) **[Holy Staff](https://www.curseforge.com/minecraft/mc-mods/holy-staff)** - a healing staff with three skills and flying heal numbers
