@@ -10,6 +10,7 @@ import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
+import com.pockyl.dhturbo.compare.GenerationComparison;
 import com.pockyl.dhturbo.dh.DhIntegration;
 import com.pockyl.dhturbo.network.WorldgenSharing;
 
@@ -26,6 +27,7 @@ public final class DhTurbo {
     public DhTurbo(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         WorldgenSharing.register(modBus);
+        GenerationComparison.registerIfRequested();
         if (ModList.get().isLoaded("distanthorizons")) {
             DhIntegration.register();
         } else {

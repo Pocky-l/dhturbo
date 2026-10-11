@@ -54,6 +54,18 @@ neoForge {
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
+        // Compares our columns with chunks the game really generates (compare/GenerationComparison): a normal world
+        // with a fixed seed in run/compare/, report in run/compare/dhturbo-compare.txt, stops when done.
+        compareServer {
+            server()
+            gameDirectory = project.file('run/compare')
+            programArgument '--nogui'
+            systemProperty 'dhturbo.compare', providers.gradleProperty('compareAreas').getOrElse('48')
+            systemProperty 'dhturbo.compare.exit', 'true'
+            systemProperty 'dhturbo.compare.spacings', providers.gradleProperty('compareSpacings').getOrElse('1,4')
+            systemProperty 'dhturbo.compare.probe', providers.gradleProperty('compareProbe').getOrElse('')
+        }
+
         gameTestServer {
             type = 'gameTestServer'
             // Own directory: run/mods holds Distant Horizons for the dev client, which crashes the game test server.
@@ -115,6 +127,22 @@ var installDistantHorizonsServer = serverDh
         }
 tasks.named('runClient') { dependsOn installDistantHorizonsClient }
 tasks.named('runServer') { dependsOn installDistantHorizonsServer }
+
+// The comparison server needs an accepted EULA and a fixed seed; the watchdog is off (the comparison blocks the
+// first tick for a while).
+var prepareCompareServer = tasks.register('prepareCompareServer') {
+    var dir = project.file('run/compare')
+    outputs.files(new File(dir, 'eula.txt'), new File(dir, 'server.properties'))
+    doLast {
+        dir.mkdirs()
+        new File(dir, 'eula.txt').text = 'eula=true' + System.lineSeparator()
+        new File(dir, 'server.properties').text = [
+                'level-seed=20261009', 'online-mode=false', 'max-tick-time=-1', 'spawn-protection=0',
+                'view-distance=4', 'simulation-distance=4', 'level-name=world'
+        ].join(System.lineSeparator()) + System.lineSeparator()
+    }
+}
+tasks.named('runCompareServer') { dependsOn prepareCompareServer }
 
 var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
     var replaceProperties = [

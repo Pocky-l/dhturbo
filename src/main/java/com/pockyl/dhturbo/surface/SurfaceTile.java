@@ -17,6 +17,10 @@ public final class SurfaceTile {
     private static final int CELL_WIDTH = 4;
     /** Sample rows per parallel band; small enough to spread a tile over many threads. */
     private static final int BAND_ROWS = 4;
+    /** Rise over two blocks from which vanilla's surface rules call a slope steep. */
+    private static final int VANILLA_STEEP_RISE = 4;
+    /** Gradients between wide columns are averaged over a longer run and come out flatter than local ones. */
+    private static final double COARSE_STEEP_FACTOR = 0.75;
 
     public final int minX;
     public final int minZ;
@@ -57,15 +61,32 @@ public final class SurfaceTile {
         return biome(index(x, minX), index(z, minZ));
     }
 
-    /** Steepness at a column: height change per block, the larger of the two horizontal directions. */
-    public double slope(int i, int j) {
-        int dx = height(Math.min(i + 1, width - 1), j) - height(Math.max(i - 1, 0), j);
-        int dz = height(i, Math.min(j + 1, width - 1)) - height(i, Math.max(j - 1, 0));
-        int span = (Math.min(i + 1, width - 1) - Math.max(i - 1, 0));
-        int spanZ = (Math.min(j + 1, width - 1) - Math.max(j - 1, 0));
-        double sx = span == 0 ? 0 : Math.abs(dx) / (double) (span * spacing);
-        double sz = spanZ == 0 ? 0 : Math.abs(dz) / (double) (spanZ * spacing);
-        return Math.max(sx, sz);
+    /**
+     * Vanilla's {@code steep} surface condition: the ground rises by 4+ blocks over the two neighbours to the south
+     * (a slope facing north) or to the west (facing east), neighbours clamped to the column's chunk; other directions
+     * never count. On wider columns the same directions with the gradient over the neighbouring columns.
+     */
+    public boolean steep(int i, int j) {
+        if (spacing == 1) {
+            int x = minX + i;
+            int z = minZ + j;
+            int north = (z & 15) == 0 ? z : z - 1;
+            int south = (z & 15) == 15 ? z : z + 1;
+            if (heightAt(x, south) >= heightAt(x, north) + VANILLA_STEEP_RISE) {
+                return true;
+            }
+            int west = (x & 15) == 0 ? x : x - 1;
+            int east = (x & 15) == 15 ? x : x + 1;
+            return heightAt(west, z) >= heightAt(east, z) + VANILLA_STEEP_RISE;
+        }
+        int north = Math.max(j - 1, 0);
+        int south = Math.min(j + 1, width - 1);
+        int west = Math.max(i - 1, 0);
+        int east = Math.min(i + 1, width - 1);
+        // Rise per two blocks, like vanilla's neighbours.
+        double southward = south == north ? 0 : 2.0 * (height(i, south) - height(i, north)) / ((south - north) * spacing);
+        double westward = east == west ? 0 : 2.0 * (height(west, j) - height(east, j)) / ((east - west) * spacing);
+        return southward >= VANILLA_STEEP_RISE * COARSE_STEEP_FACTOR || westward >= VANILLA_STEEP_RISE * COARSE_STEEP_FACTOR;
     }
 
     /**

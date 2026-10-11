@@ -3,6 +3,7 @@ package com.pockyl.dhturbo.surface;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
@@ -18,13 +19,6 @@ import net.minecraft.world.level.block.state.BlockState;
  * grass rim, a little dirt and stone walls, like the real one.
  */
 public final class SurfaceDetail {
-    /**
-     * Height change per horizontal block from which a slope counts as steep. Vanilla's {@code steep} surface
-     * condition fires at 4 blocks over 2 (slope 2); LOD heights are interpolated and smoother, so a bit lower.
-     * Vanilla only uses it in snowy mountains (snowy slopes, frozen and jagged peaks): everywhere else a steep slope
-     * keeps its grass on top and shows stone only on the walls.
-     */
-    public static final double STEEP = 1.4;
     /** Blocks of the layer under the top block (vanilla's surface depth is 3 to 6). */
     public static final int SUBSURFACE_DEPTH = 3;
     /** Badlands columns get bands this many blocks down from the top; deeper they are plain terracotta. */
@@ -40,8 +34,14 @@ public final class SurfaceDetail {
     private SurfaceDetail() {
     }
 
-    public static BlockState top(Holder<Biome> biome, BiomeLook look, long seed, int x, int y, int z, double slope) {
-        boolean steep = slope >= STEEP;
+    /**
+     * Top block of a land column.
+     *
+     * @param steep vanilla's {@code steep} condition ({@link SurfaceTile#steep}); vanilla only uses it in snowy
+     *              mountains (snowy slopes, frozen and jagged peaks): elsewhere a steep slope keeps its grass on top
+     *              and shows stone only on the walls
+     */
+    public static BlockState top(Holder<Biome> biome, BiomeLook look, long seed, int x, int y, int z, boolean steep) {
         if (biome.is(BiomeTags.IS_BADLANDS) && (steep || y >= BADLANDS_BANDS_FROM_Y)) {
             return band(seed, y).defaultBlockState();
         }
@@ -51,10 +51,21 @@ public final class SurfaceDetail {
         if (steep && (biome.is(Biomes.SNOWY_SLOPES) || biome.is(Biomes.JAGGED_PEAKS))) {
             return Blocks.STONE.defaultBlockState();
         }
-        if (biome.value().coldEnoughToSnow(new BlockPos(x, y, z))) {
-            return Blocks.SNOW_BLOCK.defaultBlockState();
-        }
+        // Snowy peaks, slopes and ice spikes have snow blocks as their top (BiomeLook); other cold ground keeps its
+        // own block under a snow layer (snowLayerOn).
         return look.top();
+    }
+
+    /**
+     * Vanilla's {@code freeze_top_layer}: a snow layer on the topmost block (ground, leaves) where it is cold enough at
+     * the height of the layer and snow can lie on that block (not on ice). Distant Horizons paints the block under a
+     * thin snow layer white, so cold ground, rock and tree crowns look snowed over while cliff walls stay grey.
+     *
+     * @param y height of the layer (one above the block it lies on)
+     */
+    public static boolean snowLayerOn(Holder<Biome> biome, BlockState below, int x, int y, int z) {
+        return !below.liquid() && !below.is(BlockTags.SNOW_LAYER_CANNOT_SURVIVE_ON)
+                && biome.value().coldEnoughToSnow(new BlockPos(x, y, z));
     }
 
     /**

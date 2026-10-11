@@ -183,8 +183,8 @@ public final class ModGameTests {
         var biomes = helper.getLevel().registryAccess().registryOrThrow(Registries.BIOME);
         Holder<Biome> plains = biomes.getHolderOrThrow(Biomes.PLAINS);
         Holder<Biome> slopes = biomes.getHolderOrThrow(Biomes.SNOWY_SLOPES);
-        BlockState plainsTop = SurfaceDetail.top(plains, BiomeLook.of(plains), SEED, 0, 90, 0, 3.0);
-        BlockState slopesTop = SurfaceDetail.top(slopes, BiomeLook.of(slopes), SEED, 0, 150, 0, 3.0);
+        BlockState plainsTop = SurfaceDetail.top(plains, BiomeLook.of(plains), SEED, 0, 90, 0, true);
+        BlockState slopesTop = SurfaceDetail.top(slopes, BiomeLook.of(slopes), SEED, 0, 150, 0, true);
         BlockState under = SurfaceDetail.subsurface(plainsTop, BiomeLook.of(plains), Blocks.STONE.defaultBlockState());
         if (!plainsTop.is(Blocks.GRASS_BLOCK) || !under.is(Blocks.DIRT)) {
             helper.fail("Steep plains should be grass over dirt: " + plainsTop + " over " + under);

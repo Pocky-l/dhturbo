@@ -2,6 +2,7 @@ package com.pockyl.dhturbo.client;
 
 import com.seibel.distanthorizons.core.wrapperInterfaces.block.IBlockStateWrapper;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BushBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
@@ -31,6 +32,8 @@ public final class PlantTint {
     private static final Tint FLOWER = new Tint(0.3f, 1.0f);
     private static final Tint GRASS = new Tint(0.5f, 0.88f);
     private static final Tint OTHER = new Tint(0.25f, 1.0f);
+    /** Powder snow has no collision either, but it is the ground's colour from above: DH's full tint stays. */
+    private static final Tint FULL = new Tint(1.0f, 1.0f);
 
     private static final class State {
         int ignoredColor;
@@ -123,6 +126,9 @@ public final class PlantTint {
         return TINTS.computeIfAbsent(block, key -> {
             if (!(key.getWrappedMcObject() instanceof BlockState state)) {
                 return OTHER;
+            }
+            if (state.is(Blocks.POWDER_SNOW)) {
+                return FULL;
             }
             if (state.is(BlockTags.FLOWERS)) {
                 return FLOWER;
