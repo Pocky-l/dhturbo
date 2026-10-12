@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Grass and flowers on distant ground: meadows, plains and flower forests get grass and the biome's own flowers, with
   tulip fields and flower patches where the game puts them. Config `ground_cover`.
 - Lava lakes in the distance, where and as the game places them.
+- Distant ground is covered by the world's own surface rules, also those of data packs and terrain mods: gravel
+  shores, calcite, coarse dirt, powder snow, mud, badlands clay bands and hoodoos, icebergs in frozen oceans - the same
+  blocks as up close (98.5% of columns in a comparison with real generation, up from 96.7%). Config
+  `vanilla_surface` (off: one typical block per biome, a little faster).
 ### Changed
 - Flowers and other small plants no longer paint the whole block under them in the distance (a poppy made a red block,
   a dandelion a yellow one): their colour is blended softly into the ground, grass shades it a little, and the ground

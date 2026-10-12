@@ -122,6 +122,29 @@ public final class GenerationComparison {
             }
         }
         List<String> report = new ArrayList<>();
+        // Build cost alone (no comparison), one tile of 64 columns per spacing at every area's corner.
+        StringBuilder timing = new StringBuilder("Build time per 64x64 tile:");
+        for (int spacing : spacings) {
+            Random timingRandom = new Random(level.getSeed());
+            long nanos = 0;
+            for (int area = 0; area < areas; area++) {
+                int tileX = (timingRandom.nextInt(2 * RANGE) - RANGE) & ~63;
+                int tileZ = (timingRandom.nextInt(2 * RANGE) - RANGE) & ~63;
+                long begin = System.nanoTime();
+                builder.build(tileX * spacing, tileZ * spacing, spacing, 64, (i, j, biome, layers) -> {
+                });
+                nanos += System.nanoTime() - begin;
+            }
+            timing.append(String.format(Locale.ROOT, " spacing %d %.1f ms", spacing, nanos / 1e6 / Math.max(1, areas)));
+        }
+        report.add(timing.toString());
+        if (builder.vanillaSurface() != null) {
+            long begin = System.nanoTime();
+            for (int n = 0; n < 100; n++) {
+                builder.vanillaSurface().pass(n * 64, 0, (x, z) -> 64, true);
+            }
+            report.add(String.format(Locale.ROOT, "Surface rule pass setup: %.2f ms", (System.nanoTime() - begin) / 1e6 / 100));
+        }
         // -Ddhturbo.compare.probe=x,z;x,z prints the real blocks around the surface of those columns.
         for (String probe : System.getProperty(DhTurbo.MOD_ID + ".compare.probe", "").split(";")) {
             if (probe.isBlank()) {
@@ -231,7 +254,7 @@ public final class GenerationComparison {
                 tree = true;
                 continue;
             }
-            if (!state.blocksMotion() && !state.liquid()) {
+            if (!state.blocksMotion() && !state.liquid() && !state.is(Blocks.POWDER_SNOW)) {
                 plant = true;
                 continue;
             }

@@ -39,6 +39,13 @@ public final class Config {
             .translation("dhturbo.configuration.ground_cover")
             .define("ground_cover", true);
 
+    public static final ModConfigSpec.BooleanValue VANILLA_SURFACE = BUILDER
+            .comment("Cover generated distant ground with the world's own surface rules (also those of data packs and mods):",
+                    "gravel shores, calcite, coarse dirt, powder snow, badlands bands and hoodoos, icebergs - like up close.",
+                    "Off: one typical block per biome, a little faster.")
+            .translation("dhturbo.configuration.vanilla_surface")
+            .define("vanilla_surface", true);
+
     public static final ModConfigSpec.BooleanValue SOFT_PLANT_COLORS = BUILDER
             .comment("Client: when Distant Horizons tints the ground with the plants on it, blend their colour in softly instead",
                     "of painting the whole block (a poppy no longer turns a grass block red). Also for terrain from real chunks.",

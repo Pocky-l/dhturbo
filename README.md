@@ -29,8 +29,9 @@
 - 🧵 **Every core at work** - each tile is split across all worker threads.
 - 🌲 **Real trees nearby** - the game's own tree placement is replayed: same spots, species and shapes; farther away,
   approximate trees shaped like their species.
-- 🏔️ **Surface details** - snow by temperature and height, ice, badlands bands, biome seabeds; cliffs and ravines
-  show grass on top and dirt and stone on their walls, like the real ones.
+- 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
+  distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
+  by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
 - 🌋 **Lava lakes** - where and as the game places them.
 - 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
   patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
@@ -60,6 +61,7 @@ The mod adds no blocks or items.
 | `full_resolution` | `false` | Compute every terrain column instead of one in four; about 3x slower, sharper distant cliffs |
 | `fake_trees` | `true` | Draw trees in distant forests |
 | `real_trees` | `true` | Replay the game's tree placement on detailed terrain near the player |
+| `vanilla_surface` | `true` | Cover distant ground with the world's own surface rules; off: one typical block per biome, a little faster |
 | `ground_cover` | `true` | Put grass and the biome's flowers on distant ground |
 | `soft_plant_colors` | `true` | Client: blend plant colours into the ground under them instead of painting the whole block (all LODs, also from real chunks) |
 | `share_worldgen` | `true` | Server: send players with this mod the world seed and terrain settings, so they generate distant terrain themselves; turn off if players must not know the seed |

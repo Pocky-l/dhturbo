@@ -25,6 +25,8 @@
   "dhturbo.message.no_distant_horizons": "Distant Horizons is not installed",
   "dhturbo.configuration.share_worldgen": "Share World Generation",
   "dhturbo.configuration.share_worldgen.tooltip": "Server: send players with this mod the world seed and generation settings, so their client generates distant terrain itself. Turn off if players must not know the seed.",
+  "dhturbo.configuration.vanilla_surface": "Surface Rules of the World",
+  "dhturbo.configuration.vanilla_surface.tooltip": "Cover distant ground with the world's own surface rules (also of data packs and mods): gravel shores, calcite, powder snow, badlands bands, icebergs. Off: one typical block per biome, a little faster.",
   "dhturbo.configuration.ground_cover": "Grass and Flowers",
   "dhturbo.configuration.ground_cover.tooltip": "Put grass and the biome's flowers on generated distant ground, so meadows and flower fields look like they do up close.",
   "dhturbo.configuration.soft_plant_colors": "Soft Plant Colors",

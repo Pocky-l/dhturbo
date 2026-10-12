@@ -11,6 +11,7 @@ import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 
 import com.pockyl.dhturbo.Config;
+import com.pockyl.dhturbo.DhTurbo;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -31,6 +32,8 @@ public final class ColumnBuilder {
      * tiles: with 2-block columns the replay tripled the cost of tiles that are already 500+ blocks away.
      */
     private static final int REAL_TREES_MAX_SPACING = 1;
+    /** Rows of columns per parallel band. */
+    private static final int BAND_ROWS = 8;
 
     /** A run of one block in a column, bottom (inclusive) to top (exclusive), relative to the bottom of the level. */
     public record Layer(BlockState state, int skyLight, int bottom, int top) {
@@ -47,6 +50,9 @@ public final class ColumnBuilder {
     private final RealTrees realTrees;
     @Nullable
     private final RealLakes realLakes;
+    /** The world's surface rules; null when they cannot run (then {@link BiomeLook} and {@link SurfaceDetail}). */
+    @Nullable
+    private final VanillaSurface vanillaSurface;
     private final BlockState defaultBlock;
     private final long seed;
     private final boolean fullResolution;
@@ -67,11 +73,32 @@ public final class ColumnBuilder {
                 : null;
         RealLakes lakes = new RealLakes(generator, sampler, seed, registries, dimensionType);
         this.realLakes = lakes.isEmpty() ? null : lakes;
+        this.vanillaSurface = Config.VANILLA_SURFACE.get() ? vanillaSurface(generator, sampler, registries, seed) : null;
         this.defaultBlock = generator.generatorSettings().value().defaultBlock();
         this.seed = seed;
         this.fullResolution = Config.FULL_RESOLUTION.get();
         this.groundCover = Config.GROUND_COVER.get();
         this.levelBiome = levelBiome;
+    }
+
+    @Nullable
+    private static VanillaSurface vanillaSurface(NoiseBasedChunkGenerator generator, SurfaceSampler sampler,
+                                                 RegistryAccess registries, long seed) {
+        try {
+            VanillaSurface surface = new VanillaSurface(generator, sampler, registries, seed);
+            // A first column, so a rule set that cannot run here fails now and not in every tile.
+            surface.pass(0, 0, (x, z) -> sampler.seaLevel(), true).column(0, 0, sampler.seaLevel());
+            return surface;
+        } catch (RuntimeException | LinkageError e) {
+            DhTurbo.LOGGER.warn("The world's surface rules cannot run on distant terrain, using biome blocks instead", e);
+            return null;
+        }
+    }
+
+    /** The world's surface rules, or null when they are off or cannot run. */
+    @Nullable
+    public VanillaSurface vanillaSurface() {
+        return vanillaSurface;
     }
 
     public SurfaceSampler sampler() {
@@ -96,29 +123,52 @@ public final class ColumnBuilder {
                 ? realLakes.plan(minX, minZ, spacing, width)
                 : null;
         long failures = real ? realTrees.takeFailures() : 0;
-
-        List<Layer> points = new ArrayList<>();
+        // Columns are built in parallel bands of rows (each with its own surface rule pass), then handed to the sink in
+        // order on this thread.
+        @SuppressWarnings("unchecked")
+        List<Layer>[] columns = (List<Layer>[]) new List[width * width];
+        int edge = margin;
+        List<Runnable> bands = new ArrayList<>();
+        for (int first = 0; first < width; first += BAND_ROWS) {
+            int from = first;
+            int to = Math.min(width, first + BAND_ROWS);
+            bands.add(() -> {
+                VanillaSurface.Pass rules = null;
+                if (vanillaSurface != null) {
+                    int seaLevel = sampler.seaLevel();
+                    rules = vanillaSurface.pass(minX, minZ + from * spacing, spacing == 1
+                            ? (x, z) -> Math.max(area.heightAt(x, z), seaLevel)
+                            : (x, z) -> (int) Math.round(Math.max(blendedHeight(area, x, z), seaLevel)), spacing == 1);
+                }
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        List<Layer> points = new ArrayList<>(8);
+                        int x = minX + i * spacing;
+                        int z = minZ + j * spacing;
+                        FakeTrees.Canopy canopy = null;
+                        BlockState treeTop = null;
+                        if (trees != null) {
+                            canopy = trees.canopies()[i + j * width];
+                            treeTop = trees.tops()[i + j * width];
+                        } else if (fakeTrees) {
+                            canopy = FakeTrees.at(seed, x, z, spacing,
+                                    BiomeLook.of(levelBiome.apply(area.biome(i + edge, j + edge))));
+                        }
+                        RealLakes.Lake lake = lakes != null ? lakes[i + j * width] : null;
+                        if (lake != null) {
+                            lakeColumn(points, lake);
+                        } else {
+                            column(points, x, z, area, i + edge, j + edge, canopy, treeTop, rules);
+                        }
+                        columns[i + j * width] = points;
+                    }
+                }
+            });
+        }
+        SurfaceTile.run(bands);
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < width; j++) {
-                points.clear();
-                int x = minX + i * spacing;
-                int z = minZ + j * spacing;
-                Holder<Biome> biome = levelBiome.apply(area.biome(i + margin, j + margin));
-                FakeTrees.Canopy canopy = null;
-                BlockState treeTop = null;
-                if (trees != null) {
-                    canopy = trees.canopies()[i + j * width];
-                    treeTop = trees.tops()[i + j * width];
-                } else if (fakeTrees) {
-                    canopy = FakeTrees.at(seed, x, z, spacing, BiomeLook.of(biome));
-                }
-                RealLakes.Lake lake = lakes != null ? lakes[i + j * width] : null;
-                if (lake != null) {
-                    lakeColumn(points, lake);
-                } else {
-                    column(points, x, z, area, i + margin, j + margin, canopy, treeTop);
-                }
-                sink.column(i, j, biome, points);
+                sink.column(i, j, levelBiome.apply(area.biome(i + margin, j + margin)), columns[i + j * width]);
             }
         }
         return failures;
@@ -131,8 +181,12 @@ public final class ColumnBuilder {
      * @param treeTop top block the trees replaced (podzol under giant spruces), or null
      */
     private void column(List<Layer> points, int x, int z, SurfaceTile area, int i, int j,
-                        FakeTrees.Canopy canopy, BlockState treeTop) {
+                        FakeTrees.Canopy canopy, BlockState treeTop, @Nullable VanillaSurface.Pass rules) {
         int ground = area.height(i, j);
+        if (rules != null) {
+            ruledColumn(points, x, z, area, i, j, canopy, treeTop, rules.column(x, z, ground));
+            return;
+        }
         // The level's own holder: on a client only it carries biome tags (they come from the server).
         Holder<Biome> biome = levelBiome.apply(area.biome(i, j));
         int minY = sampler.minY();
@@ -194,26 +248,125 @@ public final class ColumnBuilder {
             airFrom = groundRel + 1;
         }
         if (canopy != null && overworld) {
-            int leavesBottom = Math.min(top, groundRel + Math.max(0, canopy.leavesBottom()));
-            int leavesTop = Math.min(top, groundRel + canopy.leavesTop());
-            if (leavesBottom > groundRel) {
-                BlockState under = canopy.trunk() ? canopy.log() : Blocks.AIR.defaultBlockState();
-                points.add(new Layer(under, MAX_LIGHT, groundRel, leavesBottom));
-            }
-            if (leavesTop > leavesBottom) {
-                points.add(new Layer(canopy.leaves(), MAX_LIGHT, leavesBottom, leavesTop));
-            }
-            airFrom = Math.max(groundRel, Math.max(leavesBottom, leavesTop));
-            BlockState crown = leavesTop > leavesBottom ? canopy.leaves() : canopy.log();
-            if (airFrom > groundRel && airFrom + 1 < top
-                    && SurfaceDetail.snowLayerOn(biome, crown, x, airFrom + sampler.minY(), z)) {
-                points.add(new Layer(SNOW_LAYER, MAX_LIGHT, airFrom, airFrom + 1));
-                airFrom++;
-            }
+            airFrom = canopy(points, x, z, biome, canopy, groundRel, top);
         }
         if (airFrom < top) {
             points.add(new Layer(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, top));
         }
+    }
+
+    /**
+     * Height between wide columns, bilinear: the steep rule looks at the neighbouring blocks, which the tile does not
+     * have; the slope between its columns stands in for theirs.
+     */
+    private static double blendedHeight(SurfaceTile area, int x, int z) {
+        double fi = Math.clamp((double) (x - area.minX) / area.spacing, 0, area.width - 1);
+        double fj = Math.clamp((double) (z - area.minZ) / area.spacing, 0, area.width - 1);
+        int i = Math.min((int) fi, area.width - 2);
+        int j = Math.min((int) fj, area.width - 2);
+        double tx = fi - i;
+        double tz = fj - j;
+        double north = area.height(i, j) + (area.height(i + 1, j) - area.height(i, j)) * tx;
+        double south = area.height(i, j + 1) + (area.height(i + 1, j + 1) - area.height(i, j + 1)) * tx;
+        return north + (south - north) * tz;
+    }
+
+    /**
+     * A column from the world's surface rules: the blocks they made (with icebergs and hoodoos), rock below, then what
+     * later steps add on top: ice on cold water, snow layers, plants and trees.
+     */
+    private void ruledColumn(List<Layer> points, int x, int z, SurfaceTile area, int i, int j,
+                             FakeTrees.Canopy canopy, BlockState treeTop, VanillaSurface.Column column) {
+        Holder<Biome> biome = levelBiome.apply(area.biome(i, j));
+        int minY = sampler.minY();
+        int top = sampler.maxY() - minY;
+        int columnTop = column.top();
+        int waterTop = Integer.MIN_VALUE;
+        for (int y = columnTop - 1; y >= column.bottom(); y--) {
+            if (column.at(y).liquid()) {
+                waterTop = y + 1;
+                break;
+            }
+            if (!column.at(y).isAir()) {
+                break;
+            }
+        }
+        BlockState surfaceBlock = columnTop > column.bottom() ? column.at(columnTop - 1) : defaultBlock;
+        boolean wet = surfaceBlock.liquid();
+        // Vanilla's freeze_top_layer turns the top of cold water into ice.
+        boolean frozen = wet && biome.value().coldEnoughToSnow(new BlockPos(x, columnTop - 1, z));
+        if (!wet && treeTop != null) {
+            surfaceBlock = treeTop;
+        }
+        int bottomRel = Math.max(column.bottom() - minY, 0);
+        if (bottomRel > 0) {
+            points.add(new Layer(defaultBlock, light(column.bottom() - 1, waterTop), 0, bottomRel));
+        }
+        int y = column.bottom();
+        while (y < columnTop) {
+            BlockState state = y == columnTop - 1 ? frozen ? Blocks.ICE.defaultBlockState() : surfaceBlock : column.at(y);
+            int end = y + 1;
+            while (end < columnTop - 1 && column.at(end) == state) {
+                end++;
+            }
+            points.add(new Layer(state, state.liquid() ? MAX_LIGHT : light(end - 1, waterTop), y - minY, end - minY));
+            y = end;
+        }
+        int groundRel = Math.max(columnTop - minY, 0);
+        int airFrom = groundRel;
+        if (wet) {
+            if (airFrom < top) {
+                points.add(new Layer(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, top));
+            }
+            return;
+        }
+        int ground = columnTop;
+        boolean groundSnow = canopy == null && groundRel + 1 < top
+                && SurfaceDetail.snowLayerOn(biome, surfaceBlock, x, ground, z);
+        if (groundSnow) {
+            points.add(new Layer(SNOW_LAYER, MAX_LIGHT, groundRel, groundRel + 1));
+            airFrom = groundRel + 1;
+        }
+        BlockState plant = groundCover && canopy == null && !groundSnow && groundRel + 1 < top
+                ? GroundCover.at(seed, x, ground, z, area.biome(i, j), biome, surfaceBlock)
+                : null;
+        if (plant != null) {
+            // One block of plant: Distant Horizons does not draw it, it tints the ground under it.
+            points.add(new Layer(plant, MAX_LIGHT, groundRel, groundRel + 1));
+            airFrom = groundRel + 1;
+        }
+        if (canopy != null) {
+            airFrom = canopy(points, x, z, biome, canopy, groundRel, top);
+        }
+        if (airFrom < top) {
+            points.add(new Layer(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, top));
+        }
+    }
+
+    /** Sky light of a block under water ({@code waterTop} = first block above the water, or none). */
+    private static int light(int y, int waterTop) {
+        return waterTop == Integer.MIN_VALUE || y >= waterTop ? MAX_LIGHT : Math.max(0, MAX_LIGHT - (waterTop - y));
+    }
+
+    /** Adds a tree's trunk and crown (and snow on it) above the ground; returns where the air starts. */
+    private int canopy(List<Layer> points, int x, int z, Holder<Biome> biome, FakeTrees.Canopy canopy, int groundRel, int top) {
+        int leavesBottom = Math.min(top, groundRel + Math.max(0, canopy.leavesBottom()));
+        int leavesTop = Math.min(top, groundRel + canopy.leavesTop());
+        if (leavesBottom > groundRel) {
+            BlockState under = canopy.trunk() ? canopy.log() : Blocks.AIR.defaultBlockState();
+            points.add(new Layer(under, MAX_LIGHT, groundRel, leavesBottom));
+        }
+        if (leavesTop > leavesBottom) {
+            points.add(new Layer(canopy.leaves(), MAX_LIGHT, leavesBottom, leavesTop));
+        }
+        int airFrom = Math.max(groundRel, Math.max(leavesBottom, leavesTop));
+        BlockState crown = leavesTop > leavesBottom ? canopy.leaves() : canopy.log();
+        if (airFrom > groundRel && airFrom + 1 < top
+                && SurfaceDetail.snowLayerOn(biome, crown, x, airFrom + sampler.minY(), z)) {
+            points.add(new Layer(SNOW_LAYER, MAX_LIGHT, airFrom, airFrom + 1));
+            airFrom++;
+        }
+        return airFrom;
     }
 
     /** A column of a lake: rock up to the lake bed, the fluid (lava glows), air above. */

@@ -25,6 +25,8 @@
   "dhturbo.message.no_distant_horizons": "Distant Horizons не установлен",
   "dhturbo.configuration.share_worldgen": "Делиться генерацией мира",
   "dhturbo.configuration.share_worldgen.tooltip": "Сервер: отправлять игрокам с этим модом сид и настройки генерации мира, чтобы их клиент сам генерировал дальний ландшафт. Выключите, если игрокам нельзя знать сид.",
+  "dhturbo.configuration.vanilla_surface": "Правила поверхности мира",
+  "dhturbo.configuration.vanilla_surface.tooltip": "Покрывать дальнюю землю собственными правилами поверхности мира (в том числе датапаков и модов): галечные берега, кальцит, рыхлый снег, полосы бесплодных земель, айсберги. Выкл.: один типичный блок на биом, чуть быстрее.",
   "dhturbo.configuration.ground_cover": "Трава и цветы",
   "dhturbo.configuration.ground_cover.tooltip": "Добавлять траву и цветы биома на сгенерированную дальнюю землю, чтобы луга и цветочные поля выглядели как вблизи.",
   "dhturbo.configuration.soft_plant_colors": "Мягкие цвета растений",

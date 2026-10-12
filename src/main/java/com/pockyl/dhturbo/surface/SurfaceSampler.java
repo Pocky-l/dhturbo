@@ -209,6 +209,16 @@ public final class SurfaceSampler {
         return cellHeight;
     }
 
+    /** The world's noises (same seed and wiring as the real world; the final density has no caves). */
+    public RandomState randomState() {
+        return randomState;
+    }
+
+    /** Biome of a quart (4x4x4 blocks), as chunk generation stores it. */
+    public Holder<Biome> noiseBiome(int quartX, int quartY, int quartZ) {
+        return biomeSource.getNoiseBiome(quartX, quartY, quartZ, randomState.sampler());
+    }
+
     /** Biome at the given block, sampled the way chunk generation does. */
     public Holder<Biome> biome(int x, int y, int z) {
         return biomeSource.getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z),
