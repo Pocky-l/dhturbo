@@ -4,7 +4,7 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-10-12
 ### Added
 - Grass and flowers on distant ground: meadows, plains and flower forests get grass and the biome's own flowers, with
   tulip fields and flower patches where the game puts them. Config `ground_cover`.
