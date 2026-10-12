@@ -15,9 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps its material for shaders. Works for all distant terrain, also the one built from real chunks. Config
   `soft_plant_colors`.
 ### Fixed
-- Distant terrain heights match the real world much more closely (exact on 96% of columns near the player, up from
-  70%): the terrain between the game's sample points is now interpolated the way the game does it. Fewer phantom
-  shores, hills and dips that change when real chunks load.
+- Distant terrain heights match the real world much more closely (exact on 98% of columns near the player, up from
+  70%): the terrain between the game's sample points is now interpolated the way the game does it, with the same values
+  the game uses. Fewer phantom shores, hills and dips that change when real chunks load; grassy shores no longer turn
+  into water. With `full_resolution` on, the next level of detail is exact on 98% of columns too.
 - Snow in the distance now matches the real world (98% of snowy columns in a comparison with real generation, up from
   70%): cold ground keeps its grass or rock under a thin snow layer like the game's, tree crowns get snow too, and
   mountain slopes turn to bare rock or packed ice only where the game's own rule says so.

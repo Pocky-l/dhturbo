@@ -2,6 +2,7 @@ package com.pockyl.dhturbo.surface;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
+import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.util.Mth;
@@ -53,38 +54,51 @@ public final class SurfaceSampler {
     private final int cellHeight;
     private final int seaLevel;
 
-    @SuppressWarnings("deprecation") // disableMobGeneration has to be copied over to rebuild the settings record
     public SurfaceSampler(RegistryAccess registries, NoiseGeneratorSettings settings, BiomeSource biomeSource, long seed) {
         NoiseRouter router = settings.noiseRouter();
-        DensityFunction surfaceDensity = CaveStripper.strip(registries.registryOrThrow(Registries.DENSITY_FUNCTION),
-                router.finalDensity());
-        NoiseRouter surfaceRouter = new NoiseRouter(router.barrierNoise(), router.fluidLevelFloodednessNoise(),
-                router.fluidLevelSpreadNoise(), router.lavaNoise(), router.temperature(), router.vegetation(),
-                router.continents(), router.erosion(), router.depth(), router.ridges(),
-                router.initialDensityWithoutJaggedness(), surfaceDensity, router.veinToggle(), router.veinRidged(),
-                router.veinGap());
-        NoiseGeneratorSettings surfaceSettings = new NoiseGeneratorSettings(settings.noiseSettings(),
-                settings.defaultBlock(), settings.defaultFluid(), surfaceRouter, settings.surfaceRule(),
-                settings.spawnTarget(), settings.seaLevel(), settings.disableMobGeneration(), settings.aquifersEnabled(),
-                settings.oreVeinsEnabled(), settings.useLegacyRandomSource());
+        Registry<DensityFunction> functions = registries.registryOrThrow(Registries.DENSITY_FUNCTION);
+        DensityFunction surfaceDensity = CaveStripper.strip(functions, router.finalDensity());
         // Same seed and settings apart from the final density: noises are wired identically to the real world.
-        this.randomState = RandomState.create(surfaceSettings, registries.lookupOrThrow(Registries.NOISE), seed);
+        this.randomState = RandomState.create(withFinalDensity(settings, surfaceDensity),
+                registries.lookupOrThrow(Registries.NOISE), seed);
         this.biomeSource = biomeSource;
         DensityFunction strippedFinal = randomState.router().finalDensity();
         DensityFunction wired = signal(strippedFinal, settings.noiseSettings());
         this.density = ThreadLocal.withInitial(() -> wired.mapAll(new ColumnCachingVisitor()));
-        RandomState realState = RandomState.create(settings, registries.lookupOrThrow(Registries.NOISE), seed);
-        // Noodle caves sit outside the interpolated value (vanilla adds them per block), so the sign check cannot pass
-        // with caves; the structure was checked on the cave-free density above.
-        DensityFunction realFinal = realState.router().finalDensity();
-        List<DensityFunction> realInterpolated = interpolated(realFinal);
-        DensityFunction realWired = wired != strippedFinal && realInterpolated.size() == 1 ? realInterpolated.getFirst() : realFinal;
+        // With caves the final density holds more interpolated values (noodle caves have their own, and vanilla adds
+        // them per block, outside the terrain's). The terrain's is the one that loses its caves the same way.
+        DensityFunction realInner = null;
+        List<DensityFunction> stripped = interpolated(surfaceDensity);
+        if (wired != strippedFinal && stripped.size() == 1) {
+            for (DensityFunction candidate : interpolated(router.finalDensity())) {
+                if (CaveStripper.strip(functions, candidate).equals(stripped.getFirst())) {
+                    realInner = candidate;
+                    break;
+                }
+            }
+        }
+        DensityFunction realWired = RandomState.create(withFinalDensity(settings, realInner != null ? realInner : router.finalDensity()),
+                registries.lookupOrThrow(Registries.NOISE), seed).router().finalDensity();
         this.realDensity = ThreadLocal.withInitial(() -> realWired.mapAll(new ColumnCachingVisitor()));
         NoiseSettings noise = settings.noiseSettings();
         this.minY = noise.minY();
         this.maxY = noise.minY() + noise.height();
         this.cellHeight = noise.getCellHeight();
         this.seaLevel = settings.seaLevel();
+    }
+
+    @SuppressWarnings("deprecation") // disableMobGeneration has to be copied over to rebuild the settings record
+    private static NoiseGeneratorSettings withFinalDensity(NoiseGeneratorSettings settings, DensityFunction finalDensity) {
+        NoiseRouter router = settings.noiseRouter();
+        NoiseRouter changed = new NoiseRouter(router.barrierNoise(), router.fluidLevelFloodednessNoise(),
+                router.fluidLevelSpreadNoise(), router.lavaNoise(), router.temperature(), router.vegetation(),
+                router.continents(), router.erosion(), router.depth(), router.ridges(),
+                router.initialDensityWithoutJaggedness(), finalDensity, router.veinToggle(), router.veinRidged(),
+                router.veinGap());
+        return new NoiseGeneratorSettings(settings.noiseSettings(), settings.defaultBlock(), settings.defaultFluid(),
+                changed, settings.surfaceRule(), settings.spawnTarget(), settings.seaLevel(),
+                settings.disableMobGeneration(), settings.aquifersEnabled(), settings.oreVeinsEnabled(),
+                settings.useLegacyRandomSource());
     }
 
     public int minY() {
@@ -143,7 +157,7 @@ public final class SurfaceSampler {
      * The value vanilla interpolates between cell corners, if the final density is a sign-keeping function of it
      * (vanilla: {@code min(squeeze(0.64 * interpolated(...)), caves)} with caves stripped); otherwise the final density.
      */
-    private static List<DensityFunction> interpolated(DensityFunction function) {
+    public static List<DensityFunction> interpolated(DensityFunction function) {
         List<DensityFunction> interpolated = new ArrayList<>();
         function.mapAll(node -> {
             if (node instanceof DensityFunctions.MarkerOrMarked marker && marker.codec() == INTERPOLATED) {

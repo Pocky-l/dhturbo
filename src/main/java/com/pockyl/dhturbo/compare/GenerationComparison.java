@@ -117,9 +117,7 @@ public final class GenerationComparison {
                     Surface real = real(level, chunk, x, z);
                     Surface ours = ours(layers, minY);
                     Holder<Biome> realBiome = level.getBiome(new BlockPos(x, real.height, z));
-                    int base = generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG, level,
-                            level.getChunkSource().randomState());
-                    sink.add(x, z, real, ours, realBiome, biome, base);
+                    sink.add(x, z, real, ours, realBiome, biome);
                 });
             }
         }
@@ -160,6 +158,27 @@ public final class GenerationComparison {
                     level, level.getChunkSource().randomState())).append(", ours ")
                     .append(builder.sampler().surfaceHeight(x, z, height));
             stats[0].probes.add(densities.toString());
+            // The four cell corners around the column: our interpolated value with caves next to vanilla's.
+            net.minecraft.world.level.levelgen.DensityFunction vanillaInner = com.pockyl.dhturbo.surface.SurfaceSampler
+                    .columnCached(com.pockyl.dhturbo.surface.SurfaceSampler.interpolated(vanilla).getFirst());
+            int cx = x & ~3;
+            int cz = z & ~3;
+            StringBuilder corners = new StringBuilder("  corners (ours with caves / vanilla interpolated):");
+            for (int[] c : new int[][] {{cx, cz}, {cx + 4, cz}, {cx, cz + 4}, {cx + 4, cz + 4}}) {
+                corners.append(" [").append(c[0]).append(',').append(c[1]).append(']');
+                for (int y = Math.floorDiv(height - 12 - minY, cell) * cell + minY; y <= height + 8; y += cell) {
+                    var point = new net.minecraft.world.level.levelgen.DensityFunction.SinglePointContext(c[0], y, c[1]);
+                    corners.append(String.format(Locale.ROOT, " y%d %.4f/%.4f", y, builder.sampler().realDensity(c[0], y, c[1]),
+                            vanillaInner.compute(point)));
+                }
+            }
+            com.pockyl.dhturbo.surface.SurfaceTile tile = com.pockyl.dhturbo.surface.SurfaceTile.generate(builder.sampler(),
+                    cx - 8, cz - 8, 1, 21, 1);
+            corners.append(" | tile height ").append(tile.heightAt(x, z)).append(", corner heights");
+            for (int[] c : new int[][] {{cx, cz}, {cx + 4, cz}, {cx, cz + 4}, {cx + 4, cz + 4}}) {
+                corners.append(' ').append(tile.heightAt(c[0], c[1]));
+            }
+            stats[0].probes.add(corners.toString());
         }
         report.add(String.format(Locale.ROOT, "Seed %d, %d areas of %dx%d chunks, %.1f s", level.getSeed(), areas,
                 AREA_CHUNKS, AREA_CHUNKS, (System.nanoTime() - start) / 1e9));
@@ -279,8 +298,7 @@ public final class GenerationComparison {
         final int[] signedErrors = new int[11];
         final int[][] bands = new int[4][3];
         int landColumns;
-        int baseIsReal;
-        int baseIsOurs;
+        int landExact;
         final List<String> heightExamples = new ArrayList<>();
         final Map<String, Integer> kinds = new TreeMap<>();
         final Map<String, Integer> blocks = new TreeMap<>();
@@ -292,7 +310,7 @@ public final class GenerationComparison {
         final Map<String, int[]> snowByBiome = new TreeMap<>();
         final List<String> probes = new ArrayList<>();
 
-        void add(int x, int z, Surface real, Surface ours, Holder<Biome> realBiome, Holder<Biome> ourBiome, int base) {
+        void add(int x, int z, Surface real, Surface ours, Holder<Biome> realBiome, Holder<Biome> ourBiome) {
             columns++;
             String biomeName = name(realBiome);
             if (!biomeName.equals(name(ourBiome))) {
@@ -323,15 +341,10 @@ public final class GenerationComparison {
             signedErrors[Math.clamp(signed, -5, 5) + 5]++;
             if (real.height > 66 && !real.kind.equals("water")) {
                 landColumns++;
-                if (base == real.height) {
-                    baseIsReal++;
-                }
-                if (base == ours.height) {
-                    baseIsOurs++;
-                }
-                if (heightExamples.size() < 12 && ours.height != real.height) {
-                    heightExamples.add(String.format(Locale.ROOT, "%d %d: real %d, vanilla noise height %d, ours %d",
-                            x, z, real.height, base, ours.height));
+                if (ours.height == real.height) {
+                    landExact++;
+                } else if (heightExamples.size() < 12) {
+                    heightExamples.add(String.format(Locale.ROOT, "%d %d: real %d, ours %d", x, z, real.height, ours.height));
                 }
             }
             int band = real.height < 60 ? 0 : real.height <= 66 ? 1 : real.height <= 90 ? 2 : 3;
@@ -389,9 +402,10 @@ public final class GenerationComparison {
                         .append(String.format(Locale.ROOT, "%.1f%%  ", pct(signedErrors[i], compared)));
             }
             out.add(signedLine.toString());
-            out.add(String.format(Locale.ROOT, "Land above y 66 (%d columns): vanilla's own noise height (getBaseHeight) "
-                    + "equals the real top on %.1f%%, ours on %.1f%%", landColumns, pct(baseIsReal, landColumns),
-                    pct(baseIsOurs, landColumns)));
+            // Vanilla's own noise height (getBaseHeight, no carvers or features) matched the real top on 97.8% here
+            // (2026-10-12); it is printed for probes only, computing it for every column tripled the run time.
+            out.add(String.format(Locale.ROOT, "Land above y 66 (%d columns): ours equals the real top on %.1f%%",
+                    landColumns, pct(landExact, landColumns)));
             heightExamples.forEach(line -> out.add("    " + line));
             String[] names = {"real y < 60", "60-66", "67-90", "> 90"};
             for (int b = 0; b < bands.length; b++) {

@@ -130,10 +130,12 @@ public final class SurfaceTile {
                 int nextI = Math.min(si + 1, samples - 1);
                 double fx = (double) (i - si * step) / step;
                 int height = Integer.MIN_VALUE;
-                if (fx == 0 && fz == 0) {
-                    height = lattice.height(si, sj);
-                } else if (cellLattice) {
+                if (cellLattice) {
+                    // Corners too: their search ran without caves, vanilla's value at the corner has them.
                     height = lattice.interpolatedHeight(sampler.cellHeight(), si, sj, nextI, nextJ, fx, fz);
+                }
+                if (height == Integer.MIN_VALUE && fx == 0 && fz == 0) {
+                    height = lattice.height(si, sj);
                 }
                 if (height == Integer.MIN_VALUE) {
                     double top = lerp(fx, lattice.height(si, sj), lattice.height(nextI, sj));
