@@ -16,7 +16,8 @@ from the world noise, with the game's own trees nearby.
 - 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: the horizon fills as fast as the land
   around you.
 - 📊 **Measured** - 17-19x faster than Distant Horizons' rough surface search at the same sampling, ~70x at full
-  detail; heights within one block of real generation on 90% of columns.
+  detail; heights within one block of real generation on 90% of columns. The F3 screen shows the tiles made, tiles per
+  second and time per tile.
 - 🧵 **Every core at work** - each tile is split across all worker threads.
 - 🌲 **Real trees nearby** - the game's own tree placement is replayed: same spots, species and shapes; farther away,
   approximate trees shaped like their species.

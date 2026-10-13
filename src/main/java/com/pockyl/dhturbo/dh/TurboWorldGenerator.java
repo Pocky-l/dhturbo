@@ -114,9 +114,11 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
             stats.request(detailLevel, lodPosX, lodPosZ, minX + halfWidth, minZ + halfWidth);
         }
         return CompletableFuture.runAsync(() -> {
+            long start = TurboActivity.started();
             try {
                 writer.fill(minX, minZ, spacing, dataSource);
             } catch (RuntimeException e) {
+                TurboActivity.failed();
                 // DH swallows failed futures silently; without this a broken tile is just a hole in the horizon.
                 if (stats != null) {
                     stats.error();
@@ -126,6 +128,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
                 }
                 throw e;
             }
+            TurboActivity.finished(start);
             resultConsumer.accept(dataSource);
         }, WorkerPool.get());
     }

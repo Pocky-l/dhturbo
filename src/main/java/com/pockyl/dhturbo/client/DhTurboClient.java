@@ -6,11 +6,13 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.dh.TurboActivity;
 
 @Mod(value = DhTurbo.MOD_ID, dist = Dist.CLIENT)
 public final class DhTurboClient {
@@ -20,6 +22,8 @@ public final class DhTurboClient {
         if (ModList.get().isLoaded("distanthorizons")) {
             NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientGeneration.reset());
         }
+        NeoForge.EVENT_BUS.addListener((CustomizeGuiOverlayEvent.DebugText event) ->
+                TurboActivity.debugLine().ifPresent(event.getRight()::add));
         if (DhTurbo.DEBUG) {
             modBus.addListener(DemoKeys::register);
             NeoForge.EVENT_BUS.addListener(DemoKeys::tick);

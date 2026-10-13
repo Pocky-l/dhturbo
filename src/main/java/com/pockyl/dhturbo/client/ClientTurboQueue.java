@@ -11,6 +11,7 @@ import com.seibel.distanthorizons.core.util.objects.RollingAverage;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.dh.LodTileWriter;
+import com.pockyl.dhturbo.dh.TurboActivity;
 import com.pockyl.dhturbo.dh.WorkerPool;
 
 import java.util.List;
@@ -159,10 +160,11 @@ public final class ClientTurboQueue implements IFullDataSourceRetrievalQueue {
         dataSource.applyToParent = sectionDetail < FullDataSourceProviderV2.ROOT_SECTION_DETAIL_LEVEL;
         int spacing = 1 << (sectionDetail - DhSectionPos.SECTION_MINIMUM_DETAIL_LEVEL);
         return CompletableFuture.supplyAsync(() -> {
-            long start = System.nanoTime();
+            long start = TurboActivity.started();
             try {
                 writer.fill(DhSectionPos.getMinCornerBlockX(pos), DhSectionPos.getMinCornerBlockZ(pos), spacing, dataSource);
             } catch (RuntimeException e) {
+                TurboActivity.failed();
                 failed.incrementAndGet();
                 if (loggedErrors.incrementAndGet() <= MAX_LOGGED_ERRORS) {
                     DhTurbo.LOGGER.error("Failed to generate LOD tile {} on the client", DhSectionPos.toString(pos), e);
@@ -170,6 +172,7 @@ public final class ClientTurboQueue implements IFullDataSourceRetrievalQueue {
                 throw e;
             }
             tileMillis.add((System.nanoTime() - start) / 1e6);
+            TurboActivity.finished(start);
             generated.incrementAndGet();
             return DataSourceRetrievalResult.CreateSuccess(pos, dataSource);
         }, WorkerPool.get());

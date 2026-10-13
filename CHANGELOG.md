@@ -4,6 +4,12 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - Unreleased
+### Added
+- A line on the F3 debug screen shows the generator at work: tiles made since the game started, tiles per second, time
+  per tile and tiles in progress. It counts the distant terrain made in singleplayer and on servers that share their
+  world generation.
+
 ## [1.1.0] - 2026-10-12
 ### Added
 - Grass and flowers on distant ground: meadows, plains and flower forests get grass and the biome's own flowers, with

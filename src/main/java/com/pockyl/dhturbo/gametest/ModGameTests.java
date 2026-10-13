@@ -22,6 +22,7 @@ import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
+import com.pockyl.dhturbo.dh.TurboActivity;
 import com.pockyl.dhturbo.surface.BiomeLook;
 import com.pockyl.dhturbo.surface.GroundCover;
 import com.pockyl.dhturbo.surface.RealLakes;
@@ -45,6 +46,19 @@ public final class ModGameTests {
     private static final long SEED = 20261009L;
 
     private ModGameTests() {
+    }
+
+    @GameTest(template = "empty")
+    public static void debugLineCountsTiles(GameTestHelper helper) {
+        long start = TurboActivity.started();
+        helper.assertTrue(TurboActivity.debugLine().orElse("").contains("1 running"), "a tile in progress shows as running");
+        TurboActivity.finished(start);
+        TurboActivity.started();
+        TurboActivity.failed();
+        String line = TurboActivity.debugLine().orElse("");
+        helper.assertTrue(line.startsWith("DH Turbo: ") && line.contains("0 running") && line.contains("failed"),
+                "finished and failed tiles are counted: " + line);
+        helper.succeed();
     }
 
     @GameTest(template = "empty")
