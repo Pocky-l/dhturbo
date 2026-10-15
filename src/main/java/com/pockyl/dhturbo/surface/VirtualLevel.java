@@ -50,6 +50,23 @@ final class VirtualLevel implements InvocationHandler {
         BlockState top(int x, int z);
 
         Holder<Biome> biome(int x, int y, int z);
+
+        /**
+         * For worlds without a single surface (the Nether, the End): whether the block is rock. Null for height-field
+         * terrain, which is rock below {@link #ground} and open above.
+         */
+        default Boolean solid(int x, int y, int z) {
+            return null;
+        }
+
+        /** The world's rock and fluid, for {@link #solid} terrain. */
+        default BlockState rock() {
+            return Blocks.STONE.defaultBlockState();
+        }
+
+        default BlockState fluid() {
+            return Blocks.WATER.defaultBlockState();
+        }
     }
 
     private static final Map<String, Boolean> REPORTED = new ConcurrentHashMap<>();
@@ -97,8 +114,12 @@ final class VirtualLevel implements InvocationHandler {
         if (written != null) {
             return written;
         }
-        int ground = terrain.ground(pos.getX(), pos.getZ());
         int y = pos.getY();
+        Boolean solid = terrain.solid(pos.getX(), y, pos.getZ());
+        if (solid != null) {
+            return solid ? terrain.rock() : y < seaLevel ? terrain.fluid() : Blocks.AIR.defaultBlockState();
+        }
+        int ground = terrain.ground(pos.getX(), pos.getZ());
         if (y < ground - 1) {
             return y < ground - 4 ? Blocks.STONE.defaultBlockState() : Blocks.DIRT.defaultBlockState();
         }

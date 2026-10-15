@@ -49,6 +49,18 @@ public final class ColumnBuilder {
     }
 
     private final SurfaceSampler sampler;
+    /**
+     * Terrain of a world without a single surface (the Nether's caverns, the End's islands), built from the full
+     * vertical profile of every column; null for height-field worlds such as the overworld.
+     */
+    @Nullable
+    private final ProfileTerrain profile;
+    /** Sky light of open blocks: none in worlds without a sky. */
+    private final int skyLight;
+    /**
+     * Top of the level relative to its bottom. The noise can end lower (the End's terrain stops at 128, its cities
+     * reach 175); columns cover the whole level. */
+    private final int levelTop;
     @Nullable
     private final RealTrees realTrees;
     @Nullable
@@ -76,12 +88,15 @@ public final class ColumnBuilder {
     public ColumnBuilder(NoiseBasedChunkGenerator generator, RegistryAccess registries, DimensionType dimensionType,
                          long seed, UnaryOperator<Holder<Biome>> levelBiome, @Nullable StructureTemplateManager templates) {
         this.sampler = new SurfaceSampler(registries, generator.generatorSettings().value(), generator.getBiomeSource(), seed);
-        this.fakeTrees = Config.FAKE_TREES.get();
+        this.profile = profiled(dimensionType) ? new ProfileTerrain(sampler) : null;
+        this.skyLight = dimensionType.hasSkyLight() ? MAX_LIGHT : 0;
+        this.levelTop = Math.max(sampler.maxY(), dimensionType.minY() + dimensionType.height()) - sampler.minY();
+        this.fakeTrees = Config.FAKE_TREES.get() && profile == null;
         this.realTrees = fakeTrees && Config.REAL_TREES.get()
                 ? new RealTrees(generator, sampler, seed, registries, dimensionType)
                 : null;
-        RealLakes lakes = new RealLakes(generator, sampler, seed, registries, dimensionType);
-        this.realLakes = lakes.isEmpty() ? null : lakes;
+        RealLakes lakes = profile == null ? new RealLakes(generator, sampler, seed, registries, dimensionType) : null;
+        this.realLakes = lakes == null || lakes.isEmpty() ? null : lakes;
         this.realStructures = templates != null && Config.STRUCTURES.get()
                 ? realStructures(generator, sampler, templates, seed, registries, dimensionType)
                 : null;
@@ -89,7 +104,7 @@ public final class ColumnBuilder {
         this.defaultBlock = generator.generatorSettings().value().defaultBlock();
         this.seed = seed;
         this.fullResolution = Config.FULL_RESOLUTION.get();
-        this.groundCover = Config.GROUND_COVER.get();
+        this.groundCover = Config.GROUND_COVER.get() && profile == null;
         this.levelBiome = levelBiome;
     }
 
@@ -105,6 +120,14 @@ public final class ColumnBuilder {
             DhTurbo.LOGGER.warn("The world's surface rules cannot run on distant terrain, using biome blocks instead", e);
             return null;
         }
+    }
+
+    /**
+     * Worlds whose terrain is not one surface over solid rock: no sky (the Nether, the End) or a ceiling. Their columns
+     * have caverns, islands and overhangs, so they are built from the full vertical profile.
+     */
+    public static boolean profiled(DimensionType dimensionType) {
+        return !dimensionType.hasSkyLight() || dimensionType.hasCeiling();
     }
 
     @Nullable
@@ -142,6 +165,9 @@ public final class ColumnBuilder {
      * failed.
      */
     public long build(int minX, int minZ, int spacing, int width, Sink sink) {
+        if (profile != null) {
+            return buildProfiles(minX, minZ, spacing, width, sink);
+        }
         boolean real = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
         // A margin of columns around the tile: slopes at the edges, and trees of neighbouring chunks.
         int margin = real ? RealTrees.MARGIN / spacing + 1 : 1;
@@ -234,6 +260,106 @@ public final class ColumnBuilder {
     }
 
     /**
+     * A tile of a world without a single surface: every column's solid profile, fluid below sea level, the surface
+     * rules over the whole column (netherrack, soul sand valleys, nylium, basalt deltas, bedrock floor and roof; end
+     * stone), then structures.
+     */
+    private long buildProfiles(int minX, int minZ, int spacing, int width, Sink sink) {
+        boolean[][] solids = profile.tile(minX, minZ, spacing, width);
+        List<RealStructures.Built> structures = realStructures != null && spacing <= RealStructures.MAX_SPACING
+                ? realStructures.around(minX, minZ, minX + width * spacing - 1, minZ + width * spacing - 1)
+                : List.of();
+        long failures = realStructures != null ? realStructures.takeFailures() : 0;
+        @SuppressWarnings("unchecked")
+        List<Layer>[] columns = (List<Layer>[]) new List[width * width];
+        @SuppressWarnings("unchecked")
+        Holder<Biome>[] biomes = (Holder<Biome>[]) new Holder[width * width];
+        int minY = sampler.minY();
+        List<Runnable> bands = new ArrayList<>();
+        for (int first = 0; first < width; first += BAND_ROWS) {
+            int from = first;
+            int to = Math.min(width, first + BAND_ROWS);
+            bands.add(() -> {
+                VanillaSurface.Pass rules = vanillaSurface != null
+                        ? vanillaSurface.pass(minX, minZ + from * spacing, (x, z) -> sampler.maxY(), spacing == 1)
+                        : null;
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < width; i++) {
+                        int index = i + j * width;
+                        int x = minX + i * spacing;
+                        int z = minZ + j * spacing;
+                        boolean[] solid = solids[index];
+                        List<Layer> points = new ArrayList<>(16);
+                        if (rules != null) {
+                            VanillaSurface.Column column = rules.profileColumn(x, z, solid);
+                            runs(points, column);
+                        } else {
+                            plainRuns(points, solid);
+                        }
+                        RealStructures.Column structure = structures.isEmpty() ? null
+                                : RealStructures.columnFor(structures, x, z, spacing);
+                        Holder<Biome> biome = levelBiome.apply(sampler.biome(x, Math.max(sampler.seaLevel(), minY), z));
+                        if (structure != null) {
+                            overlay(points, structure, x, z, biome);
+                        }
+                        columns[index] = points;
+                        biomes[index] = biome;
+                    }
+                }
+            });
+        }
+        SurfaceTile.run(bands);
+        for (int i = 0; i < width; i++) {
+            for (int j = 0; j < width; j++) {
+                sink.column(i, j, biomes[i + j * width], columns[i + j * width]);
+            }
+        }
+        return failures;
+    }
+
+    /** Runs of one block state of a full column, bottom to top. */
+    private void runs(List<Layer> points, VanillaSurface.Column column) {
+        int minY = sampler.minY();
+        int y = column.bottom();
+        while (y < column.top()) {
+            BlockState state = column.at(y);
+            int end = y + 1;
+            while (end < column.top() && column.at(end) == state) {
+                end++;
+            }
+            points.add(new Layer(state, open(state) ? skyLight : 0, y - minY, end - minY));
+            y = end;
+        }
+        int top = levelTop;
+        if (column.top() - minY < top) {
+            points.add(new Layer(Blocks.AIR.defaultBlockState(), skyLight, column.top() - minY, top));
+        }
+    }
+
+    /** Runs of a profile without surface rules: the default block, fluid below sea level, air. */
+    private void plainRuns(List<Layer> points, boolean[] solid) {
+        int minY = sampler.minY();
+        int seaLevel = sampler.seaLevel();
+        BlockState fluid = Blocks.LAVA.defaultBlockState();
+        int y = 0;
+        while (y < solid.length) {
+            boolean rock = solid[y];
+            boolean wet = !rock && y + minY < seaLevel;
+            int end = y + 1;
+            while (end < solid.length && solid[end] == rock && (!rock && end + minY < seaLevel) == wet) {
+                end++;
+            }
+            BlockState state = rock ? defaultBlock : wet ? fluid : Blocks.AIR.defaultBlockState();
+            points.add(new Layer(state, open(state) ? skyLight : 0, y, end));
+            y = end;
+        }
+    }
+
+    private static boolean open(BlockState state) {
+        return state.isAir() || state.liquid();
+    }
+
+    /**
      * Builds a column bottom to top; heights in data points are relative to the bottom of the level.
      *
      * @param canopy  tree over the column, or null
@@ -249,7 +375,7 @@ public final class ColumnBuilder {
         // The level's own holder: on a client only it carries biome tags (they come from the server).
         Holder<Biome> biome = levelBiome.apply(area.biome(i, j));
         int minY = sampler.minY();
-        int top = sampler.maxY() - minY;
+        int top = levelTop;
         int seaLevel = sampler.seaLevel();
         BiomeLook look = BiomeLook.of(biome);
         boolean overworld = biome.is(BiomeTags.IS_OVERWORLD);
@@ -339,7 +465,7 @@ public final class ColumnBuilder {
                              boolean covered) {
         Holder<Biome> biome = levelBiome.apply(area.biome(i, j));
         int minY = sampler.minY();
-        int top = sampler.maxY() - minY;
+        int top = levelTop;
         int columnTop = column.top();
         int waterTop = Integer.MIN_VALUE;
         for (int y = columnTop - 1; y >= column.bottom(); y--) {
@@ -409,7 +535,7 @@ public final class ColumnBuilder {
      */
     private void overlay(List<Layer> points, RealStructures.Column structure, int x, int z, Holder<Biome> biome) {
         int minY = sampler.minY();
-        int top = sampler.maxY() - minY;
+        int top = levelTop;
         int waterTop = Integer.MIN_VALUE;
         for (Layer layer : points) {
             if (layer.state().liquid()) {
@@ -502,7 +628,7 @@ public final class ColumnBuilder {
     /** A column of a lake: rock up to the lake bed, the fluid (lava glows), air above. */
     private void lakeColumn(List<Layer> points, RealLakes.Lake lake) {
         int minY = sampler.minY();
-        int top = sampler.maxY() - minY;
+        int top = levelTop;
         int bottomRel = Math.clamp(lake.bottom() - minY, 0, top);
         int topRel = Math.clamp(lake.top() - minY, bottomRel, top);
         if (bottomRel > 0) {

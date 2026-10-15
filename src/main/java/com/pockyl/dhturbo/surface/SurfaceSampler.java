@@ -57,6 +57,7 @@ public final class SurfaceSampler {
     private final int minY;
     private final int maxY;
     private final int cellHeight;
+    private final int cellWidth;
     private final int seaLevel;
 
     public SurfaceSampler(RegistryAccess registries, NoiseGeneratorSettings settings, BiomeSource biomeSource, long seed) {
@@ -92,6 +93,7 @@ public final class SurfaceSampler {
         this.minY = noise.minY();
         this.maxY = noise.minY() + noise.height();
         this.cellHeight = noise.getCellHeight();
+        this.cellWidth = noise.getCellWidth();
         this.seaLevel = settings.seaLevel();
     }
 
@@ -223,20 +225,34 @@ public final class SurfaceSampler {
             // The final density is probed directly; caves are not part of it.
             return density(x, y, z);
         }
-        int x0 = Math.floorDiv(x, SurfaceTile.CELL_WIDTH) * SurfaceTile.CELL_WIDTH;
+        int x0 = Math.floorDiv(x, cellWidth) * cellWidth;
         int y0 = Math.floorDiv(y - minY, cellHeight) * cellHeight + minY;
-        int z0 = Math.floorDiv(z, SurfaceTile.CELL_WIDTH) * SurfaceTile.CELL_WIDTH;
-        double fx = (double) (x - x0) / SurfaceTile.CELL_WIDTH;
+        int z0 = Math.floorDiv(z, cellWidth) * cellWidth;
+        double fx = (double) (x - x0) / cellWidth;
         double fy = (double) (y - y0) / cellHeight;
-        double fz = (double) (z - z0) / SurfaceTile.CELL_WIDTH;
-        int x1 = x0 + SurfaceTile.CELL_WIDTH;
+        double fz = (double) (z - z0) / cellWidth;
+        int x1 = x0 + cellWidth;
         int y1 = y0 + cellHeight;
-        int z1 = z0 + SurfaceTile.CELL_WIDTH;
+        int z1 = z0 + cellWidth;
         double value = Mth.lerp3(fx, fy, fz,
                 corners.at(x0, y0, z0), corners.at(x1, y0, z0), corners.at(x0, y1, z0), corners.at(x1, y1, z0),
                 corners.at(x0, y0, z1), corners.at(x1, y0, z1), corners.at(x0, y1, z1), corners.at(x1, y1, z1));
         Probe probe = finalFromProbe.get();
         probe.value = value;
+        return probe.function.compute(new DensityFunction.SinglePointContext(x, y, z));
+    }
+
+    /**
+     * The final density at a block from the value interpolated there between cell corners' {@link #realDensity}
+     * (when the world's final density cannot be split that way, {@link #realDensity} already is the final density and
+     * the value is returned as it is). Positive is solid.
+     */
+    public double finalDensity(double interpolated, int x, int y, int z) {
+        if (finalFromProbe == null) {
+            return interpolated;
+        }
+        Probe probe = finalFromProbe.get();
+        probe.value = interpolated;
         return probe.function.compute(new DensityFunction.SinglePointContext(x, y, z));
     }
 
@@ -287,6 +303,11 @@ public final class SurfaceSampler {
         public KeyDispatchDataCodec<? extends DensityFunction> codec() {
             throw new UnsupportedOperationException("Probes are not serializable");
         }
+    }
+
+    /** Vanilla cell width: the density is interpolated between corners this many blocks apart horizontally. */
+    public int cellWidth() {
+        return cellWidth;
     }
 
     public int cellHeight() {

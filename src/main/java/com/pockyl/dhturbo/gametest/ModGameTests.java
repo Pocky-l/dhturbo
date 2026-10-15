@@ -16,6 +16,9 @@ import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.biome.TheEndBiomeSource;
+import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
+import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.neoforged.neoforge.gametest.GameTestHolder;
@@ -270,6 +273,98 @@ public final class ModGameTests {
                 helper.fail("Village blocks missing from " + spacing + "-block columns: " + counts[1] + " of " + counts[0]);
                 return;
             }
+        }
+        helper.succeed();
+    }
+
+    /**
+     * The Nether is built from whole column profiles: bedrock floor and roof, a lava sea, open caverns between, the
+     * biomes' blocks, and its fortresses and bastions.
+     */
+    @GameTest(template = "empty", timeoutTicks = 6000)
+    public static void netherHasCavernsAndFortresses(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.NETHER);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
+        DimensionType nether = registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER);
+        ColumnBuilder builder = new ColumnBuilder(new NoiseBasedChunkGenerator(biomes, settings), registries, nether, SEED,
+                UnaryOperator.identity(), helper.getLevel().getStructureManager());
+        Set<Block> blocks = new HashSet<>();
+        int[] counts = new int[4];
+        long start = System.nanoTime();
+        for (int spacing : new int[]{1, 4, 16}) {
+            builder.build(spacing * 64, -spacing * 128, spacing, 64, (i, j, biome, layers) -> {
+                counts[0]++;
+                boolean lava = false;
+                boolean cavern = false;
+                for (ColumnBuilder.Layer layer : layers) {
+                    blocks.add(layer.state().getBlock());
+                    lava |= layer.state().is(Blocks.LAVA) && layer.top() == 32;
+                    cavern |= layer.state().isAir() && layer.bottom() > 0 && layer.top() < 127;
+                }
+                counts[1] += layers.getFirst().state().is(Blocks.BEDROCK) ? 1 : 0;
+                counts[2] += lava ? 1 : 0;
+                counts[3] += cavern ? 1 : 0;
+            });
+        }
+        long millis = (System.nanoTime() - start) / 1_000_000;
+        RealStructures structures = builder.realStructures();
+        Set<String> kinds = new HashSet<>();
+        if (structures != null) {
+            for (RealStructures.Built built : structures.around(-1500, -1500, 1500, 1500)) {
+                kinds.add(built.name());
+            }
+        }
+        long failures = structures != null ? structures.takeFailures() : 0;
+        DhTurbo.LOGGER.info("Nether: {} columns ({} ms), bedrock floor {}, lava sea {}, caverns {}, blocks {}, structures {}, {} failed",
+                counts[0], millis, counts[1], counts[2], counts[3], blocks.size(), kinds, failures);
+        if (counts[1] < counts[0] || counts[2] < counts[0] / 10 || counts[3] < counts[0] / 4) {
+            helper.fail("Nether columns lack floor, lava or caverns: " + java.util.Arrays.toString(counts));
+        } else if (!blocks.contains(Blocks.NETHERRACK) || blocks.size() < 6) {
+            helper.fail("Nether surface rules missing: " + blocks);
+        } else if (!kinds.contains("minecraft:fortress") || !kinds.contains("minecraft:bastion_remnant") || failures > 0) {
+            helper.fail("Nether structures missing or failing: " + kinds + ", " + failures + " failed");
+        }
+        helper.succeed();
+    }
+
+    /** End islands float: end stone with open space under it, not pillars down to the bottom of the world. */
+    @GameTest(template = "empty", timeoutTicks = 6000)
+    public static void endIslandsFloat(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.END);
+        TheEndBiomeSource biomes = TheEndBiomeSource.create(registries.lookupOrThrow(Registries.BIOME));
+        DimensionType end = registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END);
+        ColumnBuilder builder = new ColumnBuilder(new NoiseBasedChunkGenerator(biomes, settings), registries, end, SEED,
+                UnaryOperator.identity(), helper.getLevel().getStructureManager());
+        int[] counts = new int[2];
+        builder.build(-32, -32, 1, 64, (i, j, biome, layers) -> {
+            boolean stone = false;
+            for (ColumnBuilder.Layer layer : layers) {
+                stone |= layer.state().is(Blocks.END_STONE);
+            }
+            if (stone) {
+                counts[0]++;
+                counts[1] += layers.getFirst().state().isAir() ? 1 : 0;
+            }
+        });
+        Set<String> kinds = new HashSet<>();
+        RealStructures structures = builder.realStructures();
+        if (structures != null) {
+            for (RealStructures.Built built : structures.around(1000, 1000, 3000, 3000)) {
+                kinds.add(built.name());
+            }
+        }
+        DhTurbo.LOGGER.info("End: {} island columns at the centre, {} with open space under them, structures {}",
+                counts[0], counts[1], kinds);
+        if (counts[0] < 1000 || counts[1] < counts[0]) {
+            helper.fail("End islands do not float: " + counts[1] + " of " + counts[0] + " columns open below");
+        } else if (!kinds.contains("minecraft:end_city")) {
+            helper.fail("No end city found: " + kinds);
         }
         helper.succeed();
     }

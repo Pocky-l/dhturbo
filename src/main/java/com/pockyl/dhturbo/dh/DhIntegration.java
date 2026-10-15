@@ -99,10 +99,6 @@ public final class DhIntegration {
                 || !(level.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator generator)) {
             return;
         }
-        // Surface search from above would land on the roof of ceiling dimensions such as the Nether.
-        if (level.dimensionType().hasCeiling()) {
-            return;
-        }
         try {
             // Registered even while switched off, so generation can be switched on without reloading the world.
             DhApiResult<Void> result = DhApi.worldGenOverrides.registerWorldGeneratorOverride(levelWrapper,

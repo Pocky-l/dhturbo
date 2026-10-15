@@ -11,6 +11,8 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.RandomState;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.Arrays;
 
 /**
@@ -24,14 +26,19 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
     private static final int CORNER_CACHE = 8192;
 
     private final SurfaceSampler sampler;
+    /** Full column profiles for worlds without a single surface; null for height fields. */
+    @Nullable
+    private final ProfileTerrain profile;
+    private final ThreadLocal<ProfileTerrain.Columns[]> profileColumns = ThreadLocal.withInitial(() -> new ProfileTerrain.Columns[1]);
     private final BlockState defaultBlock;
     private final BlockState defaultFluid;
     private final ThreadLocal<Long2DoubleOpenHashMap> corners = ThreadLocal.withInitial(Long2DoubleOpenHashMap::new);
 
-    SampledHeightGenerator(NoiseBasedChunkGenerator generator, SurfaceSampler sampler) {
+    SampledHeightGenerator(NoiseBasedChunkGenerator generator, SurfaceSampler sampler, @Nullable ProfileTerrain profile) {
         super(generator.getBiomeSource(), generator.generatorSettings());
         NoiseGeneratorSettings settings = generator.generatorSettings().value();
         this.sampler = sampler;
+        this.profile = profile;
         this.defaultBlock = settings.defaultBlock();
         this.defaultFluid = settings.defaultFluid();
     }
@@ -52,7 +59,22 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
         return search(x, z, true);
     }
 
+    /** This thread's column profiles (renewed when large). */
+    ProfileTerrain.Columns profileColumns() {
+        ProfileTerrain.Columns[] holder = profileColumns.get();
+        if (holder[0] == null || ++uses[0] % 4096 == 0) {
+            holder[0] = profile.columns();
+        }
+        return holder[0];
+    }
+
+    private final int[] uses = new int[1];
+
     private int search(int x, int z, boolean caves) {
+        if (profile != null) {
+            // Like vanilla's heightmap search from the top: in the Nether that is the roof.
+            return profileColumns().top(x, z);
+        }
         Long2DoubleOpenHashMap cache = corners.get();
         if (cache.size() > CORNER_CACHE) {
             cache.clear();
@@ -108,6 +130,19 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
         int minY = height.getMinBuildHeight();
         BlockState[] states = new BlockState[height.getHeight()];
         Arrays.fill(states, Blocks.AIR.defaultBlockState());
+        if (profile != null) {
+            ProfileTerrain.Columns columns = profileColumns();
+            int seaLevel = sampler.seaLevel();
+            for (int i = 0; i < states.length; i++) {
+                int y = minY + i;
+                if (columns.solid(x, y, z)) {
+                    states[i] = defaultBlock;
+                } else if (y < seaLevel) {
+                    states[i] = defaultFluid;
+                }
+            }
+            return new NoiseColumn(minY, states);
+        }
         int ground = groundWithCaves(x, z);
         int seaLevel = sampler.seaLevel();
         for (int y = minY; y < Math.min(Math.max(ground, seaLevel), minY + states.length); y++) {

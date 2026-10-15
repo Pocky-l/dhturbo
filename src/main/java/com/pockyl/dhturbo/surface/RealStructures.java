@@ -84,6 +84,9 @@ public final class RealStructures {
 
     private final SampledHeightGenerator generator;
     private final SurfaceSampler sampler;
+    /** Full column profiles in worlds without a single surface (the Nether, the End); null for height fields. */
+    @Nullable
+    private final ProfileTerrain profile;
     private final StructureTemplateManager templates;
     private final RegistryAccess registries;
     private final DimensionType dimensionType;
@@ -110,14 +113,16 @@ public final class RealStructures {
     public RealStructures(NoiseBasedChunkGenerator generator, SurfaceSampler sampler, StructureTemplateManager templates,
                           long seed, RegistryAccess registries, DimensionType dimensionType) {
         // Structure placement asks for terrain heights all the time: answer from the sampler, not the full column.
-        this.generator = new SampledHeightGenerator(generator, sampler);
+        this.profile = ColumnBuilder.profiled(dimensionType) ? new ProfileTerrain(sampler) : null;
+        this.generator = new SampledHeightGenerator(generator, sampler, profile);
         this.sampler = sampler;
         this.templates = templates;
         this.registries = registries;
         this.dimensionType = dimensionType;
         this.seed = seed;
-        this.minY = sampler.minY();
-        this.height = sampler.maxY() - sampler.minY();
+        // The level's own height: structures may rise above the noise (End cities reach far above its terrain).
+        this.minY = dimensionType.minY();
+        this.height = dimensionType.height();
         this.seaLevel = sampler.seaLevel();
         this.heightAccessor = LevelHeightAccessor.create(minY, height);
         // The real noises (with caves): structures probe heights the way chunk generation does.
@@ -138,9 +143,12 @@ public final class RealStructures {
         });
     }
 
-    /** Structures this generator builds: the ones on the surface. */
-    private static boolean visible(Structure structure) {
-        return structure.step().ordinal() == STEP;
+    /**
+     * Structures this generator builds: the ones on the surface; in worlds without one (the Nether's fortresses stand
+     * in its caverns) all of them.
+     */
+    private boolean visible(Structure structure) {
+        return profile != null || structure.step().ordinal() == STEP;
     }
 
     public boolean isEmpty() {
@@ -435,6 +443,9 @@ public final class RealStructures {
 
     /** Builds a structure: adapts the terrain, places its pieces chunk by chunk, keeps the blocks per column. */
     private Built place(StructureStart start) {
+        if (profile != null) {
+            return placeInProfile(start);
+        }
         long begin = System.nanoTime();
         BoundingBox box = start.getBoundingBox();
         Structure structure = start.getStructure();
@@ -484,8 +495,68 @@ public final class RealStructures {
             }
         };
         VirtualLevel level = new VirtualLevel(terrain, seed, minY, height, seaLevel, registries, dimensionType);
+        placePieces(start, level);
+        timings[3].add(System.nanoTime() - adaptDone);
+        Built result = new Built(name(structure), box, start.getChunkPos(), columns(box, level.writes()),
+                groundMinX, groundMinZ, groundSize, adapted);
+        if (DhTurbo.DEBUG) {
+            DhTurbo.LOGGER.debug("Built {} at {} in {} ms", name(structure), box.getCenter(),
+                    (System.nanoTime() - begin) / 1_000_000);
+        }
+        return result;
+    }
+
+    /** A structure in a world without a single surface: placed on the full column profiles, terrain unchanged. */
+    private Built placeInProfile(StructureStart start) {
+        long begin = System.nanoTime();
+        BoundingBox box = start.getBoundingBox();
+        ProfileTerrain.Columns columns = profile.columns();
+        net.minecraft.world.level.levelgen.NoiseGeneratorSettings settings = generator.generatorSettings().value();
+        VirtualLevel.Terrain terrain = new VirtualLevel.Terrain() {
+            @Override
+            public int ground(int x, int z) {
+                return columns.top(x, z);
+            }
+
+            @Override
+            public BlockState top(int x, int z) {
+                return settings.defaultBlock();
+            }
+
+            @Override
+            public Holder<Biome> biome(int x, int y, int z) {
+                return sampler.biome(x, y, z);
+            }
+
+            @Override
+            public Boolean solid(int x, int y, int z) {
+                return columns.solid(x, y, z);
+            }
+
+            @Override
+            public BlockState rock() {
+                return settings.defaultBlock();
+            }
+
+            @Override
+            public BlockState fluid() {
+                return settings.defaultFluid();
+            }
+        };
+        VirtualLevel level = new VirtualLevel(terrain, seed, minY, height, seaLevel, registries, dimensionType);
+        placePieces(start, level);
+        timings[3].add(System.nanoTime() - begin);
+        return new Built(name(start.getStructure()), box, start.getChunkPos(), columns(box, level.writes()),
+                box.minX(), box.minZ(), 1, null);
+    }
+
+    /** Places the pieces chunk by chunk with the random every chunk gives the structure, as chunk generation does. */
+    private void placePieces(StructureStart start, VirtualLevel level) {
+        BoundingBox box = start.getBoundingBox();
+        Structure structure = start.getStructure();
         WorldgenRandom random = new WorldgenRandom(new XoroshiroRandomSource(0));
         int index = stepIndex.getOrDefault(structure, 0);
+        int step = structure.step().ordinal();
         List<StructurePiece> pieces = start.getPieces();
         BlockPos pivot = pivot(pieces);
         for (int chunkX = box.minX() >> 4; chunkX <= box.maxX() >> 4; chunkX++) {
@@ -496,7 +567,7 @@ public final class RealStructures {
                 BoundingBox area = new BoundingBox(blockX, minY + 1, blockZ, blockX + 15, minY + height - 1, blockZ + 15);
                 ChunkPos chunk = new ChunkPos(chunkX, chunkZ);
                 long decorationSeed = random.setDecorationSeed(seed, blockX, blockZ);
-                random.setFeatureSeed(decorationSeed, index, STEP);
+                random.setFeatureSeed(decorationSeed, index, step);
                 for (StructurePiece piece : pieces) {
                     if (piece.getBoundingBox().intersects(area)) {
                         try {
@@ -519,14 +590,6 @@ public final class RealStructures {
                 }
             }
         }
-        timings[3].add(System.nanoTime() - adaptDone);
-        Built result = new Built(name(structure), box, start.getChunkPos(), columns(box, level.writes()),
-                groundMinX, groundMinZ, groundSize, adapted);
-        if (DhTurbo.DEBUG) {
-            DhTurbo.LOGGER.debug("Built {} at {} in {} ms", name(structure), box.getCenter(),
-                    (System.nanoTime() - begin) / 1_000_000);
-        }
-        return result;
     }
 
     private String name(Structure structure) {
@@ -557,7 +620,7 @@ public final class RealStructures {
             }
             return value;
         };
-        int maxY = minY + height;
+        int maxY = sampler.maxY();
         boolean changed = false;
         int groundMaxX = groundMinX + groundSize - 1;
         int groundMaxZ = groundMinZ + groundSize - 1;

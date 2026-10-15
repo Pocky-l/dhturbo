@@ -238,6 +238,65 @@ public final class VanillaSurface {
             return column;
         }
 
+        /**
+         * Runs the surface step on a whole column of a world without a single surface (the Nether, the End): solid
+         * blocks from {@code solid} (index 0 = the bottom of the world), the default fluid in open blocks below sea
+         * level, then the rules over every block with vanilla's stone depths above and below, like
+         * {@code SurfaceSystem.buildSurface}. The result is valid until the next call.
+         */
+        public Column profileColumn(int x, int z, boolean[] solid) {
+            int seaLevel = sampler.seaLevel();
+            int minY = sampler.minY();
+            columnX = x;
+            columnZ = z;
+            columnBiome = biome(x, Math.max(seaLevel, minY), z);
+            column.bottom = minY;
+            column.top = minY;
+            grow(minY + solid.length);
+            BlockState fluid = settings.defaultFluid();
+            for (int i = 0; i < solid.length; i++) {
+                int y = minY + i;
+                column.blocks[i] = solid[i] ? defaultBlock
+                        : y < seaLevel ? (y < Math.min(-54, seaLevel) ? Blocks.LAVA.defaultBlockState() : fluid)
+                        : Blocks.AIR.defaultBlockState();
+            }
+            rulesContext.updateXZ(x, z);
+            int stoneDepthAbove = 0;
+            int waterHeight = Integer.MIN_VALUE;
+            int stoneBottom = Integer.MAX_VALUE;
+            for (int y = column.top - 1; y >= column.bottom; y--) {
+                BlockState state = column.blocks[y - column.bottom];
+                if (state.isAir()) {
+                    stoneDepthAbove = 0;
+                    waterHeight = Integer.MIN_VALUE;
+                } else if (!state.getFluidState().isEmpty()) {
+                    if (waterHeight == Integer.MIN_VALUE) {
+                        waterHeight = y + 1;
+                    }
+                } else {
+                    if (stoneBottom >= y) {
+                        // The bottom of this run of rock (vanilla scans down for the first block that is not stone).
+                        stoneBottom = Integer.MIN_VALUE + 1;
+                        for (int below = y - 1; below >= minY - 1; below--) {
+                            if (below < minY || !solid[below - minY]) {
+                                stoneBottom = below + 1;
+                                break;
+                            }
+                        }
+                    }
+                    stoneDepthAbove++;
+                    rulesContext.updateY(stoneDepthAbove, y - stoneBottom + 1, waterHeight, x, y, z);
+                    if (state == defaultBlock) {
+                        BlockState replaced = rule.tryApply(x, y, z);
+                        if (replaced != null) {
+                            column.blocks[y - column.bottom] = replaced;
+                        }
+                    }
+                }
+            }
+            return column;
+        }
+
         /** Raises the column's top to {@code top} (exclusive), filling with air. */
         private void grow(int top) {
             if (top <= column.top) {

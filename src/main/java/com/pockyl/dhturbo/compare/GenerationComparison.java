@@ -69,7 +69,12 @@ public final class GenerationComparison {
         MinecraftServer server = event.getServer();
         int areas = Integer.getInteger(DhTurbo.MOD_ID + ".compare", 48);
         try {
-            List<String> report = compare(server.overworld(), areas);
+            List<String> report = new ArrayList<>(compare(server.overworld(), areas));
+            for (ServerLevel other : server.getAllLevels()) {
+                if (other != server.overworld()) {
+                    report.addAll(compareProfiles(other, Math.max(4, areas / 4)));
+                }
+            }
             Path file = server.getServerDirectory().resolve("dhturbo-compare.txt");
             Files.write(file, report);
             report.forEach(line -> DhTurbo.LOGGER.info("[compare] {}", line));
@@ -261,6 +266,7 @@ public final class GenerationComparison {
         for (RealStructures.Built built : found) {
             ourStarts.add(built.name() + " " + built.startChunk());
         }
+        boolean profiled = ColumnBuilder.profiled(level.dimensionType());
         List<String> details = new ArrayList<>();
         Set<String> missing = new HashSet<>();
         int sameStart = 0;
@@ -277,7 +283,8 @@ public final class GenerationComparison {
                     for (Map.Entry<Structure, StructureStart> entry : chunk.getAllStarts().entrySet()) {
                         StructureStart start = entry.getValue();
                         String name = String.valueOf(registry.getKey(entry.getKey()));
-                        if (start.isValid() && entry.getKey().step() == GenerationStep.Decoration.SURFACE_STRUCTURES
+                        if (start.isValid() && (ColumnBuilder.profiled(level.dimensionType())
+                                || entry.getKey().step() == GenerationStep.Decoration.SURFACE_STRUCTURES)
                                 && Math.abs(start.getChunkPos().x << 4) <= range
                                 && Math.abs(start.getChunkPos().z << 4) <= range
                                 && !ourStarts.contains(name + " " + start.getChunkPos())) {
@@ -304,6 +311,30 @@ public final class GenerationComparison {
                 for (int z = box.minZ(); z <= box.maxZ(); z++) {
                     RealStructures.Column column = built.columnAt(x, z);
                     if (column == null || column.top() == Integer.MIN_VALUE) {
+                        continue;
+                    }
+                    if (profiled) {
+                        // No single top here (the Nether's roof is above everything): every block the structure placed.
+                        ChunkAccess chunk = level.getChunk(x >> 4, z >> 4);
+                        for (int k = 0; k < column.states().length; k++) {
+                            BlockState state = column.states()[k];
+                            if (state.isAir()) {
+                                continue;
+                            }
+                            for (int y = column.bottoms()[k]; y < column.tops()[k]; y++) {
+                                BlockState realBlock = chunk.getBlockState(new BlockPos(x, y, z));
+                                structureColumns++;
+                                if (realBlock.getBlock() == state.getBlock()) {
+                                    structureExact++;
+                                    structureBlock++;
+                                    nearTop++;
+                                } else if (examples.size() < 3) {
+                                    examples.add(x + " " + y + " " + z + ": ours "
+                                            + BuiltInRegistries.BLOCK.getKey(state.getBlock()).getPath() + ", real "
+                                            + BuiltInRegistries.BLOCK.getKey(realBlock.getBlock()).getPath());
+                                }
+                            }
+                        }
                         continue;
                     }
                     // The top block that is not air, a fluid or a snow layer, on both sides (underwater ruins).
@@ -346,7 +377,8 @@ public final class GenerationComparison {
             columns += structureColumns;
             exactTop += structureExact;
             sameBlock += structureBlock;
-            String boxText = boxMatches ? "same" : real != null && real.isValid()
+            String boxText = boxMatches ? "same (y " + real.getBoundingBox().minY() + "-" + real.getBoundingBox().maxY()
+                    + " real, " + box.minY() + "-" + box.maxY() + " ours)" : real != null && real.isValid()
                     ? "differs (real " + real.getBoundingBox() + ", ours " + box + ")" : "-";
             details.add(String.format(Locale.ROOT,
                     "  %s at %d %d: real start %s, box %s, top exact %.1f%%, top block %.1f%% of %d columns%s",
@@ -359,11 +391,105 @@ public final class GenerationComparison {
         lines.add(String.format(Locale.ROOT, "Structures: %d within %d blocks of the origin (%d kinds, %d ms), %d compared",
                 found.size(), range, kinds.size(), ourMillis, picked.size()));
         lines.add(String.format(Locale.ROOT,
-                "  starts real %d/%d, same area %d/%d; %d columns: top exact %.1f%%, within 1 %.1f%%, same top block %.1f%%",
+                profiled ? "  starts real %d/%d, same area %d/%d; %d placed blocks: same block %.1f%% (%.1f%%, %.1f%%)"
+                : "  starts real %d/%d, same area %d/%d; %d columns: top exact %.1f%%, within 1 %.1f%%, same top block %.1f%%",
                 sameStart, picked.size(), sameBox, picked.size(), columns, percent(exactTop, columns),
                 percent(nearTop, columns), percent(sameBlock, columns)));
         lines.add("  real structures near them that we lack: " + (missing.isEmpty() ? "none" : missing));
         lines.addAll(details);
+        return lines;
+    }
+
+    /**
+     * Worlds without a single surface (the Nether, the End): every block of every column against real chunks, plus the
+     * blocks on top of floors (the first solid block under an open one) and the structures near the origin.
+     */
+    private static List<String> compareProfiles(ServerLevel level, int areas) {
+        if (!(level.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator generator)
+                || !ColumnBuilder.profiled(level.dimensionType())) {
+            return List.of();
+        }
+        ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
+                level.getSeed(), UnaryOperator.identity(), level.getStructureManager());
+        int minY = level.getMinBuildHeight();
+        int height = level.getHeight();
+        Random random = new Random(level.getSeed() ^ 0xBEEF);
+        long blocks = 0;
+        long sameSolid = 0;
+        long floors = 0;
+        long sameFloor = 0;
+        long sameFloorKind = 0;
+        Map<String, Integer> confusion = new TreeMap<>();
+        long begin = System.nanoTime();
+        int range = level.dimensionType().hasCeiling() ? RANGE / 8 : RANGE / 4;
+        for (int area = 0; area < areas; area++) {
+            int chunkX = (random.nextInt(2 * range) - range) >> 4;
+            int chunkZ = (random.nextInt(2 * range) - range) >> 4;
+            ChunkAccess[] chunks = new ChunkAccess[AREA_CHUNKS * AREA_CHUNKS];
+            for (int dx = 0; dx < AREA_CHUNKS; dx++) {
+                for (int dz = 0; dz < AREA_CHUNKS; dz++) {
+                    chunks[dx + dz * AREA_CHUNKS] = level.getChunk(chunkX + dx, chunkZ + dz);
+                }
+            }
+            int minX = chunkX << 4;
+            int minZ = chunkZ << 4;
+            long[] totals = new long[5];
+            builder.build(minX, minZ, 1, AREA_CHUNKS * 16, (i, j, biome, layers) -> {
+                int x = minX + i;
+                int z = minZ + j;
+                ChunkAccess chunk = chunks[(i >> 4) + (j >> 4) * AREA_CHUNKS];
+                BlockState[] ours = new BlockState[height];
+                for (ColumnBuilder.Layer layer : layers) {
+                    for (int y = layer.bottom(); y < layer.top() && y < height; y++) {
+                        ours[y] = layer.state();
+                    }
+                }
+                BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+                for (int y = 0; y < height; y++) {
+                    BlockState real = chunk.getBlockState(pos.set(x, minY + y, z));
+                    // Plants, roots and fire do not count: features put them there, not the terrain.
+                    boolean realSolid = real.blocksMotion();
+                    boolean ourSolid = ours[y] != null && ours[y].blocksMotion();
+                    totals[0]++;
+                    if (realSolid == ourSolid) {
+                        totals[1]++;
+                    }
+                    // Floors: a solid block with an open one above it in the real world.
+                    if (realSolid && y + 1 < height) {
+                        BlockState above = chunk.getBlockState(pos.set(x, minY + y + 1, z));
+                        if (!above.blocksMotion()) {
+                            totals[2]++;
+                            if (ourSolid) {
+                                totals[3]++;
+                                if (ours[y].getBlock() == real.getBlock()) {
+                                    totals[4]++;
+                                } else {
+                                    synchronized (confusion) {
+                                        confusion.merge(BuiltInRegistries.BLOCK.getKey(real.getBlock()).getPath() + " -> "
+                                                + BuiltInRegistries.BLOCK.getKey(ours[y].getBlock()).getPath(), 1, Integer::sum);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            blocks += totals[0];
+            sameSolid += totals[1];
+            floors += totals[2];
+            sameFloor += totals[3];
+            sameFloorKind += totals[4];
+        }
+        List<String> lines = new ArrayList<>();
+        lines.add("");
+        lines.add(String.format(Locale.ROOT, "===== %s: %d areas of 2x2 chunks, %.1f s =====", level.dimension().location(),
+                areas, (System.nanoTime() - begin) / 1e9));
+        lines.add(String.format(Locale.ROOT,
+                "Blocks solid/open as in the real world: %.1f%% of %d; floors solid on our side %.1f%%, same block %.1f%% of %d",
+                percent(sameSolid, blocks), blocks, percent(sameFloor, floors), percent(sameFloorKind, sameFloor), floors));
+        confusion.entrySet().stream().sorted((left, right) -> right.getValue() - left.getValue()).limit(8)
+                .forEach(entry -> lines.add("  floor " + entry.getKey() + ": " + entry.getValue()));
+        lines.addAll(compareStructures(level, builder));
         return lines;
     }
 

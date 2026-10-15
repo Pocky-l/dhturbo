@@ -48,8 +48,7 @@ public final class ClientGeneration {
     @Nullable
     public static LodTileWriter writer(DhClientLevel level) {
         if (!Config.ENABLED.get() || !ReceivedWorldgen.present() || ((ClientLevelState) level).dhturbo$serverSendsLods()
-                || !(level.levelWrapper.getWrappedMcObject() instanceof ClientLevel clientLevel)
-                || clientLevel.dimensionType().hasCeiling()) {
+                || !(level.levelWrapper.getWrappedMcObject() instanceof ClientLevel clientLevel)) {
             return null;
         }
         LevelGenInfo info = ReceivedWorldgen.forDimension(clientLevel.dimension());
