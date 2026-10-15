@@ -1,6 +1,7 @@
 package com.pockyl.dhturbo.surface;
 
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.NoiseColumn;
@@ -33,6 +34,16 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
     private final BlockState defaultBlock;
     private final BlockState defaultFluid;
     private final ThreadLocal<Long2DoubleOpenHashMap> corners = ThreadLocal.withInitial(Long2DoubleOpenHashMap::new);
+    /**
+     * Heights found per thread, by column and kind: a village asks the same columns again for every piece it tries
+     * there. Reset when large.
+     */
+    private final ThreadLocal<Long2IntOpenHashMap> heights = ThreadLocal.withInitial(() -> {
+        Long2IntOpenHashMap map = new Long2IntOpenHashMap();
+        map.defaultReturnValue(Integer.MIN_VALUE);
+        return map;
+    });
+    private static final int HEIGHT_CACHE = 16384;
 
     SampledHeightGenerator(NoiseBasedChunkGenerator generator, SurfaceSampler sampler, @Nullable ProfileTerrain profile) {
         super(generator.getBiomeSource(), generator.generatorSettings());
@@ -75,6 +86,20 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
             // Like vanilla's heightmap search from the top: in the Nether that is the roof.
             return profileColumns().top(x, z);
         }
+        Long2IntOpenHashMap known = heights.get();
+        long key = BlockPos.asLong(x, caves ? 1 : 0, z);
+        int height = known.get(key);
+        if (height == Integer.MIN_VALUE) {
+            if (known.size() > HEIGHT_CACHE) {
+                known.clear();
+            }
+            height = searchColumn(x, z, caves);
+            known.put(key, height);
+        }
+        return height;
+    }
+
+    private int searchColumn(int x, int z, boolean caves) {
         Long2DoubleOpenHashMap cache = corners.get();
         if (cache.size() > CORNER_CACHE) {
             cache.clear();

@@ -1,5 +1,7 @@
 package com.pockyl.dhturbo.dh;
 
+import com.pockyl.dhturbo.surface.StructurePrefetch;
+
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,7 +73,9 @@ public final class TurboActivity {
             rateTime = now;
         }
         long failed = FAILED.sum();
-        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running%s", done, rate,
-                msPerTile, running, failed > 0 ? ", " + failed + " failed" : ""));
+        long prepared = StructurePrefetch.totalAreas();
+        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running%s%s", done,
+                rate, msPerTile, running, prepared > 0 ? ", structures ready in " + prepared + " areas" : "",
+                failed > 0 ? ", " + failed + " failed" : ""));
     }
 }

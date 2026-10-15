@@ -1,7 +1,9 @@
 package com.pockyl.dhturbo.client;
 
 import com.seibel.distanthorizons.core.level.DhClientLevel;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
@@ -18,6 +20,7 @@ import com.pockyl.dhturbo.world.WorldgenLoader;
 
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -36,6 +39,7 @@ public final class ClientGeneration {
     /** Forgets everything about the server we left. */
     public static void reset() {
         ReceivedWorldgen.set(null);
+        WRITERS.values().forEach(writer -> writer.thenAccept(built -> built.ifPresent(LodTileWriter::close)));
         WRITERS.clear();
     }
 
@@ -61,6 +65,13 @@ public final class ClientGeneration {
         return writer.isDone() ? writer.join().orElse(null) : null;
     }
 
+    /** The local player's block X and Z while it is in the level. */
+    private static List<int[]> playerIn(ClientLevel level) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && player.level() == level ? List.of(new int[]{player.getBlockX(), player.getBlockZ()})
+                : List.of();
+    }
+
     private static Optional<LodTileWriter> build(DhClientLevel level, ClientLevel clientLevel, LevelGenInfo info, long seed) {
         try {
             RegistryAccess worldgen = WorldgenLoader.get();
@@ -74,7 +85,7 @@ public final class ClientGeneration {
             LodTileWriter writer = new LodTileWriter(level.levelWrapper, resolved.generator(), worldgen,
                     clientLevel.dimensionType(), seed,
                     biome -> biome.unwrapKey().flatMap(levelBiomes::getHolder).<Holder<Biome>>map(holder -> holder).orElse(biome),
-                    WorldgenLoader.templates(), null);
+                    WorldgenLoader.templates(), null, () -> playerIn(clientLevel));
             DhTurbo.LOGGER.info("Generating distant terrain of {} on this client", info);
             return Optional.of(writer);
         } catch (RuntimeException e) {

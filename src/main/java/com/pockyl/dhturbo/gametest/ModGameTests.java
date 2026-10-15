@@ -32,6 +32,7 @@ import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.GroundCover;
 import com.pockyl.dhturbo.surface.RealLakes;
 import com.pockyl.dhturbo.surface.RealStructures;
+import com.pockyl.dhturbo.surface.StructurePrefetch;
 import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
 import com.pockyl.dhturbo.world.LevelGenInfo;
@@ -41,6 +42,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.UnaryOperator;
 
 /**
@@ -236,18 +238,26 @@ public final class ModGameTests {
             helper.fail("Too few structures or no village with adapted ground: " + kinds);
             return;
         }
-        // Terrain columns over the village carry its blocks.
-        ColumnBuilder builder = new ColumnBuilder(generator, registries, helper.getLevel().dimensionType(), SEED,
-                UnaryOperator.identity(), helper.getLevel().getStructureManager());
+        // Terrain columns over the village carry its blocks: the exact build at full detail, the coarse one on wide
+        // columns (each from a fresh builder, as a tile would build them).
         int minY = sampler.minY();
         int width = SurfaceBenchmark.TILE_WIDTH;
-        RealStructures.Built target = village;
         for (int spacing : new int[]{1, 8}) {
+            ColumnBuilder builder = new ColumnBuilder(generator, registries, helper.getLevel().dimensionType(), SEED,
+                    UnaryOperator.identity(), helper.getLevel().getStructureManager());
+            RealStructures.Built target = same(builder.realStructures().around(village.minX(), village.minZ(),
+                    village.minX() + village.sizeX() - 1, village.minZ() + village.sizeZ() - 1,
+                    spacing <= RealStructures.FINE_MAX_SPACING), village);
+            if (target == null) {
+                helper.fail("The village was not found again at " + spacing + "-block spacing");
+                return;
+            }
             int tileX = Math.floorDiv(target.minX() + target.sizeX() / 2, width * spacing) * width * spacing;
             int tileZ = Math.floorDiv(target.minZ() + target.sizeZ() / 2, width * spacing) * width * spacing;
             int[] counts = new int[2];
+            RealStructures.Built shown = target;
             builder.build(tileX, tileZ, spacing, width, (i, j, biome, layers) -> {
-                RealStructures.Column column = RealStructures.columnFor(List.of(target), tileX + i * spacing,
+                RealStructures.Column column = RealStructures.columnFor(List.of(shown), tileX + i * spacing,
                         tileZ + j * spacing, spacing);
                 if (column == null || column.top() == Integer.MIN_VALUE) {
                     return;
@@ -275,6 +285,101 @@ public final class ModGameTests {
             }
         }
         helper.succeed();
+    }
+
+    /** The structure of the list with the same name and start chunk, or null. */
+    private static RealStructures.Built same(List<RealStructures.Built> list, RealStructures.Built structure) {
+        for (RealStructures.Built built : list) {
+            if (built.name().equals(structure.name()) && built.startChunk().equals(structure.startChunk())) {
+                return built;
+            }
+        }
+        return null;
+    }
+
+    private static RealStructures overworldStructures(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+        return new RealStructures(new NoiseBasedChunkGenerator(biomes, settings),
+                new SurfaceSampler(registries, settings.value(), biomes, SEED), helper.getLevel().getStructureManager(),
+                SEED, registries, helper.getLevel().dimensionType());
+    }
+
+    /**
+     * The coarse builds wide tiles use stand where the exact ones do: same structures and boxes, and on every 4th
+     * column (what a 4-block tile samples) the same top within 2 blocks almost everywhere.
+     */
+    @GameTest(template = "empty", timeoutTicks = 6000)
+    public static void coarseStructuresFollowExactOnes(GameTestHelper helper) {
+        List<RealStructures.Built> exact = overworldStructures(helper).around(-1500, -1500, 1500, 1500, true);
+        List<RealStructures.Built> coarse = overworldStructures(helper).around(-1500, -1500, 1500, 1500, false);
+        int columns = 0;
+        int close = 0;
+        for (RealStructures.Built built : exact) {
+            RealStructures.Built rough = same(coarse, built);
+            if (rough == null || !rough.box().equals(built.box())) {
+                helper.fail("Coarse build differs from the exact one: " + built.name() + " at " + built.box());
+                return;
+            }
+            for (int x = Math.floorDiv(built.minX() + 3, 4) * 4; x < built.minX() + built.sizeX(); x += 4) {
+                for (int z = Math.floorDiv(built.minZ() + 3, 4) * 4; z < built.minZ() + built.sizeZ(); z += 4) {
+                    RealStructures.Column fine = built.columnAt(x, z);
+                    RealStructures.Column wide = rough.columnAt(x, z);
+                    if (fine == null || fine.top() == Integer.MIN_VALUE) {
+                        continue;
+                    }
+                    columns++;
+                    if (wide != null && Math.abs(wide.top() - fine.top()) <= 2) {
+                        close++;
+                    }
+                }
+            }
+        }
+        DhTurbo.LOGGER.info("Coarse structures: {} of {} sampled columns within 2 blocks of the exact build ({} structures)",
+                close, columns, exact.size());
+        if (exact.size() != coarse.size() || columns == 0 || close < columns * 0.85) {
+            helper.fail("Coarse builds stray from the exact ones: " + close + " of " + columns + " columns, "
+                    + coarse.size() + " vs " + exact.size() + " structures");
+            return;
+        }
+        helper.succeed();
+    }
+
+    /** While the workers are idle, the structures around a player are found and built before any tile asks. */
+    @GameTest(template = "empty", timeoutTicks = 6000)
+    public static void structuresPreparedWhileIdle(GameTestHelper helper) {
+        RealStructures structures = overworldStructures(helper);
+        RealStructures.Built village = null;
+        for (RealStructures.Built built : overworldStructures(helper).around(-2000, -2000, 2000, 2000, false)) {
+            if (village == null && built.name().contains("village")) {
+                village = built;
+            }
+        }
+        if (village == null) {
+            helper.fail("No village to prepare");
+            return;
+        }
+        int x = village.minX() + village.sizeX() / 2;
+        int z = village.minZ() + village.sizeZ() / 2;
+        int areaX = Math.floorDiv(x, 256) * 256;
+        int areaZ = Math.floorDiv(z, 256) * 256;
+        if (structures.prepared(areaX, areaZ, areaX + 255, areaZ + 255)) {
+            helper.fail("Structures were prepared before the prefetch started");
+            return;
+        }
+        ForkJoinPool idleWorkers = new ForkJoinPool(2);
+        StructurePrefetch prefetch = new StructurePrefetch(structures, () -> List.of(new int[]{x, z}), idleWorkers);
+        helper.onEachTick(() -> {
+            if (structures.prepared(areaX, areaZ, areaX + 255, areaZ + 255)) {
+                prefetch.close();
+                idleWorkers.shutdown();
+                helper.succeed();
+            }
+        });
     }
 
     /**

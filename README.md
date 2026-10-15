@@ -28,7 +28,8 @@
   detail; heights equal the real world on 98% of columns near you, checked against real chunks
   ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)). The F3 screen shows the tiles
   made, tiles per second and time per tile.
-- 🧵 **Every core at work** - each tile is split across all worker threads.
+- 🧵 **Every core at work** - each tile is split across all worker threads, and while Distant Horizons is busy with
+  its own work, idle threads prepare the structures around you before their tiles are asked for.
 - 🌲 **Real trees and plants nearby** - the game's own vegetation is replayed: trees, grass, flowers, sugar cane and
   pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the

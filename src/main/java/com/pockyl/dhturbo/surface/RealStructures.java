@@ -13,7 +13,9 @@ import it.unimi.dsi.fastutil.objects.ObjectList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.QuartPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.tags.BiomeTags;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
@@ -41,6 +43,7 @@ import net.minecraft.world.level.levelgen.structure.pools.StructureTemplatePool;
 import net.minecraft.world.level.levelgen.structure.placement.ConcentricRingsStructurePlacement;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
+import net.minecraft.world.level.levelgen.structure.structures.OceanMonumentStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
 
@@ -73,13 +76,29 @@ import java.util.concurrent.atomic.LongAdder;
 public final class RealStructures {
     /** Widest columns that show structures: beyond that a village is a handful of columns. */
     public static final int MAX_SPACING = 16;
+    /**
+     * Widest columns that get structures built block-exactly (terrain sampled per block, vanilla's terrain adaptation).
+     * Wider columns get the coarse build: terrain sampled every few blocks and the ground under each piece set to its
+     * floor, which is what those columns can show.
+     */
+    public static final int FINE_MAX_SPACING = 2;
+    /**
+     * Terrain sample spacing of coarse builds: the lattice wide tiles sample by default (two cells); structures up to
+     * {@link #SMALL_SIZE} blocks across, which place themselves on the averaged ground (shipwrecks, ruins, huts), get
+     * every cell corner with vanilla's heights there.
+     */
+    private static final int COARSE_STEP = 2 * SurfaceTile.CELL_WIDTH;
+    private static final int SMALL_SIZE = 64;
     /** Structures bigger than this (blocks across) are skipped: building them would stall a tile. */
     private static final int MAX_SIZE = 400;
     /** Vanilla only lets pieces reach this many chunks from the structure's start chunk (jigsaw limit 128 blocks). */
     private static final int REACH_CHUNKS = 8;
     private static final int STEP = GenerationStep.Decoration.SURFACE_STRUCTURES.ordinal();
-    /** Columns of built structures kept (a village has 2000-4000, about 100 bytes each). */
-    private static final int CACHED_COLUMNS = 400_000;
+    /**
+     * Weight of built structures kept: filled columns (a village has 2000-4000, about 120 bytes each) plus their box
+     * (4 bytes a column), about 60 MB at most.
+     */
+    private static final int CACHED_COLUMNS = 500_000;
     private static final int CACHED_CHUNKS = 16384;
     /** A structure whose top is this far under the ground at its center is buried and left out. */
     private static final int UNDERGROUND_MARGIN = 8;
@@ -106,7 +125,10 @@ public final class RealStructures {
     /** Starts per chunk (only chunks some set places a structure in). */
     private final Cache<Long, List<StructureStart>> starts = CacheBuilder.newBuilder().maximumSize(CACHED_CHUNKS).build();
     private final Cache<StructureStart, Built> placed = CacheBuilder.newBuilder().maximumWeight(CACHED_COLUMNS)
-            .<StructureStart, Built>weigher((start, built) -> 1 + built.sizeX * built.sizeZ).weakKeys().build();
+            .<StructureStart, Built>weigher((start, built) -> built.weight()).weakKeys().build();
+    /** Coarse builds for wide columns (see {@link #FINE_MAX_SPACING}). */
+    private final Cache<StructureStart, Built> placedCoarse = CacheBuilder.newBuilder().maximumWeight(CACHED_COLUMNS)
+            .<StructureStart, Built>weigher((start, built) -> built.weight()).weakKeys().build();
     private final LongAdder failures = new LongAdder();
     /** Nanoseconds spent per phase: finding starts, terrain, terrain adaptation, pieces. */
     private final LongAdder[] timings = {new LongAdder(), new LongAdder(), new LongAdder(), new LongAdder()};
@@ -169,8 +191,16 @@ public final class RealStructures {
                 timings[3].sum() / 1_000_000);
     }
 
-    /** Structures reaching into a block area (inclusive bounds), built and cached. */
+    /** Structures reaching into a block area (inclusive bounds), built block-exactly and cached. */
     public List<Built> around(int minX, int minZ, int maxX, int maxZ) {
+        return around(minX, minZ, maxX, maxZ, true);
+    }
+
+    /**
+     * Structures reaching into a block area (inclusive bounds), built and cached; {@code fine} for columns up to
+     * {@link #FINE_MAX_SPACING} wide, otherwise a coarse build is enough (or the fine one when it already exists).
+     */
+    public List<Built> around(int minX, int minZ, int maxX, int maxZ, boolean fine) {
         List<Built> result = new ArrayList<>();
         int fromChunkX = (minX >> 4) - REACH_CHUNKS;
         int fromChunkZ = (minZ >> 4) - REACH_CHUNKS;
@@ -178,7 +208,7 @@ public final class RealStructures {
         int toChunkZ = (maxZ >> 4) + REACH_CHUNKS;
         for (long chunk : candidateChunks(fromChunkX, fromChunkZ, toChunkX, toChunkZ)) {
             for (StructureStart start : startsAt(ChunkPos.getX(chunk), ChunkPos.getZ(chunk))) {
-                Built built = built(start);
+                Built built = built(start, fine);
                 if (built != null && built.intersects(minX, minZ, maxX, maxZ)) {
                     result.add(built);
                 }
@@ -289,30 +319,95 @@ public final class RealStructures {
     @Nullable
     private StructureStart generate(StructureSet.StructureSelectionEntry entry, ChunkPos chunk) {
         Structure structure = entry.structure().value();
+        if (structure instanceof OceanMonumentStructure && !monumentSurroundingPossible(chunk)) {
+            return null;
+        }
         StructureStart start = structure.generate(registries, generator, generator.getBiomeSource(), randomState,
                 templates, seed, chunk, 0, heightAccessor, structure.biomes()::contains);
         return start.isValid() ? start : null;
     }
 
-    @Nullable
-    private Built built(StructureStart start) {
-        BoundingBox box = start.getBoundingBox();
-        if (box.getXSpan() > MAX_SIZE || box.getZSpan() > MAX_SIZE) {
-            return null;
-        }
-        if (profile == null) {
-            // Some packs put buried structures in the surface step (Terralith's underground cabins): nothing to see.
-            BlockPos center = box.getCenter();
-            if (box.maxY() < generator.ground(center.getX(), center.getZ()) - UNDERGROUND_MARGIN) {
-                return null;
+    /**
+     * A cheap part of the monument's own check: it wants every biome within 29 blocks of the chunk's (9, 9) at sea level
+     * to be deep ocean, and samples ~3000 biomes for that, mostly on land. 27 of the same samples (the corners, edge
+     * middles and centre of its lattice) reject nearly all chunks first; the rest go through the full check.
+     */
+    private boolean monumentSurroundingPossible(ChunkPos chunk) {
+        int x = chunk.getBlockX(9);
+        int y = generator.getSeaLevel();
+        int z = chunk.getBlockZ(9);
+        int radius = 29;
+        int fromX = QuartPos.fromBlock(x - radius);
+        int fromY = QuartPos.fromBlock(y - radius);
+        int fromZ = QuartPos.fromBlock(z - radius);
+        int toX = QuartPos.fromBlock(x + radius);
+        int toY = QuartPos.fromBlock(y + radius);
+        int toZ = QuartPos.fromBlock(z + radius);
+        int stepX = Math.max(1, (toX - fromX) / 2);
+        int stepY = Math.max(1, (toY - fromY) / 2);
+        int stepZ = Math.max(1, (toZ - fromZ) / 2);
+        for (int qx = fromX; qx <= toX; qx += stepX) {
+            for (int qz = fromZ; qz <= toZ; qz += stepZ) {
+                for (int qy = fromY; qy <= toY; qy += stepY) {
+                    if (!generator.getBiomeSource().getNoiseBiome(qx, qy, qz, randomState.sampler())
+                            .is(BiomeTags.REQUIRED_OCEAN_MONUMENT_SURROUNDING)) {
+                        return false;
+                    }
+                }
             }
         }
+        return true;
+    }
+
+    @Nullable
+    private Built built(StructureStart start, boolean fine) {
+        if (!shown(start)) {
+            return null;
+        }
         try {
-            return placed.get(start, () -> place(start));
+            if (fine || profile != null) {
+                return placed.get(start, () -> place(start));
+            }
+            Built exact = placed.getIfPresent(start);
+            return exact != null ? exact : placedCoarse.get(start, () -> placeCoarse(start));
         } catch (ExecutionException | RuntimeException e) {
             report("structure " + name(start.getStructure()), e);
             return null;
         }
+    }
+
+    /** Whether a structure is drawn: not too big to build, and not buried. */
+    private boolean shown(StructureStart start) {
+        BoundingBox box = start.getBoundingBox();
+        if (box.getXSpan() > MAX_SIZE || box.getZSpan() > MAX_SIZE) {
+            return false;
+        }
+        if (profile == null) {
+            // Some packs put buried structures in the surface step (Terralith's underground cabins): nothing to see.
+            BlockPos center = box.getCenter();
+            return box.maxY() >= generator.ground(center.getX(), center.getZ()) - UNDERGROUND_MARGIN;
+        }
+        return true;
+    }
+
+    /**
+     * Whether everything {@link #around(int, int, int, int, boolean) around} needs for wide columns over the area is
+     * already found and built, so a tile there does not wait for structures.
+     */
+    public boolean prepared(int minX, int minZ, int maxX, int maxZ) {
+        for (long chunk : candidateChunks((minX >> 4) - REACH_CHUNKS, (minZ >> 4) - REACH_CHUNKS,
+                (maxX >> 4) + REACH_CHUNKS, (maxZ >> 4) + REACH_CHUNKS)) {
+            List<StructureStart> found = starts.getIfPresent(chunk);
+            if (found == null) {
+                return false;
+            }
+            for (StructureStart start : found) {
+                if (shown(start) && placed.getIfPresent(start) == null && placedCoarse.getIfPresent(start) == null) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /** A structure as built: its blocks per column and the ground it adapted. */
@@ -326,15 +421,19 @@ public final class RealStructures {
         private final int sizeZ;
         /** Per column of the structure's box: its blocks, or null. */
         private final Column[] columns;
-        /** Ground area (box plus the reach of terrain adaptation) and its heights, MIN_VALUE where unchanged. */
+        /**
+         * Ground area (box plus the reach of terrain adaptation): its heights every {@code groundStep} blocks,
+         * MIN_VALUE where unchanged.
+         */
         private final int groundMinX;
         private final int groundMinZ;
         private final int groundSize;
+        private final int groundStep;
         @Nullable
         private final int[] ground;
 
         Built(String name, BoundingBox box, ChunkPos startChunk, Column[] columns, int groundMinX, int groundMinZ,
-              int groundSize, @Nullable int[] ground) {
+              int groundSize, int groundStep, @Nullable int[] ground) {
             this.name = name;
             this.box = box;
             this.startChunk = startChunk;
@@ -346,7 +445,19 @@ public final class RealStructures {
             this.groundMinX = groundMinX;
             this.groundMinZ = groundMinZ;
             this.groundSize = groundSize;
+            this.groundStep = groundStep;
             this.ground = ground;
+        }
+
+        /** Cache weight: filled columns, and the box at 1/32 (an array slot against a column's runs). */
+        int weight() {
+            int filled = 0;
+            for (Column column : columns) {
+                if (column != null) {
+                    filled++;
+                }
+            }
+            return 1 + filled + columns.length / 32 + (ground != null ? ground.length / 32 : 0);
         }
 
         /** The structure's id, e.g. {@code minecraft:village_plains}. */
@@ -387,18 +498,21 @@ public final class RealStructures {
         boolean intersects(int fromX, int fromZ, int toX, int toZ) {
             int reachMinX = ground != null ? groundMinX : minX;
             int reachMinZ = ground != null ? groundMinZ : minZ;
-            int reachMaxX = ground != null ? groundMinX + groundSize - 1 : minX + sizeX - 1;
-            int reachMaxZ = ground != null ? groundMinZ + groundSize - 1 : minZ + sizeZ - 1;
+            int reachMaxX = ground != null ? groundMinX + groundSize * groundStep - 1 : minX + sizeX - 1;
+            int reachMaxZ = ground != null ? groundMinZ + groundSize * groundStep - 1 : minZ + sizeZ - 1;
             return reachMaxX >= fromX && reachMinX <= toX && reachMaxZ >= fromZ && reachMinZ <= toZ;
         }
 
-        /** Ground height the structure gave the column, or MIN_VALUE when it left it alone. */
+        /**
+         * Ground height the structure gave the column, or MIN_VALUE when it left it alone. Coarse builds know it on
+         * vanilla's cell corners, where wide columns are.
+         */
         public int groundAt(int x, int z) {
             if (ground == null) {
                 return Integer.MIN_VALUE;
             }
-            int i = x - groundMinX;
-            int j = z - groundMinZ;
+            int i = Math.floorDiv(x - groundMinX, groundStep);
+            int j = Math.floorDiv(z - groundMinZ, groundStep);
             return i < 0 || j < 0 || i >= groundSize || j >= groundSize ? Integer.MIN_VALUE : ground[i + j * groundSize];
         }
 
@@ -507,7 +621,7 @@ public final class RealStructures {
         placePieces(start, level);
         timings[3].add(System.nanoTime() - adaptDone);
         Built result = new Built(name(structure), box, start.getChunkPos(), columns(box, level.writes()),
-                groundMinX, groundMinZ, groundSize, adapted);
+                groundMinX, groundMinZ, groundSize, 1, adapted);
         if (DhTurbo.DEBUG) {
             DhTurbo.LOGGER.debug("Built {} at {} in {} ms", name(structure), box.getCenter(),
                     (System.nanoTime() - begin) / 1_000_000);
@@ -556,7 +670,126 @@ public final class RealStructures {
         placePieces(start, level);
         timings[3].add(System.nanoTime() - begin);
         return new Built(name(start.getStructure()), box, start.getChunkPos(), columns(box, level.writes()),
-                box.minX(), box.minZ(), 1, null);
+                box.minX(), box.minZ(), 1, 1, null);
+    }
+
+    /**
+     * A structure for wide columns: terrain heights every {@link #COARSE_STEP} blocks on vanilla's cell corners, as the
+     * wide tiles themselves have them, interpolated between; and instead of vanilla's terrain adaptation block by block,
+     * the ground under each piece that adapts it set to the piece's floor. A village costs a fraction of the exact build
+     * and looks the same in columns 4+ blocks wide.
+     */
+    private Built placeCoarse(StructureStart start) {
+        long begin = System.nanoTime();
+        BoundingBox box = start.getBoundingBox();
+        Structure structure = start.getStructure();
+        boolean small = Math.max(box.getXSpan(), box.getZSpan()) <= SMALL_SIZE;
+        int cell = small ? SurfaceTile.CELL_WIDTH : COARSE_STEP;
+        int groundMinX = Math.floorDiv(box.minX(), cell) * cell;
+        int groundMinZ = Math.floorDiv(box.minZ(), cell) * cell;
+        // Corners around the whole box, one beyond its far edge to interpolate up to it.
+        int groundSize = Math.max(box.maxX() - groundMinX, box.maxZ() - groundMinZ) / cell + 2;
+        // Small ones also get the cave-aware heights on the corners (a seabed cave lowers the ground a shipwreck
+        // averages); cheap for their few corners.
+        SurfaceTile raw = SurfaceTile.generate(sampler, groundMinX, groundMinZ, cell, groundSize, 1, small);
+        int[] ground = raw.heights.clone();
+        long terrainDone = System.nanoTime();
+        timings[1].add(terrainDone - begin);
+        int[] adapted = null;
+        if (structure.terrainAdaptation() != TerrainAdjustment.NONE
+                && flattenUnderPieces(start, groundMinX, groundMinZ, groundSize, cell, ground)) {
+            adapted = ground.clone();
+            for (int i = 0; i < adapted.length; i++) {
+                if (adapted[i] == raw.heights[i]) {
+                    adapted[i] = Integer.MIN_VALUE;
+                }
+            }
+        }
+        long adaptDone = System.nanoTime();
+        timings[2].add(adaptDone - terrainDone);
+        int maxIndex = groundSize - 2;
+        VirtualLevel.Terrain terrain = new VirtualLevel.Terrain() {
+            @Override
+            public int ground(int x, int z) {
+                int dx = x - groundMinX;
+                int dz = z - groundMinZ;
+                int i = Math.floorDiv(dx, cell);
+                int j = Math.floorDiv(dz, cell);
+                if (i < 0 || j < 0 || i > maxIndex || j > maxIndex) {
+                    return generator.ground(x, z);
+                }
+                double fx = (dx - i * cell) / (double) cell;
+                double fz = (dz - j * cell) / (double) cell;
+                int row = j * groundSize;
+                double near = ground[i + row] + (ground[i + 1 + row] - ground[i + row]) * fx;
+                double far = ground[i + row + groundSize] + (ground[i + 1 + row + groundSize] - ground[i + row + groundSize]) * fx;
+                return (int) Math.round(near + (far - near) * fz);
+            }
+
+            @Override
+            public BlockState top(int x, int z) {
+                return BiomeLook.of(raw.biomeAt(x, z)).top();
+            }
+
+            @Override
+            public Holder<Biome> biome(int x, int y, int z) {
+                return Math.abs(y - ground(x, z)) <= 8 ? raw.biomeAt(x, z) : sampler.biome(x, y, z);
+            }
+        };
+        VirtualLevel level = new VirtualLevel(terrain, seed, minY, height, seaLevel, registries, dimensionType);
+        placePieces(start, level);
+        timings[3].add(System.nanoTime() - adaptDone);
+        return new Built(name(structure), box, start.getChunkPos(), columns(box, level.writes()),
+                groundMinX, groundMinZ, groundSize, cell, adapted);
+    }
+
+    /**
+     * The coarse stand-in for terrain adaptation: corners under a piece that beards the terrain (village houses, temples)
+     * take the piece's floor, as vanilla's beard fills below it and clears above. Buried structures keep the ground.
+     * Returns whether any corner changed.
+     */
+    private static boolean flattenUnderPieces(StructureStart start, int groundMinX, int groundMinZ, int groundSize,
+                                              int cell, int[] ground) {
+        TerrainAdjustment structureAdjustment = start.getStructure().terrainAdaptation();
+        boolean changed = false;
+        for (StructurePiece piece : start.getPieces()) {
+            BoundingBox box;
+            TerrainAdjustment adjustment;
+            int delta;
+            if (piece instanceof PieceBeardifierModifier modifier) {
+                box = modifier.getBeardifierBox();
+                adjustment = modifier.getTerrainAdjustment();
+                delta = modifier.getGroundLevelDelta();
+            } else if (piece instanceof PoolElementStructurePiece pool) {
+                if (pool.getElement().getProjection() != StructureTemplatePool.Projection.RIGID) {
+                    continue;
+                }
+                box = pool.getBoundingBox();
+                adjustment = structureAdjustment;
+                delta = pool.getGroundLevelDelta();
+            } else {
+                box = piece.getBoundingBox();
+                adjustment = structureAdjustment;
+                delta = 0;
+            }
+            if (adjustment == TerrainAdjustment.NONE || adjustment == TerrainAdjustment.BURY) {
+                continue;
+            }
+            int floor = box.minY() + delta;
+            int fromI = Math.max(0, Math.floorDiv(box.minX() - groundMinX + cell - 1, cell));
+            int toI = Math.min(groundSize - 1, Math.floorDiv(box.maxX() - groundMinX, cell));
+            int fromJ = Math.max(0, Math.floorDiv(box.minZ() - groundMinZ + cell - 1, cell));
+            int toJ = Math.min(groundSize - 1, Math.floorDiv(box.maxZ() - groundMinZ, cell));
+            for (int j = fromJ; j <= toJ; j++) {
+                for (int i = fromI; i <= toI; i++) {
+                    if (ground[i + j * groundSize] != floor) {
+                        ground[i + j * groundSize] = floor;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return changed;
     }
 
     /** Places the pieces chunk by chunk with the random every chunk gives the structure, as chunk generation does. */

@@ -187,7 +187,7 @@ public final class ColumnBuilder {
                 width + 2 * margin, fullResolution ? 1 : 2);
         List<RealStructures.Built> structures = realStructures != null && spacing <= RealStructures.MAX_SPACING
                 ? realStructures.around(area.minX, area.minZ, area.minX + area.width * spacing - 1,
-                        area.minZ + area.width * spacing - 1)
+                        area.minZ + area.width * spacing - 1, spacing <= RealStructures.FINE_MAX_SPACING)
                 : List.of();
         if (!structures.isEmpty()) {
             // Structures shape the ground around them before anything grows on it, as in chunk generation.

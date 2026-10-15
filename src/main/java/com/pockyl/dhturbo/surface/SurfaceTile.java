@@ -97,6 +97,16 @@ public final class SurfaceTile {
      *               vanilla cell are always interpolated, since the real terrain is linear between cell corners anyway
      */
     public static SurfaceTile generate(SurfaceSampler sampler, int minX, int minZ, int spacing, int width, int stride) {
+        return generate(sampler, minX, minZ, spacing, width, stride, true);
+    }
+
+    /**
+     * @param interpolate on the cell lattice, interpolate the density between corners like vanilla (needs the corner
+     *                    densities on every cell level the surface crosses); false keeps the corners' own heights and
+     *                    lerps between them, several times cheaper
+     */
+    public static SurfaceTile generate(SurfaceSampler sampler, int minX, int minZ, int spacing, int width, int stride,
+                                       boolean interpolate) {
         SurfaceTile tile = new SurfaceTile(minX, minZ, spacing, width);
         int step = Math.max(stride, Math.max(1, CELL_WIDTH / spacing));
         int samples = (width - 1 + step - 1) / step + 1;
@@ -110,7 +120,7 @@ public final class SurfaceTile {
         }
         run(bands);
         // On the cell lattice (detailed tiles) columns between corners get vanilla's own interpolation of the density.
-        boolean cellLattice = step * spacing == CELL_WIDTH;
+        boolean cellLattice = interpolate && step * spacing == CELL_WIDTH;
         if (cellLattice) {
             List<Runnable> corners = new ArrayList<>();
             for (int first = 0; first < samples; first += BAND_ROWS) {

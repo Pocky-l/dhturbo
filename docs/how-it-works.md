@@ -54,8 +54,15 @@ where one column covers several blocks, trees and plants are approximated per bi
   in the `SURFACE_STRUCTURES` step, so villages get the same houses, streets and blocks.
 - **The ground under them.** Structures that adapt the terrain (villages flatten the ground under their houses) get
   vanilla's `Beardifier` added to the final density, block by block, exactly as chunk generation adds it.
+- **Two builds.** Columns up to 2 blocks wide get the exact build above. Wider columns get a coarse one: terrain
+  sampled every 8 blocks (every 4, with vanilla's cave-aware heights, for structures up to 64 blocks across, which
+  settle on the averaged ground), and under each piece that adapts the terrain the ground set to the piece's floor
+  instead of the `Beardifier` block by block. On every 4th column its top is within 2 blocks of the exact build on 93%
+  of columns, at a fraction of the cost. Most structures are only ever seen in wide columns.
 - Heights asked during placement are answered by `SampledHeightGenerator` from the sampler instead of computing the
-  whole column, which keeps a village to a fraction of a second.
+  whole column, and remembered per column: a village asks the same columns again for every piece it tries.
+- Ocean monuments check about 3000 biomes around them before they start, mostly on land; 27 of the same samples
+  reject nearly every chunk first.
 
 Built structures are cached and shared by every tile and detail level.
 
@@ -70,6 +77,10 @@ floor and roof). Fortresses, bastions and end cities are built as in section 4.
 
 - One tile is split over every worker thread (fork-join), so a single request uses the whole CPU.
 - Structures, the most expensive part, are built once and cached.
+- **Prepared ahead** (`surface/StructurePrefetch`). Distant Horizons asks for tiles at its own pace (saving and
+  meshing set it), so the workers are idle much of the time. That time goes to the structures around the players:
+  areas 256 blocks wide, nearest first, out to where tiles show structures. They land in the same caches, so the tile
+  that needs them later does not wait. It pauses while tiles are queued or half of the workers are busy.
 - Optionally (`real_chunks_nearby`), detailed terrain near the player is first drawn this way and then handed to
   Distant Horizons' own chunk generator, following the player's Distant Horizons generator plan.
 
@@ -106,3 +117,22 @@ Results on 2026-10-15 (seed 20261009, 48 random areas within 20 000 blocks):
 
 With [Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith) and
 [Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic): top block kind 94.2%, land heights exact 95.7%.
+
+### Speed
+
+```
+./gradlew runCompareServer -PcompareHorizon=4096 [-PcompareHorizonRate=20] [-PcomparePrefetch=true]
+```
+
+fills the horizon around three fresh spawns the way Distant Horizons asks for it: tiles of 64 columns, finer near the
+player, nearest first, as many in flight as Distant Horizons allows. Results on 2026-10-15, 6 worker threads, 4096
+blocks around the player:
+
+| | Horizon filled |
+|---|---|
+| Terrain only (`structures = false`) | 4.1-6.0 s |
+| With structures, first version | 12.9-15.2 s |
+| With structures, two builds and cheaper searches | 7.2-8.9 s |
+
+At Distant Horizons' pace in game (20 tiles a second here), the idle time prepares the structures ahead. Time per tile
+1-2 km out (detail 3): p95 310-710 ms without, 40-45 ms with it.

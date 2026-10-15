@@ -64,6 +64,12 @@ neoForge {
             systemProperty 'dhturbo.compare.exit', 'true'
             systemProperty 'dhturbo.compare.spacings', providers.gradleProperty('compareSpacings').getOrElse('1,4')
             systemProperty 'dhturbo.compare.probe', providers.gradleProperty('compareProbe').getOrElse('')
+            // -PcompareHorizon=<radius>: instead of comparing, time filling the horizon around fresh spawns.
+            systemProperty 'dhturbo.compare.horizon', providers.gradleProperty('compareHorizon').getOrElse('0')
+            systemProperty 'dhturbo.compare.horizonRate', providers.gradleProperty('compareHorizonRate').getOrElse('0')
+            systemProperty 'dhturbo.compare.prefetch', providers.gradleProperty('comparePrefetch').getOrElse('false')
+            // -PcompareJvmArgs="...": extra JVM arguments, e.g. a flight recording for profiling.
+            providers.gradleProperty('compareJvmArgs').getOrElse('').split(' ').findAll { it }.each { jvmArgument it }
         }
 
         gameTestServer {

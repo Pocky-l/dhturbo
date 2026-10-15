@@ -69,10 +69,17 @@ public final class GenerationComparison {
         MinecraftServer server = event.getServer();
         int areas = Integer.getInteger(DhTurbo.MOD_ID + ".compare", 48);
         try {
-            List<String> report = new ArrayList<>(compare(server.overworld(), areas));
-            for (ServerLevel other : server.getAllLevels()) {
-                if (other != server.overworld()) {
-                    report.addAll(compareProfiles(other, Math.max(4, areas / 4)));
+            List<String> report;
+            int horizon = Integer.getInteger(DhTurbo.MOD_ID + ".compare.horizon", 0);
+            if (horizon > 0) {
+                // Speed only: the horizon around fresh spawns, as Distant Horizons requests it.
+                report = HorizonBenchmark.run(server.overworld(), horizon, 3);
+            } else {
+                report = new ArrayList<>(compare(server.overworld(), areas));
+                for (ServerLevel other : server.getAllLevels()) {
+                    if (other != server.overworld()) {
+                        report.addAll(compareProfiles(other, Math.max(4, areas / 4)));
+                    }
                 }
             }
             Path file = server.getServerDirectory().resolve("dhturbo-compare.txt");
@@ -267,6 +274,15 @@ public final class GenerationComparison {
             ourStarts.add(built.name() + " " + built.startChunk());
         }
         boolean profiled = ColumnBuilder.profiled(level.dimensionType());
+        // The coarse builds wide tiles use, from a second builder with empty caches.
+        RealStructures coarse = profiled ? null : new ColumnBuilder(
+                (NoiseBasedChunkGenerator) level.getChunkSource().getGenerator(), level.registryAccess(),
+                level.dimensionType(), level.getSeed(), UnaryOperator.identity(), level.getStructureManager())
+                .realStructures();
+        long coarseColumns = 0;
+        long coarseNear = 0;
+        long coarseBlock = 0;
+        long fineNear = 0;
         List<String> details = new ArrayList<>();
         Set<String> missing = new HashSet<>();
         int sameStart = 0;
@@ -377,6 +393,62 @@ public final class GenerationComparison {
             columns += structureColumns;
             exactTop += structureExact;
             sameBlock += structureBlock;
+            long roughColumns = coarseColumns;
+            long roughNear = coarseNear;
+            long roughFine = fineNear;
+            List<String> roughExamples = new ArrayList<>();
+            if (coarse != null) {
+                // Columns 4 blocks apart, as a spacing-4 tile samples them: our top there against the real one.
+                RealStructures.Built rough = null;
+                for (RealStructures.Built candidate : coarse.around(box.minX(), box.minZ(), box.maxX(), box.maxZ(), false)) {
+                    if (candidate.startChunk().equals(built.startChunk()) && candidate.name().equals(built.name())) {
+                        rough = candidate;
+                    }
+                }
+                for (int x = Math.floorDiv(box.minX() + 3, 4) * 4; rough != null && x <= box.maxX(); x += 4) {
+                    for (int z = Math.floorDiv(box.minZ() + 3, 4) * 4; z <= box.maxZ(); z += 4) {
+                        RealStructures.Column column = rough.columnAt(x, z);
+                        if (column == null || column.top() == Integer.MIN_VALUE) {
+                            continue;
+                        }
+                        int ourTop = Integer.MIN_VALUE;
+                        BlockState ourBlock = null;
+                        for (int k = column.states().length - 1; k >= 0 && ourBlock == null; k--) {
+                            BlockState state = column.states()[k];
+                            if (!state.isAir() && !state.liquid() && !state.is(Blocks.SNOW)) {
+                                ourBlock = state;
+                                ourTop = column.tops()[k];
+                            }
+                        }
+                        if (ourBlock == null) {
+                            continue;
+                        }
+                        ChunkAccess chunk = level.getChunk(x >> 4, z >> 4);
+                        int realTop = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15) + 1;
+                        BlockState realBlock = chunk.getBlockState(new BlockPos(x, realTop - 1, z));
+                        while (realTop > level.getMinBuildHeight()
+                                && (realBlock.isAir() || realBlock.liquid() || realBlock.is(Blocks.SNOW))) {
+                            realTop--;
+                            realBlock = chunk.getBlockState(new BlockPos(x, realTop - 1, z));
+                        }
+                        coarseColumns++;
+                        RealStructures.Column exact = built.columnAt(x, z);
+                        if (exact != null && Math.abs(realTop - topOf(exact)) <= 1) {
+                            fineNear++;
+                        }
+                        if (Math.abs(realTop - ourTop) <= 1) {
+                            coarseNear++;
+                        } else if (roughExamples.size() < 3) {
+                            roughExamples.add(x + " " + z + ": ours " + BuiltInRegistries.BLOCK.getKey(ourBlock.getBlock()).getPath()
+                                    + " top " + ourTop + ", real " + BuiltInRegistries.BLOCK.getKey(realBlock.getBlock()).getPath()
+                                    + " top " + realTop);
+                        }
+                        if (ourBlock.getBlock() == realBlock.getBlock()) {
+                            coarseBlock++;
+                        }
+                    }
+                }
+            }
             String boxText = boxMatches ? "same (y " + real.getBoundingBox().minY() + "-" + real.getBoundingBox().maxY()
                     + " real, " + box.minY() + "-" + box.maxY() + " ours)" : real != null && real.isValid()
                     ? "differs (real " + real.getBoundingBox() + ", ours " + box + ")" : "-";
@@ -385,7 +457,11 @@ public final class GenerationComparison {
                     built.name(), box.getCenter().getX(), box.getCenter().getZ(), startMatches ? "yes" : "NO", boxText,
                     percent(structureExact, structureColumns), percent(structureBlock, structureColumns),
                     structureColumns, built.adaptedGround() ? ", ground adapted" : "")
-                    + (examples.isEmpty() ? "" : "; e.g. " + String.join("; ", examples)));
+                    + (examples.isEmpty() ? "" : "; e.g. " + String.join("; ", examples))
+                    + String.format(Locale.ROOT, " | coarse within 1 %.1f%% (exact build %.1f%%) of %d",
+                    percent(coarseNear - roughNear, coarseColumns - roughColumns),
+                    percent(fineNear - roughFine, coarseColumns - roughColumns), coarseColumns - roughColumns)
+                    + (roughExamples.isEmpty() ? "" : "; e.g. " + String.join("; ", roughExamples)));
         }
         List<String> lines = new ArrayList<>();
         lines.add(String.format(Locale.ROOT, "Structures: %d within %d blocks of the origin (%d kinds, %d ms), %d compared",
@@ -395,6 +471,12 @@ public final class GenerationComparison {
                 : "  starts real %d/%d, same area %d/%d; %d columns: top exact %.1f%%, within 1 %.1f%%, same top block %.1f%%",
                 sameStart, picked.size(), sameBox, picked.size(), columns, percent(exactTop, columns),
                 percent(nearTop, columns), percent(sameBlock, columns)));
+        if (coarse != null) {
+            lines.add(String.format(Locale.ROOT,
+                    "  coarse builds (wide tiles), every 4th column: %d columns, top within 1 %.1f%% (exact build there %.1f%%), same top block %.1f%%",
+                    coarseColumns, percent(coarseNear, coarseColumns), percent(fineNear, coarseColumns),
+                    percent(coarseBlock, coarseColumns)));
+        }
         lines.add("  real structures near them that we lack: " + (missing.isEmpty() ? "none" : missing));
         lines.addAll(details);
         return lines;
@@ -491,6 +573,17 @@ public final class GenerationComparison {
                 .forEach(entry -> lines.add("  floor " + entry.getKey() + ": " + entry.getValue()));
         lines.addAll(compareStructures(level, builder));
         return lines;
+    }
+
+    /** Top of the highest block of a structure column that is not air, a fluid or a snow layer. */
+    private static int topOf(RealStructures.Column column) {
+        for (int k = column.states().length - 1; k >= 0; k--) {
+            BlockState state = column.states()[k];
+            if (!state.isAir() && !state.liquid() && !state.is(Blocks.SNOW)) {
+                return column.tops()[k];
+            }
+        }
+        return Integer.MIN_VALUE;
     }
 
     private static double percent(long part, long whole) {

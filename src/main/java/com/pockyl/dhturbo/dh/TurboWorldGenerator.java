@@ -59,7 +59,8 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         // A world created without structures gets none in the distance either.
         boolean structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
         this.writer = new LodTileWriter(levelWrapper, generator, level.registryAccess(), level.dimensionType(),
-                level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats);
+                level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats,
+                () -> Players.positions(level));
     }
 
     /** The generator answering requests right now: DH's own one while DH Turbo is switched off. */
@@ -226,6 +227,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
 
     @Override
     public void close() {
+        writer.close();
         IDhApiWorldGenerator generator = dhGenerator;
         if (generator != null) {
             generator.close();

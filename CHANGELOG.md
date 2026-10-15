@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nether only got Distant Horizons' flat rough surface.
 - The game's own grass, flowers, sugar cane and pumpkins near you: the vegetation is replayed where the game puts it,
   so the distant meadow no longer changes when the real chunks load.
+- Structures are light on the CPU: wide distant columns get a lighter build of the same structures, and idle worker
+  threads prepare the structures around you before Distant Horizons asks for their tiles. The F3 line shows how many
+  areas are ready.
 - Config `real_chunks_nearby`: follow the Distant Horizons generator plan instead of switching it to "surface only".
   With its default plan, detailed terrain near you is drawn fast first and then replaced by real chunk generation.
 ### Fixed

@@ -3,11 +3,27 @@ package com.pockyl.dhturbo.dh;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /** Player positions as seen from generator threads. */
 final class Players {
     private Players() {
+    }
+
+    /** Block X and Z of every player in the level (a racy read from generator threads, like below). */
+    static List<int[]> positions(ServerLevel level) {
+        List<int[]> positions = new ArrayList<>();
+        try {
+            List<ServerPlayer> players = level.players();
+            for (int i = 0; i < players.size(); i++) {
+                ServerPlayer player = players.get(i);
+                positions.add(new int[]{player.getBlockX(), player.getBlockZ()});
+            }
+        } catch (RuntimeException e) {
+            // The list changed under us; the next call sees the new one.
+        }
+        return positions;
     }
 
     /**
