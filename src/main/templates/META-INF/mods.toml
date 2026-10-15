@@ -13,15 +13,15 @@ logoFile="logo.png"
 description='''${mod_description}'''
 
 [[dependencies.${mod_id}]]
-    modId="neoforge"
-    type="required"
-    versionRange="[${neo_version},)"
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="minecraft"
-    type="required"
+    mandatory=true
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
@@ -30,13 +30,7 @@ description='''${mod_description}'''
 # Horizons the mod does nothing. CurseForge lists it as required.
 [[dependencies.${mod_id}]]
     modId="distanthorizons"
-    type="optional"
+    mandatory=false
     versionRange="${distanthorizons_range}"
     ordering="AFTER"
     side="BOTH"
-
-[[accessTransformers]]
-file="META-INF/accesstransformer.cfg"
-
-[[mixins]]
-config="${mod_id}.mixins.json"

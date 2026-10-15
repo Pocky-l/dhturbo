@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'idea'
-    id 'net.neoforged.moddev' version '2.0.148'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.148'
     id 'me.modmuss50.mod-publish-plugin' version '2.2.1'
 }
 
@@ -9,10 +9,10 @@ version = mod_version
 group = mod_group_id
 
 base {
-    archivesName = "${mod_id}-neoforge-${minecraft_version}"
+    archivesName = "${mod_id}-forge-${minecraft_version}"
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 sourceSets.main.resources {
     srcDir('src/generated/resources')
@@ -32,8 +32,8 @@ repositories {
     }
 }
 
-neoForge {
-    version = project.neo_version
+legacyForge {
+    version = "${minecraft_version}-${forge_version}"
 
     parchment {
         mappingsVersion = project.parchment_mappings_version
@@ -43,7 +43,7 @@ neoForge {
     runs {
         client {
             client()
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
 
         server {
@@ -51,7 +51,7 @@ neoForge {
             // Separate directory, so a dedicated server can run next to the dev client.
             gameDirectory = project.file('run-server')
             programArgument '--nogui'
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
 
         // Compares our columns with chunks the game really generates (compare/GenerationComparison): a normal world
@@ -86,7 +86,7 @@ neoForge {
             type = 'gameTestServer'
             // Own directory: run/mods holds Distant Horizons for the dev client, which crashes the game test server.
             gameDirectory = project.file('run/gametest')
-            systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
 
         data {
@@ -109,6 +109,12 @@ neoForge {
     }
 }
 
+// Forge 1.20.1 runs with SRG names: the annotation processor writes the refmap that maps the mixin targets to them.
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
+
 // Dependencies added to localRuntime are available in dev runs but are not published as dependencies.
 configurations {
     runtimeClasspath.extendsFrom localRuntime
@@ -116,16 +122,22 @@ configurations {
         transitive = false
     }
 }
+// Distant Horizons for the dev runs, remapped from SRG to the Mojang names of the development environment.
+obfuscation.createRemappingConfiguration(configurations.distantHorizons)
 
 dependencies {
-    // Distant Horizons ships its API inside the mod jar; compile against it.
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // MixinExtras ships inside the jar, so the mixins work on every Forge 47 and on NeoForge for 1.20.1.
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${mixinextras_version}"))
+    implementation(jarJar("io.github.llamalad7:mixinextras-forge:${mixinextras_version}"))
+    // Distant Horizons ships its API inside the mod jar; compile against it. The mod only uses its API and core
+    // classes, which do not depend on Minecraft names, so the jar needs no remapping for that.
     compileOnly "maven.modrinth:distanthorizons:${distanthorizons_version}"
-    distantHorizons "maven.modrinth:distanthorizons:${distanthorizons_version}"
+    modDistantHorizons "maven.modrinth:distanthorizons:${distanthorizons_version}"
 }
 
-// Distant Horizons runs in the dev client and server as a real mod from their mods/ folders (on the classpath FML
-// does not load it as a mod). Not in the game test server: DH crashes it (casts every non-integrated server to
-// DedicatedServer).
+// Distant Horizons runs in the dev client and server as a real mod from their mods/ folders. Not in the game test
+// server: DH crashes it (casts every non-integrated server to DedicatedServer).
 var installDistantHorizonsClient = tasks.register('installDistantHorizonsClient', Copy) {
     from configurations.distantHorizons
     into 'run/mods'
@@ -172,7 +184,8 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     var replaceProperties = [
             minecraft_version      : minecraft_version,
             minecraft_version_range: minecraft_version_range,
-            neo_version            : neo_version,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
             loader_version_range   : loader_version_range,
             mod_id                 : mod_id,
             mod_name               : mod_name,
@@ -189,7 +202,7 @@ var generateModMetadata = tasks.register('generateModMetadata', ProcessResources
     into 'build/generated/sources/modMetadata'
 }
 sourceSets.main.resources.srcDir generateModMetadata
-neoForge.ideSyncTask generateModMetadata
+legacyForge.ideSyncTask generateModMetadata
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
@@ -204,6 +217,8 @@ tasks.named('jar', Jar) {
             'Implementation-Title': mod_name,
             'Implementation-Version': mod_version,
             'Implementation-Vendor': mod_authors,
+            // Forge 47 reads mixin configs from the manifest, not from mods.toml.
+            'MixinConfigs': "${mod_id}.mixins.json",
     )
 }
 
@@ -230,9 +245,11 @@ static String extractChangelog(String changelog, String version) {
     return body ?: null
 }
 
+// Releases of this branch carry the Minecraft version, e.g. "1.3.0+1.20.1", in CHANGELOG.md and on CurseForge.
+def releaseVersion = "${mod_version}+${minecraft_version}"
 def releaseNotes = extractChangelog(
         providers.fileContents(layout.projectDirectory.file('CHANGELOG.md')).asText.getOrElse(''),
-        mod_version)
+        releaseVersion)
 def curseforgeToken = providers.gradleProperty('curseforge_token')
         .orElse(providers.environmentVariable('CURSEFORGE_TOKEN'))
 
@@ -242,7 +259,7 @@ var releaseNotesTask = tasks.register('releaseNotes') {
     description = 'Validates release metadata and writes notes for the current version.'
 
     def notes = releaseNotes
-    def version = mod_version
+    def version = releaseVersion
     def projectId = curseforge_project_id
     def output = layout.buildDirectory.file('release-notes.md')
     inputs.property('notes', notes ?: '')
@@ -261,18 +278,19 @@ var releaseNotesTask = tasks.register('releaseNotes') {
 }
 
 publishMods {
-    file = tasks.named('jar', Jar).flatMap { it.archiveFile }
+    // The reobfuscated (SRG) jar is the one that runs outside the development environment.
+    file = tasks.named('reobfJar', Jar).flatMap { it.archiveFile }
     changelog = releaseNotes ?: ''
     type = STABLE
-    displayName = "${mod_name} ${mod_version}"
-    modLoaders.add('neoforge')
+    displayName = "${mod_name} ${releaseVersion}"
+    modLoaders.add('forge')
     dryRun = providers.gradleProperty('dryRun').map { it != 'false' }.orElse(false)
 
     curseforge {
         projectId = curseforge_project_id
         accessToken = curseforgeToken
         minecraftVersions.add(minecraft_version)
-        javaVersions.add(JavaVersion.VERSION_21)
+        javaVersions.add(JavaVersion.VERSION_17)
         client = curseforge_client.toBoolean()
         server = curseforge_server.toBoolean()
         curseforge_requires.split(',')*.trim().findAll().each { requires(it) }

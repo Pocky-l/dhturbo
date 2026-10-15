@@ -3,7 +3,8 @@
   "minVersion": "0.8",
   "package": "com.pockyl.dhturbo.mixin",
   "plugin": "com.pockyl.dhturbo.mixin.DhMixinPlugin",
-  "compatibilityLevel": "JAVA_21",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "dhturbo.refmap.json",
   "mixins": [
     "CappedProcessorMixin",
     "FullDataSourceV2Mixin"
