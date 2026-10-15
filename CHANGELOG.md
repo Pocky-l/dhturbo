@@ -4,6 +4,14 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - Unreleased
+### Added
+- Structures in the distance: villages, pillager outposts, desert and jungle temples, witch huts, igloos, woodland
+  mansions, ocean monuments, shipwrecks, ocean ruins, ruined portals and the structures of mods and data packs are
+  built where and as the game will build them, with the same buildings, streets and blocks. Villages flatten the ground
+  under their houses like in the real world. Shown up to 16 blocks per distant column. Config `structures`.
+- Structures also show when the game generates the distance itself in multiplayer.
+
 ## [1.2.0] - 2026-10-13
 ### Added
 - A line on the F3 debug screen shows the generator at work: tiles made since the game started, tiles per second, time

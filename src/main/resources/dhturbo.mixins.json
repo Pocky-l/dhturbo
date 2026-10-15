@@ -5,6 +5,7 @@
   "plugin": "com.pockyl.dhturbo.mixin.DhMixinPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "CappedProcessorMixin",
     "FullDataSourceV2Mixin"
   ],
   "client": [

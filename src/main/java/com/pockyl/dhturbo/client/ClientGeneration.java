@@ -75,7 +75,7 @@ public final class ClientGeneration {
             LodTileWriter writer = new LodTileWriter(level.levelWrapper, resolved.generator(), worldgen,
                     clientLevel.dimensionType(), seed,
                     biome -> biome.unwrapKey().flatMap(levelBiomes::getHolder).<Holder<Biome>>map(holder -> holder).orElse(biome),
-                    null);
+                    WorldgenLoader.templates(), null);
             DhTurbo.LOGGER.info("Generating distant terrain of {} on this client", info);
             return Optional.of(writer);
         } catch (RuntimeException e) {

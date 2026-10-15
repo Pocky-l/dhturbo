@@ -24,6 +24,9 @@ from the world noise, with the game's own trees nearby.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
   distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
   by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
+- 🏘️ **Structures in the distance** - villages, pillager outposts, temples, witch huts, mansions, ocean monuments,
+  shipwrecks, ocean ruins, ruined portals and the structures of mods stand where and as the game will build them, on
+  the ground they flatten; in a comparison with real generation every structure was found at its real place.
 - 🌋 **Lava lakes** - where and as the game places them.
 - 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
   patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
@@ -31,13 +34,13 @@ from the world noise, with the game's own trees nearby.
 - 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
   themselves, even without Distant Horizons on the server.
 
-**Limits:** the Nether keeps the Distant Horizons generator; structures show in the distance only once you have been
-there.
+**Limits:** the Nether keeps the Distant Horizons generator; underground structures (mineshafts, strongholds, ancient
+cities) are not drawn.
 
 ## ⚙️ Configuration
 
 *Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, full resolution, distant and real
-trees, the world's surface rules, grass and flowers, soft plant colours. Servers can stop sharing the world seed (`share_worldgen`).
+trees, structures, the world's surface rules, grass and flowers, soft plant colours. Servers can stop sharing the world seed (`share_worldgen`).
 
 ## 💛 Credits
 

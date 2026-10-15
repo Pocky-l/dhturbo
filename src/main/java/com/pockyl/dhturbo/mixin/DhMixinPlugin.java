@@ -98,6 +98,10 @@ public final class DhMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
+        if (targetClassName.startsWith("net.minecraft.")) {
+            // Hooks into vanilla (structures on the virtual level) do not depend on Distant Horizons.
+            return true;
+        }
         if (!DISTANT_HORIZONS) {
             return false;
         }

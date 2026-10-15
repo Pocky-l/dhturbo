@@ -13,6 +13,7 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 
 import com.pockyl.dhturbo.surface.ColumnBuilder;
 
@@ -46,9 +47,9 @@ public final class LodTileWriter {
 
     public LodTileWriter(IDhApiLevelWrapper levelWrapper, NoiseBasedChunkGenerator generator, RegistryAccess registries,
                          DimensionType dimensionType, long seed, UnaryOperator<Holder<Biome>> levelBiome,
-                         @Nullable GeneratorStats stats) {
+                         @Nullable StructureTemplateManager templates, @Nullable GeneratorStats stats) {
         this.levelWrapper = levelWrapper;
-        this.builder = new ColumnBuilder(generator, registries, dimensionType, seed, levelBiome);
+        this.builder = new ColumnBuilder(generator, registries, dimensionType, seed, levelBiome, templates);
         this.stats = stats;
     }
 

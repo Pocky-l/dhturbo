@@ -46,6 +46,13 @@ public final class Config {
             .translation("dhturbo.configuration.vanilla_surface")
             .define("vanilla_surface", true);
 
+    public static final ModConfigSpec.BooleanValue STRUCTURES = BUILDER
+            .comment("Build the world's structures on distant terrain: villages, outposts, temples, mansions, shipwrecks,",
+                    "ruined portals and structures of mods, where and as the game will build them. Underground structures",
+                    "are left out. Shown up to 16 blocks per LOD column.")
+            .translation("dhturbo.configuration.structures")
+            .define("structures", true);
+
     public static final ModConfigSpec.BooleanValue SOFT_PLANT_COLORS = BUILDER
             .comment("Client: when Distant Horizons tints the ground with the plants on it, blend their colour in softly instead",
                     "of painting the whole block (a poppy no longer turns a grass block red). Also for terrain from real chunks.",

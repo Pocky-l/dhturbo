@@ -16,6 +16,7 @@ import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -24,16 +25,20 @@ import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
 import com.pockyl.dhturbo.dh.TurboActivity;
 import com.pockyl.dhturbo.surface.BiomeLook;
+import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.GroundCover;
 import com.pockyl.dhturbo.surface.RealLakes;
+import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.WorldgenLoader;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * In-game tests, run headless by {@code gradlew runGameTestServer}.
@@ -191,6 +196,84 @@ public final class ModGameTests {
         helper.succeed();
     }
 
+    /**
+     * Structures are found and built on the virtual level without failing pieces; villages reshape the ground under
+     * their houses; and the distant terrain columns carry the structures' blocks at their heights.
+     */
+    @GameTest(template = "empty", timeoutTicks = 6000)
+    public static void structuresStandOnDistantTerrain(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+        NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomes, settings);
+        SurfaceSampler sampler = new SurfaceSampler(registries, settings.value(), biomes, SEED);
+        RealStructures structures = new RealStructures(generator, sampler, helper.getLevel().getStructureManager(), SEED,
+                registries, helper.getLevel().dimensionType());
+        long start = System.nanoTime();
+        List<RealStructures.Built> found = structures.around(-2000, -2000, 2000, 2000);
+        long failures = structures.takeFailures();
+        Set<String> kinds = new HashSet<>();
+        RealStructures.Built village = null;
+        for (RealStructures.Built built : found) {
+            kinds.add(built.name());
+            if (village == null && built.name().contains("village") && built.adaptedGround()) {
+                village = built;
+            }
+        }
+        DhTurbo.LOGGER.info("Structures in 4x4 km: {} ({}), {} failed pieces, {} ms ({})", found.size(), kinds, failures,
+                (System.nanoTime() - start) / 1_000_000, structures.timings());
+        if (failures > 0) {
+            helper.fail(failures + " structure pieces failed on the virtual level");
+            return;
+        }
+        if (found.size() < 5 || village == null) {
+            helper.fail("Too few structures or no village with adapted ground: " + kinds);
+            return;
+        }
+        // Terrain columns over the village carry its blocks.
+        ColumnBuilder builder = new ColumnBuilder(generator, registries, helper.getLevel().dimensionType(), SEED,
+                UnaryOperator.identity(), helper.getLevel().getStructureManager());
+        int minY = sampler.minY();
+        int width = SurfaceBenchmark.TILE_WIDTH;
+        RealStructures.Built target = village;
+        for (int spacing : new int[]{1, 8}) {
+            int tileX = Math.floorDiv(target.minX() + target.sizeX() / 2, width * spacing) * width * spacing;
+            int tileZ = Math.floorDiv(target.minZ() + target.sizeZ() / 2, width * spacing) * width * spacing;
+            int[] counts = new int[2];
+            builder.build(tileX, tileZ, spacing, width, (i, j, biome, layers) -> {
+                RealStructures.Column column = RealStructures.columnFor(List.of(target), tileX + i * spacing,
+                        tileZ + j * spacing, spacing);
+                if (column == null || column.top() == Integer.MIN_VALUE) {
+                    return;
+                }
+                counts[0]++;
+                int y = column.top() - 1 - minY;
+                BlockState expected = null;
+                for (int k = 0; k < column.states().length; k++) {
+                    if (column.bottoms()[k] <= column.top() - 1 && column.tops()[k] >= column.top()) {
+                        expected = column.states()[k];
+                    }
+                }
+                for (ColumnBuilder.Layer layer : layers) {
+                    if (layer.bottom() <= y && layer.top() > y && layer.state() == expected) {
+                        counts[1]++;
+                        return;
+                    }
+                }
+            });
+            DhTurbo.LOGGER.info("Structure columns at {}-block spacing: {} of {} show the structure's top block", spacing,
+                    counts[1], counts[0]);
+            if (counts[0] == 0 || counts[1] < counts[0]) {
+                helper.fail("Village blocks missing from " + spacing + "-block columns: " + counts[1] + " of " + counts[0]);
+                return;
+            }
+        }
+        helper.succeed();
+    }
+
     /** Vanilla keeps grass on steep slopes outside snowy mountains; the walls show the layers under it. */
     @GameTest(template = "empty")
     public static void steepSlopesKeepTheirTop(GameTestHelper helper) {
@@ -287,6 +370,27 @@ public final class ModGameTests {
                 helper.fail("Rebuilt generator differs at " + x + " " + z + ": " + expected + " vs " + actual);
                 return;
             }
+        }
+        // Structures from the client's own templates land where the server's do.
+        if (WorldgenLoader.templates() == null) {
+            helper.fail("Structure templates cannot be read from the data packs");
+            return;
+        }
+        RealStructures serverStructures = new RealStructures(new NoiseBasedChunkGenerator(biomes, settings), original,
+                helper.getLevel().getStructureManager(), SEED, server, helper.getLevel().dimensionType());
+        RealStructures clientStructures = new RealStructures(resolved.generator(), rebuilt, WorldgenLoader.templates(), SEED,
+                loaded, helper.getLevel().dimensionType());
+        Set<String> expected = new HashSet<>();
+        for (RealStructures.Built built : serverStructures.around(-800, -800, 800, 800)) {
+            expected.add(built.name() + " " + built.box());
+        }
+        Set<String> actual = new HashSet<>();
+        for (RealStructures.Built built : clientStructures.around(-800, -800, 800, 800)) {
+            actual.add(built.name() + " " + built.box());
+        }
+        if (expected.isEmpty() || !expected.equals(actual)) {
+            helper.fail("Structures built from the client's data differ: " + expected + " vs " + actual);
+            return;
         }
         helper.succeed();
     }

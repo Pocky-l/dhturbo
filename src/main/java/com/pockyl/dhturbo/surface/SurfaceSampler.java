@@ -49,6 +49,11 @@ public final class SurfaceSampler {
      * the surface between cell corners. Only used inside the cell the cave-free search found.
      */
     private final ThreadLocal<DensityFunction> realDensity;
+    /**
+     * The final density (without caves) computed from a given interpolated value: the world's final density with its
+     * {@code interpolated} marker replaced by {@link Probe}. Null when the probed value is the final density itself.
+     */
+    private final ThreadLocal<Probe> finalFromProbe;
     private final int minY;
     private final int maxY;
     private final int cellHeight;
@@ -80,6 +85,9 @@ public final class SurfaceSampler {
         DensityFunction realWired = RandomState.create(withFinalDensity(settings, realInner != null ? realInner : router.finalDensity()),
                 registries.lookupOrThrow(Registries.NOISE), seed).router().finalDensity();
         this.realDensity = ThreadLocal.withInitial(() -> realWired.mapAll(new ColumnCachingVisitor()));
+        this.finalFromProbe = wired != strippedFinal && realInner != null
+                ? ThreadLocal.withInitial(() -> Probe.into(strippedFinal))
+                : null;
         NoiseSettings noise = settings.noiseSettings();
         this.minY = noise.minY();
         this.maxY = noise.minY() + noise.height();
@@ -203,6 +211,82 @@ public final class SurfaceSampler {
     /** The interpolated density with caves at a cell corner, as vanilla interpolates it. */
     public double realDensity(int x, int y, int z) {
         return realDensity.get().compute(new DensityFunction.SinglePointContext(x, y, z));
+    }
+
+    /**
+     * The final density at a block as chunk generation computes it, without caves: the interpolated value is
+     * interpolated trilinearly between the cell corners ({@code corners} gives their {@link #realDensity}, usually
+     * cached by the caller) and then goes through the rest of the final density. Positive is solid.
+     */
+    public double blockDensity(int x, int y, int z, CornerSource corners) {
+        if (finalFromProbe == null) {
+            // The final density is probed directly; caves are not part of it.
+            return density(x, y, z);
+        }
+        int x0 = Math.floorDiv(x, SurfaceTile.CELL_WIDTH) * SurfaceTile.CELL_WIDTH;
+        int y0 = Math.floorDiv(y - minY, cellHeight) * cellHeight + minY;
+        int z0 = Math.floorDiv(z, SurfaceTile.CELL_WIDTH) * SurfaceTile.CELL_WIDTH;
+        double fx = (double) (x - x0) / SurfaceTile.CELL_WIDTH;
+        double fy = (double) (y - y0) / cellHeight;
+        double fz = (double) (z - z0) / SurfaceTile.CELL_WIDTH;
+        int x1 = x0 + SurfaceTile.CELL_WIDTH;
+        int y1 = y0 + cellHeight;
+        int z1 = z0 + SurfaceTile.CELL_WIDTH;
+        double value = Mth.lerp3(fx, fy, fz,
+                corners.at(x0, y0, z0), corners.at(x1, y0, z0), corners.at(x0, y1, z0), corners.at(x1, y1, z0),
+                corners.at(x0, y0, z1), corners.at(x1, y0, z1), corners.at(x0, y1, z1), corners.at(x1, y1, z1));
+        Probe probe = finalFromProbe.get();
+        probe.value = value;
+        return probe.function.compute(new DensityFunction.SinglePointContext(x, y, z));
+    }
+
+    /** Interpolated values at cell corners, see {@link #blockDensity}. */
+    @FunctionalInterface
+    public interface CornerSource {
+        double at(int x, int y, int z);
+    }
+
+    /** Stands in for the interpolated value inside a final density; holds the value to use. */
+    private static final class Probe implements DensityFunction {
+        private double value;
+        private DensityFunction function;
+
+        static Probe into(DensityFunction finalDensity) {
+            Probe probe = new Probe();
+            probe.function = finalDensity.mapAll(node -> node instanceof DensityFunctions.MarkerOrMarked marker
+                    && marker.codec() == INTERPOLATED ? probe : node).mapAll(new ColumnCachingVisitor());
+            return probe;
+        }
+
+        @Override
+        public double compute(FunctionContext context) {
+            return value;
+        }
+
+        @Override
+        public void fillArray(double[] array, ContextProvider contextProvider) {
+            contextProvider.fillAllDirectly(array, this);
+        }
+
+        @Override
+        public DensityFunction mapAll(Visitor visitor) {
+            return visitor.apply(this);
+        }
+
+        @Override
+        public double minValue() {
+            return -1e6;
+        }
+
+        @Override
+        public double maxValue() {
+            return 1e6;
+        }
+
+        @Override
+        public KeyDispatchDataCodec<? extends DensityFunction> codec() {
+            throw new UnsupportedOperationException("Probes are not serializable");
+        }
     }
 
     public int cellHeight() {

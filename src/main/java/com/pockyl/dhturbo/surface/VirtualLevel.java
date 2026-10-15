@@ -9,12 +9,16 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.WorldGenLevel;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.ProtoChunk;
+import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.FluidState;
@@ -34,7 +38,7 @@ import java.util.function.Predicate;
  * A pretend world for running vanilla features without chunks: reads come from the approximate terrain (ground,
  * top block, sea), writes are recorded. {@link WorldGenLevel} is a huge interface, so it is a dynamic proxy that
  * implements the handful of methods features and placement modifiers use; default methods run as written on top of
- * them, anything else throws and the feature is skipped for that chunk.
+ * them, anything else throws and the feature (or structure piece) is skipped there.
  */
 final class VirtualLevel implements InvocationHandler {
     /** Approximate terrain the features are placed on. */
@@ -64,6 +68,11 @@ final class VirtualLevel implements InvocationHandler {
      * of growing inside its trunk (that left jungle trees without logs and crashed vanilla's cocoa decorator).
      */
     private final Long2IntMap placedTops = new Long2IntOpenHashMap();
+    /**
+     * Answers {@code getChunk}: structure pieces mark fences, stairs and walls there for post-processing. Its own
+     * blocks are never read; one chunk serves every position.
+     */
+    private ProtoChunk chunk;
     final WorldGenLevel proxy;
 
     VirtualLevel(Terrain terrain, long seed, int minY, int height, int seaLevel, RegistryAccess registries,
@@ -105,6 +114,11 @@ final class VirtualLevel implements InvocationHandler {
             case OCEAN_FLOOR, OCEAN_FLOOR_WG -> ground;
             default -> Math.max(ground, seaLevel);
         };
+        if (type == Heightmap.Types.OCEAN_FLOOR_WG || type == Heightmap.Types.WORLD_SURFACE_WG) {
+            // World generation heightmaps keep the terrain: later placements do not update them (a shipwreck spanning
+            // two chunks would otherwise sink in the first and float in the second).
+            return natural;
+        }
         return Math.max(natural, placedTops.getOrDefault(ChunkPos.asLong(x, z), Integer.MIN_VALUE));
     }
 
@@ -116,6 +130,26 @@ final class VirtualLevel implements InvocationHandler {
                 placedTops.put(column, pos.getY() + 1);
             }
         }
+    }
+
+    /** Thrown when a feature or piece wants to spawn an entity; its blocks are placed by then. */
+    static final class NoEntities extends UnsupportedOperationException {
+        NoEntities() {
+            super("Virtual level has no entities");
+        }
+
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
+        }
+    }
+
+    private ProtoChunk chunk() {
+        if (chunk == null) {
+            chunk = new ProtoChunk(ChunkPos.ZERO, UpgradeData.EMPTY, LevelHeightAccessor.create(minY, height),
+                    registries.registryOrThrow(Registries.BIOME), null);
+        }
+        return chunk;
     }
 
     @Override
@@ -166,6 +200,18 @@ final class VirtualLevel implements InvocationHandler {
                 return 0;
             case "nextSubTickCount":
                 return 0L;
+            case "getRawBrightness", "getMaxLocalRawBrightness":
+                // Daylight everywhere (crops in village farms check it to survive).
+                return count == 2 ? Math.max(0, 15 - (int) args[1]) : 15;
+            case "getBrightness":
+                return 15;
+            case "canSeeSky":
+                return true;
+            case "getChunk":
+                return chunk();
+            case "getLevel":
+                // Entities (a structure's mobs) need a real level. Pieces spawn them after placing their blocks.
+                throw new NoEntities();
             case "getBlockEntity":
                 return count == 1 ? null : Optional.empty();
             case "getEntities", "players", "getEntitiesOfClass":
@@ -188,7 +234,7 @@ final class VirtualLevel implements InvocationHandler {
             return InvocationHandler.invokeDefault(proxy, method, args);
         }
         if (REPORTED.putIfAbsent(name, Boolean.TRUE) == null) {
-            DhTurbo.LOGGER.info("A tree feature called unsupported {} on the virtual level; it is skipped there", method);
+            DhTurbo.LOGGER.info("A feature called unsupported {} on the virtual level; it is skipped there", method);
         }
         throw new UnsupportedOperationException("Virtual level does not support " + name);
     }

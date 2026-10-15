@@ -33,6 +33,9 @@
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
   distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
   by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
+- 🏘️ **Structures in the distance** - villages, pillager outposts, temples, witch huts, mansions, ocean monuments,
+  shipwrecks, ocean ruins, ruined portals and the structures of mods stand where and as the game will build them, on
+  the ground they flatten; in a comparison with real generation every structure was found at its real place.
 - 🌋 **Lava lakes** - where and as the game places them.
 - 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
   patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
@@ -40,8 +43,8 @@
 - 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
   themselves, even without Distant Horizons on the server.
 
-**Limits:** the Nether keeps the Distant Horizons generator; structures show in the distance only once you have been
-there.
+**Limits:** the Nether keeps the Distant Horizons generator; underground structures (mineshafts, strongholds, ancient
+cities) are not drawn.
 
 ## Controls
 
@@ -63,6 +66,7 @@ The mod adds no blocks or items.
 | `fake_trees` | `true` | Draw trees in distant forests |
 | `real_trees` | `true` | Replay the game's tree placement on detailed terrain near the player |
 | `vanilla_surface` | `true` | Cover distant ground with the world's own surface rules; off: one typical block per biome, a little faster |
+| `structures` | `true` | Build the world's structures (villages, temples, shipwrecks, ...) on distant terrain; underground ones are left out |
 | `ground_cover` | `true` | Put grass and the biome's flowers on distant ground |
 | `soft_plant_colors` | `true` | Client: blend plant colours into the ground under them instead of painting the whole block (all LODs, also from real chunks) |
 | `share_worldgen` | `true` | Server: send players with this mod the world seed and terrain settings, so they generate distant terrain themselves; turn off if players must not know the seed |
