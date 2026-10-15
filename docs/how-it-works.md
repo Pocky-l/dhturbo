@@ -175,3 +175,9 @@ agree within a few tenths of a percent (2026-10-16):
 | `/dh pregen`: Distant Horizons default plan / `SURFACE_ONLY` | 127.2 s / 175.2 s | 131.1 s / 164.2 s |
 | Horizon of 4096 blocks filled (two builds, cheaper searches) | 6.6-8.6 s | 7.2-8.9 s |
 | Detail 3 tiles at 20 tiles a second with structures prepared ahead, p95 | 38-74 ms | 40-45 ms |
+
+With [Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith) 2.5.4 and
+[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic) 3.0.17 for 1.20.1: top block kind 93.6%, terrain
+height exact 98.0% (land above y 66: 94.5%), structure starts 12 / 12. Snow that Terralith puts on its rocky mountains
+with its own features is not drawn (only vanilla's snow is), and on Tectonic's terrain a village can come out with a
+slightly different layout.
