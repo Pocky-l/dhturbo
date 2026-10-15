@@ -200,7 +200,7 @@ public final class ColumnBuilder {
                 }
             }
         }
-        RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width) : null;
+        RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width, areaTops(area)) : null;
         RealLakes.Lake[] lakes = realLakes != null && spacing <= RealLakes.MAX_SPACING
                 ? realLakes.plan(minX, minZ, spacing, width)
                 : null;
@@ -457,6 +457,42 @@ public final class ColumnBuilder {
         if (airFrom < top) {
             points.add(new Layer(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, top));
         }
+    }
+
+    /**
+     * The top block of every column of a full-detail area as the world's surface rules make it (null where it is water
+     * or the rules cannot run), for the trees that check the ground they grow on.
+     */
+    @Nullable
+    private BlockState[] areaTops(SurfaceTile area) {
+        if (vanillaSurface == null) {
+            return null;
+        }
+        BlockState[] tops = new BlockState[area.width * area.width];
+        int seaLevel = sampler.seaLevel();
+        List<Runnable> bands = new ArrayList<>();
+        for (int first = 0; first < area.width; first += BAND_ROWS) {
+            int from = first;
+            int to = Math.min(area.width, first + BAND_ROWS);
+            bands.add(() -> {
+                VanillaSurface.Pass rules = vanillaSurface.pass(area.minX, area.minZ + from * area.spacing,
+                        (x, z) -> Math.max(area.heightAt(x, z), seaLevel), true);
+                for (int j = from; j < to; j++) {
+                    for (int i = 0; i < area.width; i++) {
+                        int ground = area.height(i, j);
+                        if (ground < seaLevel) {
+                            continue;
+                        }
+                        VanillaSurface.Column column = rules.column(area.minX + i, area.minZ + j, ground);
+                        if (column.top() > column.bottom()) {
+                            tops[i + j * area.width] = column.at(column.top() - 1);
+                        }
+                    }
+                }
+            });
+        }
+        SurfaceTile.run(bands);
+        return tops;
     }
 
     /**

@@ -81,6 +81,8 @@ public final class RealStructures {
     /** Columns of built structures kept (a village has 2000-4000, about 100 bytes each). */
     private static final int CACHED_COLUMNS = 400_000;
     private static final int CACHED_CHUNKS = 16384;
+    /** A structure whose top is this far under the ground at its center is buried and left out. */
+    private static final int UNDERGROUND_MARGIN = 8;
 
     private final SampledHeightGenerator generator;
     private final SurfaceSampler sampler;
@@ -297,6 +299,13 @@ public final class RealStructures {
         BoundingBox box = start.getBoundingBox();
         if (box.getXSpan() > MAX_SIZE || box.getZSpan() > MAX_SIZE) {
             return null;
+        }
+        if (profile == null) {
+            // Some packs put buried structures in the surface step (Terralith's underground cabins): nothing to see.
+            BlockPos center = box.getCenter();
+            if (box.maxY() < generator.ground(center.getX(), center.getZ()) - UNDERGROUND_MARGIN) {
+                return null;
+            }
         }
         try {
             return placed.get(start, () -> place(start));

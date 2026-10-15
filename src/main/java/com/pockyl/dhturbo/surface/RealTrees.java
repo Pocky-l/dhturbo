@@ -22,6 +22,7 @@ import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
 import net.minecraft.world.level.levelgen.feature.AbstractHugeMushroomFeature;
 import net.minecraft.world.level.levelgen.feature.TreeFeature;
+import net.minecraft.world.level.levelgen.placement.HeightmapPlacement;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
 import com.pockyl.dhturbo.DhTurbo;
@@ -126,6 +127,15 @@ public final class RealTrees {
      * grow into the tile.
      */
     public TileTrees plant(SurfaceTile area, int minX, int minZ, int width) {
+        return plant(area, minX, minZ, width, null);
+    }
+
+    /**
+     * @param groundTops the top block of every column of {@code area} (index {@code i + j * area.width}) as the world's
+     *             surface rules make it, or null for each biome's typical top block. Trees check the ground they grow
+     *             on: with rule-made tops they skip the stone, moss and sand where the real world has no trees.
+     */
+    public TileTrees plant(SurfaceTile area, int minX, int minZ, int width, BlockState[] groundTops) {
         int spacing = area.spacing;
         VirtualLevel.Terrain terrain = new VirtualLevel.Terrain() {
             @Override
@@ -135,6 +145,12 @@ public final class RealTrees {
 
             @Override
             public BlockState top(int x, int z) {
+                if (groundTops != null) {
+                    BlockState top = groundTops[area.index(x, area.minX) + area.index(z, area.minZ) * area.width];
+                    if (top != null) {
+                        return top;
+                    }
+                }
                 return BiomeLook.of(area.biomeAt(x, z)).top();
             }
 
@@ -279,11 +295,13 @@ public final class RealTrees {
             random.setFeatureSeed(decorationSeed, index, STEP);
             try {
                 stepFeatures.get(index).placeWithBiomeCheck(level.proxy, generator, random, origin);
+            } catch (VirtualLevel.NoEntities e) {
+                // Features that spawn something (bees in a nest) do so after placing their blocks.
             } catch (RuntimeException e) {
                 failures.increment();
                 String key = stepFeatures.get(index) + ": " + e;
                 if (REPORTED.size() < 20 && REPORTED.putIfAbsent(key, Boolean.TRUE) == null) {
-                    DhTurbo.LOGGER.info("Tree feature failed on the virtual level and is skipped there: {}", key, e);
+                    DhTurbo.LOGGER.info("Vegetation feature failed on the virtual level and is skipped there: {}", key, e);
                 }
             }
         }
@@ -297,11 +315,19 @@ public final class RealTrees {
         Set<Integer> result = new HashSet<>();
         steps.get(STEP).forEach(holder -> {
             PlacedFeature feature = holder.value();
-            if (indices.containsKey(feature) && (plants || growsTrees(feature))) {
+            if (indices.containsKey(feature) && (growsTrees(feature) || plants && onSurface(feature))) {
                 result.add(indices.getInt(feature));
             }
         });
         return result.stream().mapToInt(Integer::intValue).sorted().toArray();
+    }
+
+    /**
+     * Vegetation placed on the surface (its placement goes through a heightmap): grass, flowers, sugar cane. Cave
+     * vegetation (glow lichen, moss, dripleaves) is placed in a height range and never seen from afar.
+     */
+    private static boolean onSurface(PlacedFeature feature) {
+        return feature.placement().stream().anyMatch(modifier -> modifier instanceof HeightmapPlacement);
     }
 
     /** Trees and huge mushrooms, also inside random selectors (most tree features are selectors). */

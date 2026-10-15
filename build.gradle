@@ -132,13 +132,16 @@ tasks.named('runServer') { dependsOn installDistantHorizonsServer }
 // first tick for a while).
 var prepareCompareServer = tasks.register('prepareCompareServer') {
     var dir = project.file('run/compare')
+    // -PcompareWorld=<name>: a separate world, e.g. for a run with terrain mods in run/compare/mods.
+    var levelName = providers.gradleProperty('compareWorld').getOrElse('world')
+    inputs.property('levelName', levelName)
     outputs.files(new File(dir, 'eula.txt'), new File(dir, 'server.properties'))
     doLast {
         dir.mkdirs()
         new File(dir, 'eula.txt').text = 'eula=true' + System.lineSeparator()
         new File(dir, 'server.properties').text = [
                 'level-seed=20261009', 'online-mode=false', 'max-tick-time=-1', 'spawn-protection=0',
-                'view-distance=4', 'simulation-distance=4', 'level-name=world'
+                'view-distance=4', 'simulation-distance=4', 'level-name=' + levelName
         ].join(System.lineSeparator()) + System.lineSeparator()
     }
 }
