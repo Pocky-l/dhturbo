@@ -156,3 +156,22 @@ blocks around the player:
 
 At Distant Horizons' pace in game (20 tiles a second here), the idle time prepares the structures ahead. Time per tile
 1-2 km out (detail 3): p95 310-710 ms without, 40-45 ms with it.
+
+### Minecraft 1.20.1
+
+The Forge build for Minecraft 1.20.1 (branch `1.20.1`) is checked with the same tools, on the same seed, with
+Distant Horizons 3.3.3 for 1.20.1. Minecraft 1.20.1 and 1.21.1 generate the same world from this seed, and the results
+agree within a few tenths of a percent (2026-10-16):
+
+| What | 1.20.1 | 1.21.1 |
+|---|---|---|
+| Terrain height exact, full-detail / 4-block columns | 98.3% / 80.5% | 98.2% / 80.6% |
+| Top block kind, full-detail / 4-block columns | 98.2% / 97.0% | 98.2% / 97.1% |
+| Snowy columns, full-detail / 4-block columns | 99.7% / 100% | 99.7% / 100% |
+| Overworld structures: start and area / top block of their columns | 12 / 12, 89.9% | 12 / 12, 89.8% |
+| Nether: blocks solid or open / structure blocks identical | 97.2% / 99.4% | 97.2% / 99.4% |
+| End: blocks solid or open / end city blocks identical | 100% / 100% | 100% / 100% |
+| `/dh pregen`, 16 384 chunks: this mod / without structures | 36.1 s / 31.1 s | 35.1 s / 33.1 s |
+| `/dh pregen`: Distant Horizons default plan / `SURFACE_ONLY` | 127.2 s / 175.2 s | 131.1 s / 164.2 s |
+| Horizon of 4096 blocks filled (two builds, cheaper searches) | 6.6-8.6 s | 7.2-8.9 s |
+| Detail 3 tiles at 20 tiles a second with structures prepared ahead, p95 | 38-74 ms | 40-45 ms |
