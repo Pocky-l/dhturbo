@@ -1,6 +1,6 @@
 # Turbo for Distant Horizons
 
-**Distant terrain many times faster** - an addon for
+**Distant terrain several times faster** - an addon for
 [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) that builds distant terrain straight
 from the world noise, with the game's own trees and structures.
 
@@ -15,10 +15,11 @@ from the world noise, with the game's own trees and structures.
 
 - 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: the horizon fills as fast as the land
   around you.
-- 📊 **Measured** - 17-19x faster than Distant Horizons' rough surface search at the same sampling, ~70x at full
-  detail; heights equal the real world on 98% of columns near you, checked against real chunks
+- 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): 3.7x faster than its
+  default chunk generation and 4.7x faster than its rough surface mode, with a quarter of the CPU time; heights equal
+  the real world on 98% of columns near you, checked against real chunks
   ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)). The F3 screen shows the tiles
-  made, tiles per second and time per tile.
+  made, tiles per second, time per tile and the CPU cores in use.
 - 🌲 **Real trees and plants nearby** - the game's own vegetation is replayed: trees, grass, flowers, sugar cane and
   pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the

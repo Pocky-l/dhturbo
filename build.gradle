@@ -72,6 +72,16 @@ neoForge {
             providers.gradleProperty('compareJvmArgs').getOrElse('').split(' ').findAll { it }.each { jvmArgument it }
         }
 
+        // Times Distant Horizons' own /dh pregen with and without this mod (compare/PregenBenchmark): a dedicated
+        // server with Distant Horizons in run/pregen/, report in run/pregen/dhturbo-pregen.txt, stops when done.
+        pregenServer {
+            server()
+            gameDirectory = project.file('run/pregen')
+            programArgument '--nogui'
+            systemProperty 'dhturbo.pregen', providers.gradleProperty('pregenRadius').getOrElse('64')
+            systemProperty 'dhturbo.pregen.label', providers.gradleProperty('pregenLabel').getOrElse('run')
+        }
+
         gameTestServer {
             type = 'gameTestServer'
             // Own directory: run/mods holds Distant Horizons for the dev client, which crashes the game test server.
@@ -133,6 +143,11 @@ var installDistantHorizonsServer = serverDh
         }
 tasks.named('runClient') { dependsOn installDistantHorizonsClient }
 tasks.named('runServer') { dependsOn installDistantHorizonsServer }
+var installDistantHorizonsPregen = tasks.register('installDistantHorizonsPregen', Copy) {
+    from configurations.distantHorizons
+    into 'run/pregen/mods'
+}
+tasks.named('runPregenServer') { dependsOn installDistantHorizonsPregen }
 
 // The comparison server needs an accepted EULA and a fixed seed; the watchdog is off (the comparison blocks the
 // first tick for a while).

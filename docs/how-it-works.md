@@ -120,6 +120,26 @@ With [Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith) and
 
 ### Speed
 
+In Distant Horizons' own pipeline: `/dh pregen` on a dedicated server with Distant Horizons 3.3.3 (its 6 world
+generator threads), 64 chunks around 0 0 (16 384 chunks, full detail), seed 20261009, a fresh world per run:
+
+```
+./gradlew runPregenServer -PpregenRadius=64 [-PpregenLabel=<name>]
+```
+
+| Generator | Time | Chunks per second | CPU time |
+|---|---|---|---|
+| This mod | 35.1 s | 467 | 236 s |
+| This mod, `structures = false` | 33.1 s | 496 | 231 s |
+| Distant Horizons, default plan (real chunks) | 131.1 s | 125 | 821 s |
+| Distant Horizons, `SURFACE_ONLY` (rough surface) | 164.2 s | 100 | 989 s |
+
+Switch the mod off (`enabled = false`) and set Distant Horizons' `generatorPlan` for the other rows. Full detail is
+the costliest part of the horizon; farther out the mod samples fewer columns, while the default plan still generates
+every chunk.
+
+Filling the horizon around a player, without Distant Horizons (the generator alone):
+
 ```
 ./gradlew runCompareServer -PcompareHorizon=4096 [-PcompareHorizonRate=20] [-PcomparePrefetch=true]
 ```

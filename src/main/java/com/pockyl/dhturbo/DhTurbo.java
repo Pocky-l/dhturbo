@@ -12,6 +12,7 @@ import net.neoforged.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
 import com.pockyl.dhturbo.compare.GenerationComparison;
+import com.pockyl.dhturbo.compare.PregenBenchmark;
 import com.pockyl.dhturbo.dh.DhIntegration;
 import com.pockyl.dhturbo.network.WorldgenSharing;
 
@@ -29,6 +30,7 @@ public final class DhTurbo {
         container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         WorldgenSharing.register(modBus);
         GenerationComparison.registerIfRequested();
+        PregenBenchmark.registerIfRequested();
         if (ModList.get().isLoaded("distanthorizons")) {
             DhIntegration.register();
             // The generator plan follows real_chunks_nearby as soon as it is changed in game.

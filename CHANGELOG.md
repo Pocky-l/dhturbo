@@ -21,6 +21,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   areas are ready and how many CPU cores the generator is using.
 - Config `real_chunks_nearby`: follow the Distant Horizons generator plan instead of switching it to "surface only".
   With its default plan, detailed terrain near you is drawn fast first and then replaced by real chunk generation.
+### Changed
+- The speed figures in the description are measured in Distant Horizons' own pregeneration now: 3.7x faster than its
+  default chunk generation and 4.7x faster than its rough surface mode on the same world. The earlier "17-70x" timed
+  the terrain search alone, before trees, plants, structures and surface rules were added.
 ### Fixed
 - Snowy ground showed grass-green stripes in the distance: soft plant colours treated snow layers like grass and
   mixed in only a little of their white. Snow layers keep their full colour now.
