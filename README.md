@@ -10,8 +10,9 @@
 
 <p align="center">
   <a href="https://www.curseforge.com/minecraft/mc-mods/turbo-for-distant-horizons"><img alt="CurseForge downloads" src="https://img.shields.io/curseforge/dt/1734835?logo=curseforge&label=CurseForge&color=F16436"></a>
-  <a href="https://www.minecraft.net"><img alt="Minecraft 1.21.1" src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A"></a>
+  <a href="https://www.minecraft.net"><img alt="Minecraft 1.21.1 | 1.20.1" src="https://img.shields.io/badge/Minecraft-1.21.1%20%7C%201.20.1-62B47A"></a>
   <a href="https://neoforged.net"><img alt="NeoForge" src="https://img.shields.io/badge/Loader-NeoForge-F16436"></a>
+  <a href="https://files.minecraftforge.net"><img alt="Forge" src="https://img.shields.io/badge/Loader-Forge-DFA86A"></a>
   <a href="https://www.curseforge.com/minecraft/mc-mods/distant-horizons"><img alt="Requires Distant Horizons 3.3+" src="https://img.shields.io/badge/Requires-Distant%20Horizons%203.3%2B-3082D6"></a>
   <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
 </p>
@@ -19,6 +20,16 @@
 <p align="center">
   <a href="https://www.youtube.com/watch?v=scB_5JrGfXc"><img src="https://img.youtube.com/vi/scB_5JrGfXc/hqdefault.jpg" alt="Turbo for Distant Horizons showcase video" width="720"></a>
 </p>
+
+## Versions
+
+| Minecraft | Loader | Source |
+|---|---|---|
+| 1.21.1 | [NeoForge](https://neoforged.net) | branch `main` |
+| 1.20.1 | [Forge](https://files.minecraftforge.net) | branch `1.20.1` |
+
+Both versions have the same features and need [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons)
+3.3 or newer for their Minecraft version.
 
 ## Features
 
@@ -91,9 +102,10 @@ Your Distant Horizons config file is not changed.
 
 ## Installation
 
-1. Install [NeoForge](https://neoforged.net) for Minecraft 1.21.1.
+1. Install [NeoForge](https://neoforged.net) for Minecraft 1.21.1, or [Forge](https://files.minecraftforge.net) for
+   Minecraft 1.20.1.
 2. Install [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 or newer.
-3. Put this mod into the `mods` folder: on the client for singleplayer; on the server and the clients for multiplayer.
+3. Put the mod for your version into the `mods` folder: on the client for singleplayer; on the server and the clients for multiplayer.
    Distant Horizons is needed on the clients; on the server it is optional.
 
 ## Building

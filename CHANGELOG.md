@@ -4,6 +4,14 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0+1.20.1] - Unreleased
+### Changed
+- Ported to Minecraft 1.20.1 (Forge), for [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons)
+  3.3 or newer for 1.20.1. Everything of 1.3.0 for Minecraft 1.21.1 is included: structures, the Nether and the End,
+  the game's own trees, plants and surface, lava lakes, soft plant colours, multiplayer generation on the client.
+- The config editor (*Mods -> Turbo for Distant Horizons -> Config*) is a simple screen of the mod's own, since Forge
+  for 1.20.1 has none.
+
 ## [1.3.0] - 2026-10-16
 ### Added
 - Structures in the distance: villages, pillager outposts, desert and jungle temples, witch huts, igloos, woodland
