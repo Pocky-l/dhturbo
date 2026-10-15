@@ -8,7 +8,7 @@ from the world noise, with the game's own trees and structures.
 
 *▶️ Watch the showcase on [YouTube](https://www.youtube.com/watch?v=scB_5JrGfXc)*
 
-📦 **Requires** [NeoForge](https://neoforged.net) 1.21.1 and
+📦 **Requires** [NeoForge](https://neoforged.net) 1.21.1 or [Forge](https://files.minecraftforge.net) 1.20.1, and
 [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 or newer
 
 ## ✨ Features
