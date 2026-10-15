@@ -122,6 +122,10 @@ final class HorizonBenchmark {
             slots.acquireUninterruptibly();
             if (prefetcher != null) {
                 prefetcher.requested(tile.distance, 1 << tile.detail);
+                if (tile.detail <= 4) {
+                    int size = TILE_WIDTH << tile.detail;
+                    prefetcher.covered(tile.minX, tile.minZ, tile.minX + size - 1, tile.minZ + size - 1);
+                }
             }
             int index = t;
             futures.add(CompletableFuture.runAsync(() -> {

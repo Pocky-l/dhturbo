@@ -374,6 +374,8 @@ public final class ModGameTests {
         ForkJoinPool idleWorkers = new ForkJoinPool(2);
         StructurePrefetch prefetch = new StructurePrefetch(structures, () -> List.of(new int[]{x, z}), idleWorkers);
         helper.onEachTick(() -> {
+            // Distant Horizons is asking for tiles: prefetching only runs then.
+            prefetch.requested(0, 1);
             if (structures.prepared(areaX, areaZ, areaX + 255, areaZ + 255)) {
                 prefetch.close();
                 idleWorkers.shutdown();

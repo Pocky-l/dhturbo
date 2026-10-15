@@ -22,8 +22,10 @@ import java.util.function.Supplier;
  * Horizons asks for tiles at its own pace, so the workers are idle a good part of the time. These threads spend that
  * idle time on the structures of areas 256 blocks wide, nearest to a player first, out to where tiles show structures.
  * Everything lands in {@link RealStructures}' caches, the same work a tile would do; a tile asking for a structure being
- * built here waits for it instead of building it twice. They pause whenever tiles are queued or half of the workers are
- * busy, and run at the lowest thread priority.
+ * built here waits for it instead of building it twice, and areas tiles already covered are skipped.
+ * <p>
+ * Only while Distant Horizons is filling the horizon (a tile asked for in the last {@link #ACTIVE_NANOS}): once it is
+ * done, nothing runs. Never while a worker is busy, on a third of the worker count, at the lowest thread priority.
  */
 public final class StructurePrefetch implements AutoCloseable {
     private static final int AREA = 256;
@@ -33,6 +35,8 @@ public final class StructurePrefetch implements AutoCloseable {
     private static final int FORGET_AT = 65_536;
     private static final long IDLE_WAIT_MILLIS = 20;
     private static final long DONE_WAIT_MILLIS = 500;
+    /** Prefetching stops this long after the last tile request: the horizon is complete. */
+    private static final long ACTIVE_NANOS = 30_000_000_000L;
     private static final AtomicInteger THREADS = new AtomicInteger();
     /** Areas prefetched by every prefetcher of this game session, for the F3 line. */
     private static final LongAdder TOTAL = new LongAdder();
@@ -48,19 +52,20 @@ public final class StructurePrefetch implements AutoCloseable {
     /** Farthest tile with structures asked for, and nearest tile too coarse for them (MAX_VALUE: none yet). */
     private volatile double farthestWithStructures;
     private volatile double nearestWithout = Double.MAX_VALUE;
+    private volatile long lastRequest = System.nanoTime() - ACTIVE_NANOS;
     private volatile boolean closed;
 
     /**
      * @param players block X and Z of every player the level's tiles are generated for; read from these threads, so it
      *                must tolerate concurrent changes
-     * @param workers the generator's workers: prefetching pauses while they have tiles queued or are half busy, and uses
-     *                at most half of their count in threads
+     * @param workers the generator's workers: prefetching pauses while any of them is busy, and uses a third of their
+     *                count in threads
      */
     public StructurePrefetch(RealStructures structures, Supplier<List<int[]>> players, ForkJoinPool workers) {
         this.structures = structures;
         this.players = players;
         this.workers = workers;
-        int count = Math.max(1, workers.getParallelism() / 2);
+        int count = Math.max(1, workers.getParallelism() / 3);
         for (int i = 0; i < count; i++) {
             Thread thread = new Thread(this::run, "DH Turbo Structure Prefetch-" + THREADS.incrementAndGet());
             thread.setDaemon(true);
@@ -72,9 +77,11 @@ public final class StructurePrefetch implements AutoCloseable {
 
     /**
      * A tile was asked for at this distance from the nearest player. Distant Horizons asks nearest first, so until the
-     * first tile too coarse for structures, the radius keeps twice the distance reached; then it stops there.
+     * first tile too coarse for structures, the radius keeps twice the distance reached; then it is the farthest tile
+     * with structures.
      */
     public void requested(double distance, int spacing) {
+        lastRequest = System.nanoTime();
         if (spacing <= RealStructures.MAX_SPACING) {
             if (distance > farthestWithStructures) {
                 farthestWithStructures = distance;
@@ -86,9 +93,30 @@ public final class StructurePrefetch implements AutoCloseable {
 
     private int radius() {
         double reach = nearestWithout != Double.MAX_VALUE
-                ? Math.max(farthestWithStructures, nearestWithout)
+                ? farthestWithStructures
                 : Math.max(START_RADIUS, 2 * farthestWithStructures);
         return (int) Math.min(MAX_RADIUS, reach + AREA);
+    }
+
+    /**
+     * A tile with structures was built over these blocks (inclusive): the areas inside it have their structures, so
+     * they are not prefetched (again, if the caches dropped them since).
+     */
+    public void covered(int minX, int minZ, int maxX, int maxZ) {
+        int fromX = Math.floorDiv(minX + AREA - 1, AREA);
+        int fromZ = Math.floorDiv(minZ + AREA - 1, AREA);
+        int toX = Math.floorDiv(maxX + 1, AREA) - 1;
+        int toZ = Math.floorDiv(maxZ + 1, AREA) - 1;
+        if (fromX > toX || fromZ > toZ) {
+            return;
+        }
+        synchronized (claimed) {
+            for (int x = fromX; x <= toX; x++) {
+                for (int z = fromZ; z <= toZ; z++) {
+                    claimed.add(ChunkPos.asLong(x, z));
+                }
+            }
+        }
     }
 
     /** Areas prefetched so far. */
@@ -139,9 +167,10 @@ public final class StructurePrefetch implements AutoCloseable {
         }
     }
 
-    /** Whether the workers can spare cores: nothing queued and at most half of them busy. */
+    /** Whether Distant Horizons is filling the horizon and the workers are all idle right now. */
     private boolean idle() {
-        return !workers.hasQueuedSubmissions() && workers.getActiveThreadCount() <= workers.getParallelism() / 2;
+        return System.nanoTime() - lastRequest < ACTIVE_NANOS && !workers.hasQueuedSubmissions()
+                && workers.getActiveThreadCount() == 0;
     }
 
     /** Claims the nearest area to any player within the radius, or returns MIN_VALUE when all are claimed. */

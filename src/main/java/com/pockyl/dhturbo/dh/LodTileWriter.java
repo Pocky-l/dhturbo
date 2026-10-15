@@ -82,8 +82,11 @@ public final class LodTileWriter implements AutoCloseable {
     public void fill(int minX, int minZ, int spacing, IDhApiFullDataSource dataSource) {
         long start = System.nanoTime();
         if (prefetch != null) {
-            int half = dataSource.getWidthInDataColumns() * spacing / 2;
-            prefetch.requested(nearestPlayer(minX + half, minZ + half), spacing);
+            int size = dataSource.getWidthInDataColumns() * spacing;
+            prefetch.requested(nearestPlayer(minX + size / 2, minZ + size / 2), spacing);
+            if (spacing <= RealStructures.MAX_SPACING) {
+                prefetch.covered(minX, minZ, minX + size - 1, minZ + size - 1);
+            }
         }
         List<DhApiTerrainDataPoint> points = new ArrayList<>();
         long failures = builder.build(minX, minZ, spacing, dataSource.getWidthInDataColumns(), (i, j, biome, layers) -> {

@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config `real_chunks_nearby`: follow the Distant Horizons generator plan instead of switching it to "surface only".
   With its default plan, detailed terrain near you is drawn fast first and then replaced by real chunk generation.
 ### Fixed
+- Snowy ground showed grass-green stripes in the distance: soft plant colours treated snow layers like grass and
+  mixed in only a little of their white. Snow layers keep their full colour now.
 - End islands were drawn as pillars down to the bottom of the world; they float now.
 - Buried structures of data packs (Terralith's underground cabins) are no longer built under the distant ground.
 

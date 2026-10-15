@@ -32,7 +32,10 @@ public final class PlantTint {
     private static final Tint FLOWER = new Tint(0.3f, 1.0f);
     private static final Tint GRASS = new Tint(0.5f, 0.88f);
     private static final Tint OTHER = new Tint(0.25f, 1.0f);
-    /** Powder snow has no collision either, but it is the ground's colour from above: DH's full tint stays. */
+    /**
+     * Snow layers and powder snow have no collision either, but they are the ground's colour from above: DH's full tint
+     * stays. With the grass blend, snowy plains showed grass-green columns.
+     */
     private static final Tint FULL = new Tint(1.0f, 1.0f);
 
     private static final class State {
@@ -127,7 +130,7 @@ public final class PlantTint {
             if (!(key.getWrappedMcObject() instanceof BlockState state)) {
                 return OTHER;
             }
-            if (state.is(Blocks.POWDER_SNOW)) {
+            if (state.is(Blocks.POWDER_SNOW) || state.is(Blocks.SNOW)) {
                 return FULL;
             }
             if (state.is(BlockTags.FLOWERS)) {
