@@ -4,9 +4,9 @@ import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.server.ServerStartedEvent;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.dh.TurboActivity;
@@ -40,7 +40,7 @@ public final class PregenBenchmark {
 
     public static void registerIfRequested() {
         if (System.getProperty(DhTurbo.MOD_ID + ".pregen") != null) {
-            NeoForge.EVENT_BUS.register(PregenBenchmark.class);
+            MinecraftForge.EVENT_BUS.register(PregenBenchmark.class);
         }
     }
 
@@ -86,7 +86,7 @@ public final class PregenBenchmark {
         }
         DhTurbo.LOGGER.info("[pregen] {}", result);
         try {
-            Files.write(server.getServerDirectory().resolve("dhturbo-pregen.txt"), List.of(result),
+            Files.write(server.getServerDirectory().toPath().resolve("dhturbo-pregen.txt"), List.of(result),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
             DhTurbo.LOGGER.error("[pregen] cannot write the report", e);

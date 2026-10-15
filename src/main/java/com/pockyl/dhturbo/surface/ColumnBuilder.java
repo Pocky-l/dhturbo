@@ -4,6 +4,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -500,8 +501,8 @@ public final class ColumnBuilder {
      * have; the slope between its columns stands in for theirs.
      */
     private static double blendedHeight(SurfaceTile area, int x, int z) {
-        double fi = Math.clamp((double) (x - area.minX) / area.spacing, 0, area.width - 1);
-        double fj = Math.clamp((double) (z - area.minZ) / area.spacing, 0, area.width - 1);
+        double fi = Mth.clamp((double) (x - area.minX) / area.spacing, 0, area.width - 1);
+        double fj = Mth.clamp((double) (z - area.minZ) / area.spacing, 0, area.width - 1);
         int i = Math.min((int) fi, area.width - 2);
         int j = Math.min((int) fj, area.width - 2);
         double tx = fi - i;
@@ -603,8 +604,8 @@ public final class ColumnBuilder {
         }
         List<Layer> runs = new ArrayList<>();
         for (int k = 0; k < structure.states().length; k++) {
-            int bottom = Math.clamp(structure.bottoms()[k] - minY, 0, top);
-            int runTop = Math.clamp(structure.tops()[k] - minY, 0, top);
+            int bottom = Mth.clamp(structure.bottoms()[k] - minY, 0, top);
+            int runTop = Mth.clamp(structure.tops()[k] - minY, 0, top);
             if (runTop > bottom) {
                 BlockState state = structure.states()[k];
                 int light = state.liquid() || state.isAir() ? MAX_LIGHT : light(runTop - 1 + minY, waterTop);
@@ -648,7 +649,7 @@ public final class ColumnBuilder {
         }
         points.clear();
         for (Layer layer : result) {
-            Layer last = points.isEmpty() ? null : points.getLast();
+            Layer last = points.isEmpty() ? null : points.get(points.size() - 1);
             if (last != null && last.state() == layer.state() && last.skyLight() == layer.skyLight()
                     && last.top() == layer.bottom()) {
                 points.set(points.size() - 1, new Layer(last.state(), last.skyLight(), last.bottom(), layer.top()));
@@ -688,8 +689,8 @@ public final class ColumnBuilder {
     private void lakeColumn(List<Layer> points, RealLakes.Lake lake) {
         int minY = sampler.minY();
         int top = levelTop;
-        int bottomRel = Math.clamp(lake.bottom() - minY, 0, top);
-        int topRel = Math.clamp(lake.top() - minY, bottomRel, top);
+        int bottomRel = Mth.clamp(lake.bottom() - minY, 0, top);
+        int topRel = Mth.clamp(lake.top() - minY, bottomRel, top);
         if (bottomRel > 0) {
             points.add(new Layer(defaultBlock, MAX_LIGHT, 0, bottomRel));
         }

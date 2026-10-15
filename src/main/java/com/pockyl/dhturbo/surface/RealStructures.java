@@ -45,7 +45,7 @@ import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStruct
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 import net.minecraft.world.level.levelgen.structure.structures.OceanMonumentStructure;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
-import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
+import net.minecraftforge.common.world.PieceBeardifierModifier;
 
 import com.pockyl.dhturbo.DhTurbo;
 
@@ -280,7 +280,7 @@ public final class RealStructures {
             List<StructureSet.StructureSelectionEntry> entries = set.value().structures();
             StructureStart start = null;
             if (entries.size() == 1) {
-                start = generate(entries.getFirst(), chunk);
+                start = generate(entries.get(0), chunk);
             } else {
                 // Weighted pick, retried without the failed entry: the same sequence as vanilla.
                 List<StructureSet.StructureSelectionEntry> left = new ArrayList<>(entries);
@@ -813,7 +813,7 @@ public final class RealStructures {
                 for (StructurePiece piece : pieces) {
                     if (piece.getBoundingBox().intersects(area)) {
                         try {
-                            piece.postProcess(level.proxy, null, generator, random, area, chunk, pivot);
+                            piece.postProcess(level.view, null, generator, random, area, chunk, pivot);
                         } catch (VirtualLevel.NoEntities e) {
                             // Mobs come last; the piece's blocks are all there.
                         } catch (RuntimeException e) {
@@ -823,7 +823,7 @@ public final class RealStructures {
                     }
                 }
                 try {
-                    structure.afterPlace(level.proxy, null, generator, random, area, chunk, new PiecesContainer(pieces));
+                    structure.afterPlace(level.view, null, generator, random, area, chunk, new PiecesContainer(pieces));
                 } catch (VirtualLevel.NoEntities e) {
                     // As above.
                 } catch (RuntimeException e) {
@@ -840,7 +840,7 @@ public final class RealStructures {
 
     /** StructureStart.placeInChunk: the first piece's center at its floor. */
     private static BlockPos pivot(List<StructurePiece> pieces) {
-        BoundingBox first = pieces.getFirst().getBoundingBox();
+        BoundingBox first = pieces.get(0).getBoundingBox();
         BlockPos center = first.getCenter();
         return new BlockPos(center.getX(), first.minY(), center.getZ());
     }

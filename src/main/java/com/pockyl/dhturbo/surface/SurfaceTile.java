@@ -1,6 +1,7 @@
 package com.pockyl.dhturbo.surface;
 
 import net.minecraft.core.Holder;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
 
 import java.util.ArrayList;
@@ -49,7 +50,7 @@ public final class SurfaceTile {
 
     /** Column index of block X (or Z), clamped to the tile. */
     public int index(int block, int min) {
-        return Math.clamp(Math.floorDiv(block - min, spacing), 0, width - 1);
+        return Mth.clamp(Math.floorDiv(block - min, spacing), 0, width - 1);
     }
 
     /** Height of the column containing the block, the nearest edge column outside the tile. */

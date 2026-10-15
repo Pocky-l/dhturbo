@@ -1,8 +1,8 @@
 package com.pockyl.dhturbo.mixin;
 
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.fml.loading.LoadingModList;
-import net.neoforged.fml.loading.moddiscovery.ModFileInfo;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.LoadingModList;
+import net.minecraftforge.fml.loading.moddiscovery.ModFileInfo;
 import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
@@ -172,7 +172,7 @@ public final class DhMixinPlugin implements IMixinConfigPlugin {
 
     private static String dhVersion() {
         ModFileInfo file = LoadingModList.get().getModFileById("distanthorizons");
-        return file == null || file.getMods().isEmpty() ? "?" : file.getMods().getFirst().getVersion().toString();
+        return file == null || file.getMods().isEmpty() ? "?" : file.getMods().get(0).getVersion().toString();
     }
 
     @Override

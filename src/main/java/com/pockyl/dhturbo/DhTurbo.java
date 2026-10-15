@@ -2,13 +2,14 @@ package com.pockyl.dhturbo;
 
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.bus.api.IEventBus;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.ModList;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
-import net.neoforged.fml.event.config.ModConfigEvent;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
 import com.pockyl.dhturbo.compare.GenerationComparison;
@@ -26,15 +27,17 @@ public final class DhTurbo {
      */
     public static final boolean DEBUG = !FMLEnvironment.production || Boolean.getBoolean(MOD_ID + ".debug");
 
-    public DhTurbo(IEventBus modBus, ModContainer container) {
-        container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
-        WorldgenSharing.register(modBus);
+    // The no-argument constructor keeps the jar loadable on NeoForge for 1.20.1 as well.
+    public DhTurbo() {
+        IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        WorldgenSharing.register();
         GenerationComparison.registerIfRequested();
         PregenBenchmark.registerIfRequested();
         if (ModList.get().isLoaded("distanthorizons")) {
             DhIntegration.register();
             // The generator plan follows real_chunks_nearby as soon as it is changed in game.
-            modBus.addListener(ModConfigEvent.Reloading.class, event -> {
+            modBus.addListener((ModConfigEvent.Reloading event) -> {
                 if (event.getConfig().getSpec() == Config.SPEC) {
                     try {
                         DhIntegration.applyPlan();
@@ -49,6 +52,6 @@ public final class DhTurbo {
     }
 
     public static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+        return new ResourceLocation(MOD_ID, path);
     }
 }

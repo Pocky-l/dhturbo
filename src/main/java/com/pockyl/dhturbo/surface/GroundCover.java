@@ -14,7 +14,7 @@ import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.feature.configurations.RandomPatchConfiguration;
 import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
 import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
-import net.neoforged.neoforge.common.Tags;
+import net.minecraftforge.common.Tags;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class GroundCover {
     private static final Map<Holder<Biome>, Cover> CACHE = new ConcurrentHashMap<>();
-    private static final BlockState SHORT_GRASS = Blocks.SHORT_GRASS.defaultBlockState();
+    private static final BlockState SHORT_GRASS = Blocks.GRASS.defaultBlockState();
     private static final BlockState FERN = Blocks.FERN.defaultBlockState();
     private static final BlockState DEAD_BUSH = Blocks.DEAD_BUSH.defaultBlockState();
 
@@ -131,7 +131,7 @@ public final class GroundCover {
         if (levelBiome.is(BiomeTags.IS_JUNGLE)) {
             return new Cover(flowers, 0.02, 0.5, 0.4, 0);
         }
-        if (levelBiome.is(BiomeTags.IS_TAIGA) || levelBiome.is(Tags.Biomes.IS_CONIFEROUS_TREE)) {
+        if (levelBiome.is(BiomeTags.IS_TAIGA) || levelBiome.is(Tags.Biomes.IS_CONIFEROUS)) {
             return new Cover(flowers, 0.01, 0.35, 0.6, 0);
         }
         if (levelBiome.is(BiomeTags.IS_FOREST)) {

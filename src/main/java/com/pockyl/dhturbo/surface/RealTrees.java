@@ -294,7 +294,7 @@ public final class RealTrees {
         for (int index : features) {
             random.setFeatureSeed(decorationSeed, index, STEP);
             try {
-                stepFeatures.get(index).placeWithBiomeCheck(level.proxy, generator, random, origin);
+                stepFeatures.get(index).placeWithBiomeCheck(level.view, generator, random, origin);
             } catch (VirtualLevel.NoEntities e) {
                 // Features that spawn something (bees in a nest) do so after placing their blocks.
             } catch (RuntimeException e) {

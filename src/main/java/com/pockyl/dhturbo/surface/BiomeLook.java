@@ -8,7 +8,7 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.common.Tags;
+import net.minecraftforge.common.Tags;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -111,10 +111,10 @@ public record BiomeLook(BlockState top, BlockState underwater, @Nullable Tree tr
         if (biome.is(BiomeTags.IS_SAVANNA)) {
             return new BiomeLook(top, underwater, ACACIA, 0.07);
         }
-        if (biome.is(BiomeTags.IS_TAIGA) || biome.is(Tags.Biomes.IS_CONIFEROUS_TREE)) {
+        if (biome.is(BiomeTags.IS_TAIGA) || biome.is(Tags.Biomes.IS_CONIFEROUS)) {
             return new BiomeLook(top, underwater, SPRUCE, 0.5);
         }
-        if (biome.is(BiomeTags.IS_FOREST) || biome.is(Tags.Biomes.IS_DENSE_VEGETATION_OVERWORLD)) {
+        if (biome.is(BiomeTags.IS_FOREST) || biome.is(Tags.Biomes.IS_DENSE_OVERWORLD)) {
             return new BiomeLook(top, underwater, OAK, 0.5);
         }
         return new BiomeLook(top, underwater, null, 0);

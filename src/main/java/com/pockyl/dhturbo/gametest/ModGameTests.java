@@ -21,8 +21,8 @@ import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
-import net.neoforged.neoforge.gametest.GameTestHolder;
-import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.minecraftforge.gametest.GameTestHolder;
+import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
@@ -412,7 +412,7 @@ public final class ModGameTests {
                     lava |= layer.state().is(Blocks.LAVA) && layer.top() == 32;
                     cavern |= layer.state().isAir() && layer.bottom() > 0 && layer.top() < 127;
                 }
-                counts[1] += layers.getFirst().state().is(Blocks.BEDROCK) ? 1 : 0;
+                counts[1] += layers.get(0).state().is(Blocks.BEDROCK) ? 1 : 0;
                 counts[2] += lava ? 1 : 0;
                 counts[3] += cavern ? 1 : 0;
             });
@@ -456,7 +456,7 @@ public final class ModGameTests {
             }
             if (stone) {
                 counts[0]++;
-                counts[1] += layers.getFirst().state().isAir() ? 1 : 0;
+                counts[1] += layers.get(0).state().isAir() ? 1 : 0;
             }
         });
         Set<String> kinds = new HashSet<>();
@@ -532,7 +532,7 @@ public final class ModGameTests {
             if (plant.is(BlockTags.FLOWERS)) {
                 flowers++;
                 species.add(plant.getBlock());
-            } else if (plant.is(Blocks.SHORT_GRASS) || plant.is(Blocks.FERN)) {
+            } else if (plant.is(Blocks.GRASS) || plant.is(Blocks.FERN)) {
                 grass++;
             } else {
                 other++;

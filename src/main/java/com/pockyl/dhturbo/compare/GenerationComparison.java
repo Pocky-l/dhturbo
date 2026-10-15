@@ -9,6 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -20,9 +21,9 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.server.ServerStartedEvent;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
@@ -60,7 +61,7 @@ public final class GenerationComparison {
 
     public static void registerIfRequested() {
         if (System.getProperty(DhTurbo.MOD_ID + ".compare") != null) {
-            NeoForge.EVENT_BUS.register(GenerationComparison.class);
+            MinecraftForge.EVENT_BUS.register(GenerationComparison.class);
         }
     }
 
@@ -82,7 +83,7 @@ public final class GenerationComparison {
                     }
                 }
             }
-            Path file = server.getServerDirectory().resolve("dhturbo-compare.txt");
+            Path file = server.getServerDirectory().toPath().resolve("dhturbo-compare.txt");
             Files.write(file, report);
             report.forEach(line -> DhTurbo.LOGGER.info("[compare] {}", line));
             DhTurbo.LOGGER.info("[compare] report written to {}", file.toAbsolutePath());
@@ -207,7 +208,7 @@ public final class GenerationComparison {
             stats[0].probes.add(densities.toString());
             // The four cell corners around the column: our interpolated value with caves next to vanilla's.
             net.minecraft.world.level.levelgen.DensityFunction vanillaInner = com.pockyl.dhturbo.surface.SurfaceSampler
-                    .columnCached(com.pockyl.dhturbo.surface.SurfaceSampler.interpolated(vanilla).getFirst());
+                    .columnCached(com.pockyl.dhturbo.surface.SurfaceSampler.interpolated(vanilla).get(0));
             int cx = x & ~3;
             int cz = z & ~3;
             StringBuilder corners = new StringBuilder("  corners (ours with caves / vanilla interpolated):");
@@ -309,7 +310,7 @@ public final class GenerationComparison {
                     }
                 }
             }
-            Structure structure = registry.get(ResourceLocation.parse(built.name()));
+            Structure structure = registry.get(new ResourceLocation(built.name()));
             StructureStart real = structure == null ? null
                     : level.getChunk(built.startChunk().x, built.startChunk().z).getStartForStructure(structure);
             boolean startMatches = real != null && real.isValid();
@@ -740,7 +741,7 @@ public final class GenerationComparison {
             int error = Math.min(heightErrors.length - 1, Math.abs(real.height - ours.height));
             heightErrors[error]++;
             int signed = ours.height - real.height;
-            signedErrors[Math.clamp(signed, -5, 5) + 5]++;
+            signedErrors[Mth.clamp(signed, -5, 5) + 5]++;
             if (real.height > 66 && !real.kind.equals("water")) {
                 landColumns++;
                 if (ours.height == real.height) {

@@ -17,7 +17,7 @@ import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;

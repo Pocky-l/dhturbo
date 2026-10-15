@@ -3,12 +3,11 @@ package com.pockyl.dhturbo.world;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
-import io.netty.buffer.ByteBuf;
+import net.minecraft.Util;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -29,12 +28,20 @@ import java.util.Optional;
  */
 public record LevelGenInfo(ResourceKey<Level> dimension, ResourceKey<NoiseGeneratorSettings> settings, String biomeSource,
                            int fingerprint) {
-    public static final StreamCodec<ByteBuf, LevelGenInfo> STREAM_CODEC = StreamCodec.composite(
-            ResourceKey.streamCodec(Registries.DIMENSION), LevelGenInfo::dimension,
-            ResourceKey.streamCodec(Registries.NOISE_SETTINGS), LevelGenInfo::settings,
-            ByteBufCodecs.STRING_UTF8, LevelGenInfo::biomeSource,
-            ByteBufCodecs.INT, LevelGenInfo::fingerprint,
-            LevelGenInfo::new);
+    /** Longest biome source JSON sent, as vanilla's default string limit. */
+    private static final int MAX_BIOME_SOURCE = 32767;
+
+    public void write(FriendlyByteBuf buffer) {
+        buffer.writeResourceKey(dimension);
+        buffer.writeResourceKey(settings);
+        buffer.writeUtf(biomeSource, MAX_BIOME_SOURCE);
+        buffer.writeInt(fingerprint);
+    }
+
+    public static LevelGenInfo read(FriendlyByteBuf buffer) {
+        return new LevelGenInfo(buffer.readResourceKey(Registries.DIMENSION), buffer.readResourceKey(Registries.NOISE_SETTINGS),
+                buffer.readUtf(MAX_BIOME_SOURCE), buffer.readInt());
+    }
 
     /** A rebuilt generator. */
     public record Resolved(Holder<NoiseGeneratorSettings> settings, BiomeSource biomeSource, NoiseBasedChunkGenerator generator) {
@@ -55,7 +62,7 @@ public record LevelGenInfo(ResourceKey<Level> dimension, ResourceKey<NoiseGenera
             return Optional.empty();
         }
         RegistryOps<JsonElement> ops = RegistryOps.create(JsonOps.INSTANCE, registries);
-        String source = BiomeSource.CODEC.encodeStart(ops, biomeSource).getOrThrow().toString();
+        String source = Util.getOrThrow(BiomeSource.CODEC.encodeStart(ops, biomeSource), IllegalStateException::new).toString();
         return Optional.of(new LevelGenInfo(dimension, key.get(), source, fingerprint(settings.value(), source, ops)));
     }
 
@@ -72,7 +79,7 @@ public record LevelGenInfo(ResourceKey<Level> dimension, ResourceKey<NoiseGenera
         if (source.isEmpty()) {
             return null;
         }
-        String reencoded = BiomeSource.CODEC.encodeStart(ops, source.get()).getOrThrow().toString();
+        String reencoded = Util.getOrThrow(BiomeSource.CODEC.encodeStart(ops, source.get()), IllegalStateException::new).toString();
         if (fingerprint(settingsHolder.get().value(), reencoded, ops) != fingerprint) {
             return null;
         }
@@ -87,7 +94,8 @@ public record LevelGenInfo(ResourceKey<Level> dimension, ResourceKey<NoiseGenera
         // Direct codec through plain JSON ops: holders are written out in full, not as registry keys.
         String shape = NoiseGeneratorSettings.DIRECT_CODEC.encodeStart(JsonOps.INSTANCE, settings).result()
                 .map(JsonElement::toString)
-                .orElseGet(() -> NoiseGeneratorSettings.DIRECT_CODEC.encodeStart(ops, settings).getOrThrow().toString());
+                .orElseGet(() -> Util.getOrThrow(NoiseGeneratorSettings.DIRECT_CODEC.encodeStart(ops, settings),
+                        IllegalStateException::new).toString());
         return 31 * shape.hashCode() + biomeSource.hashCode();
     }
 

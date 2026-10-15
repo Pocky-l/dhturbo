@@ -168,7 +168,7 @@ final class HorizonBenchmark {
             lines.add(String.format(Locale.ROOT,
                     "  detail %d: %d tiles, ms per tile p50 %.0f, p95 %.0f, max %.0f; last done at %.1f s", detail,
                     values.size(), values.get(values.size() / 2), values.get(values.size() * 95 / 100),
-                    values.getLast(), lastDone / 1000));
+                    values.get(values.size() - 1), lastDone / 1000));
         }
         if (builder.realStructures() != null) {
             lines.add("  structures: " + builder.realStructures().timings());

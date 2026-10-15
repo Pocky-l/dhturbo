@@ -77,7 +77,7 @@ public final class SurfaceSampler {
         List<DensityFunction> stripped = interpolated(surfaceDensity);
         if (wired != strippedFinal && stripped.size() == 1) {
             for (DensityFunction candidate : interpolated(router.finalDensity())) {
-                if (CaveStripper.strip(functions, candidate).equals(stripped.getFirst())) {
+                if (CaveStripper.strip(functions, candidate).equals(stripped.get(0))) {
                     realInner = candidate;
                     break;
                 }
@@ -183,7 +183,7 @@ public final class SurfaceSampler {
         if (interpolated.size() != 1) {
             return finalDensity;
         }
-        DensityFunction inner = interpolated.getFirst();
+        DensityFunction inner = interpolated.get(0);
         DensityFunction plainFinal = finalDensity.mapAll(new ColumnCachingVisitor());
         DensityFunction plainInner = inner.mapAll(new ColumnCachingVisitor());
         Random random = new Random(1);

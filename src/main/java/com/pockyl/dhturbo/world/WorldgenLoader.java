@@ -5,8 +5,8 @@ import net.minecraft.core.LayeredRegistryAccess;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.RegistryDataLoader;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.RegistryLayer;
 import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.repository.Pack;
@@ -17,10 +17,13 @@ import net.minecraft.server.packs.resources.MultiPackResourceManager;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.tags.TagKey;
 import net.minecraft.tags.TagLoader;
+import net.minecraft.tags.TagManager;
 import net.minecraft.util.datafix.DataFixers;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
 import net.minecraft.world.level.storage.LevelStorageSource;
-import net.neoforged.neoforge.registries.DataPackRegistriesHooks;
+import net.minecraftforge.registries.DataPackRegistriesHooks;
+import net.minecraftforge.resource.ResourcePackLoader;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 import com.pockyl.dhturbo.DhTurbo;
 
@@ -94,7 +97,8 @@ public final class WorldgenLoader {
 
     private static <T> void bindTags(ResourceManager packs, RegistryAccess.RegistryEntry<T> entry) {
         Registry<T> registry = entry.value();
-        TagLoader<Holder<T>> loader = new TagLoader<>(registry::getHolder, Registries.tagsDirPath(entry.key()));
+        TagLoader<Holder<T>> loader = new TagLoader<>(id -> registry.getHolder(ResourceKey.create(entry.key(), id)),
+                TagManager.getTagDir(entry.key()));
         Map<TagKey<T>, List<Holder<T>>> tags = new HashMap<>();
         loader.loadAndBuild(packs).forEach((id, holders) -> tags.put(TagKey.create(entry.key(), id), List.copyOf(holders)));
         registry.bindTags(tags);
@@ -102,7 +106,9 @@ public final class WorldgenLoader {
 
     private static RegistryAccess.Frozen load() {
         long start = System.nanoTime();
-        PackRepository repository = ServerPacksSource.createVanillaTrustedRepository();
+        // What a server starts with: vanilla plus one pack per mod (MinecraftServer.configurePackRepository).
+        PackRepository repository = new PackRepository(new ServerPacksSource());
+        ResourcePackLoader.loadResourcePacks(repository, ServerLifecycleHooks::buildPackFinder);
         repository.reload();
         // Vanilla and the mods' built-in data; optional feature packs (bundles, trade rebalance) do not touch worldgen.
         List<String> selected = repository.getAvailablePacks().stream()

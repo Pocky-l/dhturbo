@@ -3,6 +3,7 @@ package com.pockyl.dhturbo.surface;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import net.minecraft.core.BlockPos;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.NoiseColumn;
 import net.minecraft.world.level.block.state.BlockState;
@@ -115,7 +116,7 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
         };
         int minY = sampler.minY();
         int maxY = sampler.maxY();
-        int estimate = Math.clamp(sampler.surfaceHeight(x, z, sampler.seaLevel()), minY, maxY);
+        int estimate = Mth.clamp(sampler.surfaceHeight(x, z, sampler.seaLevel()), minY, maxY);
         int cell = sampler.cellHeight();
         if (caves) {
             int y = Math.min(estimate, maxY - 1);
