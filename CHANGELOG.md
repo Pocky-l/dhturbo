@@ -4,7 +4,7 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0] - Unreleased
+## [1.3.0] - 2026-10-16
 ### Added
 - Structures in the distance: villages, pillager outposts, desert and jungle temples, witch huts, igloos, woodland
   mansions, ocean monuments, shipwrecks, ocean ruins, ruined portals and the structures of mods and data packs are
