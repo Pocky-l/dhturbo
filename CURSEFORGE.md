@@ -2,7 +2,7 @@
 
 **Distant terrain many times faster** - an addon for
 [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) that builds distant terrain straight
-from the world noise, with the game's own trees nearby.
+from the world noise, with the game's own trees and structures.
 
 [![Turbo for Distant Horizons showcase video](https://img.youtube.com/vi/scB_5JrGfXc/hqdefault.jpg)](https://www.youtube.com/watch?v=scB_5JrGfXc)
 
@@ -16,31 +16,41 @@ from the world noise, with the game's own trees nearby.
 - 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: the horizon fills as fast as the land
   around you.
 - 📊 **Measured** - 17-19x faster than Distant Horizons' rough surface search at the same sampling, ~70x at full
-  detail; heights within one block of real generation on 90% of columns. The F3 screen shows the tiles made, tiles per
-  second and time per tile.
-- 🧵 **Every core at work** - each tile is split across all worker threads.
-- 🌲 **Real trees nearby** - the game's own tree placement is replayed: same spots, species and shapes; farther away,
-  approximate trees shaped like their species.
+  detail; heights equal the real world on 98% of columns near you, checked against real chunks
+  ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)). The F3 screen shows the tiles
+  made, tiles per second and time per tile.
+- 🌲 **Real trees and plants nearby** - the game's own vegetation is replayed: trees, grass, flowers, sugar cane and
+  pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
   distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
   by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
 - 🏘️ **Structures in the distance** - villages, pillager outposts, temples, witch huts, mansions, ocean monuments,
   shipwrecks, ocean ruins, ruined portals and the structures of mods stand where and as the game will build them, on
   the ground they flatten; in a comparison with real generation every structure was found at its real place.
+- 🔥 **The Nether and the End** - caverns, the lava sea, soul sand valleys, nylium forests and basalt deltas under the
+  bedrock roof, floating End islands; fortresses, bastions and end cities block for block.
 - 🌋 **Lava lakes** - where and as the game places them.
 - 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
   patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
-- 🖼️ **No vanishing terrain** while Distant Horizons swaps tiles for more detailed ones.
 - 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
   themselves, even without Distant Horizons on the server.
 
-**Limits:** the Nether keeps the Distant Horizons generator; underground structures (mineshafts, strongholds, ancient
-cities) are not drawn.
+**Limits:** underground structures (mineshafts, strongholds, ancient cities) and caves are not drawn.
+
+## 🧩 Compatibility
+
+Terrain, biome and structure mods that work through data packs are generated like vanilla. Checked against real
+generation:
+
+[![Terralith](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/terralith.png)](https://www.curseforge.com/minecraft/mc-mods/terralith) ✅ **[Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith)** - its biomes, surface and structures in the distance (top block 94%, heights 96% exact)
+
+[![Tectonic](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/tectonic.png)](https://www.curseforge.com/minecraft/mc-mods/tectonic) ✅ **[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic)** - its mountains and rivers in the distance; its terrain takes the generator about three times longer
 
 ## ⚙️ Configuration
 
 *Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, full resolution, distant and real
-trees, structures, the world's surface rules, grass and flowers, soft plant colours. Servers can stop sharing the world seed (`share_worldgen`).
+trees, structures, the world's surface rules, grass and flowers, soft plant colours, real chunks nearby (follow the
+Distant Horizons generator plan). Servers can stop sharing the world seed (`share_worldgen`).
 
 ## 💛 Credits
 

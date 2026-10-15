@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   built where and as the game will build them, with the same buildings, streets and blocks. Villages flatten the ground
   under their houses like in the real world. Shown up to 16 blocks per distant column. Config `structures`.
 - Structures also show when the game generates the distance itself in multiplayer.
+- The Nether and the End: distant caverns, the lava sea, soul sand valleys, nylium forests and basalt deltas under the
+  bedrock roof, floating End islands, and their fortresses, bastions and end cities, block for block. Before, the
+  Nether only got Distant Horizons' flat rough surface.
+- The game's own grass, flowers, sugar cane and pumpkins near you: the vegetation is replayed where the game puts it,
+  so the distant meadow no longer changes when the real chunks load.
+- Config `real_chunks_nearby`: follow the Distant Horizons generator plan instead of switching it to "surface only".
+  With its default plan, detailed terrain near you is drawn fast first and then replaced by real chunk generation.
+### Fixed
+- End islands were drawn as pillars down to the bottom of the world; they float now.
+- Buried structures of data packs (Terralith's underground cabins) are no longer built under the distant ground.
 
 ## [1.2.0] - 2026-10-13
 ### Added
