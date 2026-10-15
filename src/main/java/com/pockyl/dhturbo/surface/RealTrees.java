@@ -37,7 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Trees exactly where the game will put them, without generating chunks.
+ * Trees, and with them the rest of the game's vegetation (grass, flowers, sugar cane, bamboo, pumpkins, berry bushes),
+ * exactly where the game will put them, without generating chunks.
  * <p>
  * Vanilla decorates a chunk by seeding one random per placed feature from the world seed, the chunk position and the
  * feature's index in its generation step. Seeds do not depend on other features, so the tree features of a chunk can
@@ -65,14 +66,23 @@ public final class RealTrees {
     private final int seaLevel;
     private final List<PlacedFeature> stepFeatures;
     private final Object2IntMap<PlacedFeature> indices = new Object2IntOpenHashMap<>();
-    /** Per biome: indices of its tree features in this step, ascending (vanilla's placement order). */
+    /**
+     * Per biome: indices of its features in this step that are replayed, ascending (vanilla's placement order): trees,
+     * and with {@code plants} every other vegetation feature too.
+     */
     private final Map<Holder<Biome>, int[]> biomeTrees = new HashMap<>();
+    private final boolean plants;
     private final LongAdder failures = new LongAdder();
     private static final Map<String, Boolean> REPORTED = new ConcurrentHashMap<>();
 
+    /**
+     * @param plants replay all vegetation features, not only trees: the columns then carry the game's own grass and
+     *               flowers ({@link TileTrees#plants})
+     */
     public RealTrees(ChunkGenerator generator, SurfaceSampler sampler, long seed, RegistryAccess registries,
-                     DimensionType dimensionType) {
+                     DimensionType dimensionType, boolean plants) {
         this.generator = generator;
+        this.plants = plants;
         this.sampler = sampler;
         this.seed = seed;
         this.registries = registries;
@@ -98,8 +108,16 @@ public final class RealTrees {
         return failures.sumThenReset();
     }
 
-    /** Trees over a tile: crowns per column and top blocks the trees changed (podzol under giant spruces). */
-    public record TileTrees(FakeTrees.Canopy[] canopies, BlockState[] tops) {
+    /**
+     * Trees over a tile: crowns per column, top blocks the trees changed (podzol under giant spruces), and the small
+     * plant standing on the ground (no collision: grass, flowers, sugar cane), or null.
+     */
+    public record TileTrees(FakeTrees.Canopy[] canopies, BlockState[] tops, BlockState[] plants) {
+    }
+
+    /** Whether the columns carry the game's own plants. */
+    public boolean plants() {
+        return plants;
     }
 
     /**
@@ -140,6 +158,7 @@ public final class RealTrees {
         BlockState[] leaves = new BlockState[columns];
         BlockState[] logs = new BlockState[columns];
         BlockState[] tops = new BlockState[columns];
+        BlockState[] plantsOnGround = new BlockState[columns];
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (Long2ObjectMap.Entry<BlockState> entry : writes.long2ObjectEntrySet()) {
             BlockState state = entry.getValue();
@@ -159,6 +178,13 @@ public final class RealTrees {
                     tops[index] = state;
                 }
             } else if (relative >= 0) {
+                if (!state.blocksMotion() && !state.is(BlockTags.LEAVES)) {
+                    // Grass, flowers, sugar cane: the lowest one stands on the ground.
+                    if (relative == 0 && state.getFluidState().isEmpty()) {
+                        plantsOnGround[index] = state;
+                    }
+                    continue;
+                }
                 if (state.is(BlockTags.LOGS)) {
                     if (relative >= logTop[index]) {
                         logTop[index] = relative;
@@ -187,7 +213,7 @@ public final class RealTrees {
                 canopies[index] = new FakeTrees.Canopy(logs[index], logs[index], true, logTop[index] + 1, logTop[index] + 1);
             }
         }
-        return new TileTrees(canopies, tops);
+        return new TileTrees(canopies, tops, plantsOnGround);
     }
 
     /**
@@ -271,7 +297,7 @@ public final class RealTrees {
         Set<Integer> result = new HashSet<>();
         steps.get(STEP).forEach(holder -> {
             PlacedFeature feature = holder.value();
-            if (indices.containsKey(feature) && growsTrees(feature)) {
+            if (indices.containsKey(feature) && (plants || growsTrees(feature))) {
                 result.add(indices.getInt(feature));
             }
         });

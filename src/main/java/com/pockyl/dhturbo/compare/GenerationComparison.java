@@ -629,7 +629,10 @@ public final class GenerationComparison {
             } else if (ours.tree) {
                 oursTreeOnly++;
             }
-            if (real.plant && ours.plant) {
+            // Plants only where no tree hides the ground (crowns cover them from above anyway).
+            if (real.tree || ours.tree) {
+                // skip
+            } else if (real.plant && ours.plant) {
                 plantsBoth++;
             } else if (real.plant) {
                 plantsRealOnly++;
@@ -719,7 +722,7 @@ public final class GenerationComparison {
                 out.add(String.format(Locale.ROOT, "  %-12s %6d columns: exact %.1f%%, ours higher %.1f%%, ours lower %.1f%%",
                         names[b], total, pct(bands[b][0], total), pct(bands[b][1], total), pct(bands[b][2], total)));
             }
-            out.add(String.format(Locale.ROOT, "Trees: both %d, only real %d, only ours %d; plants: both %d, only real %d, "
+            out.add(String.format(Locale.ROOT, "Trees: both %d, only real %d, only ours %d; plants (no tree): both %d, only real %d, "
                     + "only ours %d", bothTrees, realTreeOnly, oursTreeOnly, plantsBoth, plantsRealOnly, plantsOursOnly));
             int white = 0;
             int whiteMatch = 0;

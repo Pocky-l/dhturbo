@@ -42,6 +42,15 @@ public final class ColumnBuilder {
     public record Layer(BlockState state, int skyLight, int bottom, int top) {
     }
 
+    /**
+     * Where a column's small plant comes from: the replayed vegetation ({@code replayed}, the plant or null when the
+     * game put none there) or {@link GroundCover}'s hash placement.
+     */
+    private record Plants(boolean replayed, @Nullable BlockState plant) {
+    }
+
+    private static final Plants HASHED = new Plants(false, null);
+
     /** Receives the columns of a tile; the layer list is reused between calls. */
     public interface Sink {
         /** @param biome the column's biome as the level knows it */
@@ -93,7 +102,7 @@ public final class ColumnBuilder {
         this.levelTop = Math.max(sampler.maxY(), dimensionType.minY() + dimensionType.height()) - sampler.minY();
         this.fakeTrees = Config.FAKE_TREES.get() && profile == null;
         this.realTrees = fakeTrees && Config.REAL_TREES.get()
-                ? new RealTrees(generator, sampler, seed, registries, dimensionType)
+                ? new RealTrees(generator, sampler, seed, registries, dimensionType, Config.GROUND_COVER.get())
                 : null;
         RealLakes lakes = profile == null ? new RealLakes(generator, sampler, seed, registries, dimensionType) : null;
         this.realLakes = lakes == null || lakes.isEmpty() ? null : lakes;
@@ -221,9 +230,11 @@ public final class ColumnBuilder {
                         int z = minZ + j * spacing;
                         FakeTrees.Canopy canopy = null;
                         BlockState treeTop = null;
+                        BlockState realPlant = null;
                         if (trees != null) {
                             canopy = trees.canopies()[i + j * width];
                             treeTop = trees.tops()[i + j * width];
+                            realPlant = trees.plants()[i + j * width];
                         } else if (fakeTrees) {
                             canopy = FakeTrees.at(seed, x, z, spacing,
                                     BiomeLook.of(levelBiome.apply(area.biome(i + edge, j + edge))));
@@ -235,12 +246,15 @@ public final class ColumnBuilder {
                         if (covered) {
                             canopy = null;
                             treeTop = null;
+                            realPlant = null;
                         }
+                        // The game's own plants when the vegetation was replayed; otherwise placed by hash.
+                        Plants plants = trees != null && realTrees.plants() ? new Plants(true, realPlant) : HASHED;
                         RealLakes.Lake lake = lakes != null ? lakes[i + j * width] : null;
                         if (lake != null && !covered) {
                             lakeColumn(points, lake);
                         } else {
-                            column(points, x, z, area, i + edge, j + edge, canopy, treeTop, rules, covered);
+                            column(points, x, z, area, i + edge, j + edge, canopy, treeTop, rules, covered, plants);
                         }
                         if (structure != null) {
                             overlay(points, structure, x, z, levelBiome.apply(area.biome(i + edge, j + edge)));
@@ -366,10 +380,11 @@ public final class ColumnBuilder {
      * @param treeTop top block the trees replaced (podzol under giant spruces), or null
      */
     private void column(List<Layer> points, int x, int z, SurfaceTile area, int i, int j,
-                        FakeTrees.Canopy canopy, BlockState treeTop, @Nullable VanillaSurface.Pass rules, boolean covered) {
+                        FakeTrees.Canopy canopy, BlockState treeTop, @Nullable VanillaSurface.Pass rules, boolean covered,
+                        Plants plants) {
         int ground = area.height(i, j);
         if (rules != null) {
-            ruledColumn(points, x, z, area, i, j, canopy, treeTop, rules.column(x, z, ground), covered);
+            ruledColumn(points, x, z, area, i, j, canopy, treeTop, rules.column(x, z, ground), covered, plants);
             return;
         }
         // The level's own holder: on a client only it carries biome tags (they come from the server).
@@ -418,13 +433,17 @@ public final class ColumnBuilder {
             layers(points, overworld ? biome : null, look, surface, groundRel);
         }
         int airFrom = groundRel;
-        boolean groundSnow = overworld && canopy == null && !covered && groundRel + 1 < top
+        BlockState replayedPlant = plants.replayed() && groundCover && overworld && canopy == null && !covered
+                && groundRel + 1 < top ? plants.plant() : null;
+        // Vanilla's snow does not settle where a plant stands.
+        boolean groundSnow = overworld && canopy == null && !covered && replayedPlant == null && groundRel + 1 < top
                 && SurfaceDetail.snowLayerOn(biome, surface, x, ground, z);
         if (groundSnow) {
             points.add(new Layer(SNOW_LAYER, MAX_LIGHT, groundRel, groundRel + 1));
             airFrom = groundRel + 1;
         }
-        BlockState plant = groundCover && overworld && canopy == null && !covered && !groundSnow && groundRel + 1 < top
+        BlockState plant = plants.replayed() ? replayedPlant
+                : groundCover && overworld && canopy == null && !covered && !groundSnow && groundRel + 1 < top
                 ? GroundCover.at(seed, x, ground, z, area.biome(i, j), biome, surface)
                 : null;
         if (plant != null) {
@@ -462,7 +481,7 @@ public final class ColumnBuilder {
      */
     private void ruledColumn(List<Layer> points, int x, int z, SurfaceTile area, int i, int j,
                              FakeTrees.Canopy canopy, BlockState treeTop, VanillaSurface.Column column,
-                             boolean covered) {
+                             boolean covered, Plants plants) {
         Holder<Biome> biome = levelBiome.apply(area.biome(i, j));
         int minY = sampler.minY();
         int top = levelTop;
@@ -507,13 +526,17 @@ public final class ColumnBuilder {
             return;
         }
         int ground = columnTop;
-        boolean groundSnow = canopy == null && !covered && groundRel + 1 < top
+        BlockState replayedPlant = plants.replayed() && groundCover && canopy == null && !covered && groundRel + 1 < top
+                ? plants.plant() : null;
+        // Vanilla's snow does not settle where a plant stands.
+        boolean groundSnow = canopy == null && !covered && replayedPlant == null && groundRel + 1 < top
                 && SurfaceDetail.snowLayerOn(biome, surfaceBlock, x, ground, z);
         if (groundSnow) {
             points.add(new Layer(SNOW_LAYER, MAX_LIGHT, groundRel, groundRel + 1));
             airFrom = groundRel + 1;
         }
-        BlockState plant = groundCover && canopy == null && !covered && !groundSnow && groundRel + 1 < top
+        BlockState plant = plants.replayed() ? replayedPlant
+                : groundCover && canopy == null && !covered && !groundSnow && groundRel + 1 < top
                 ? GroundCover.at(seed, x, ground, z, area.biome(i, j), biome, surfaceBlock)
                 : null;
         if (plant != null) {
