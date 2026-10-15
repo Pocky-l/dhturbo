@@ -17,6 +17,7 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.world.ReceivedWorldgen;
 
 /**
  * Hooks the generator into Distant Horizons for every level it can handle, and the runtime switches used for
@@ -53,10 +54,12 @@ public final class DhIntegration {
      * its regeneration range at full block detail to replace it with real chunks. Routed to this generator that only
      * produces the same fake surface again, a few kilometres around the player, and keeps going around the old place
      * after a teleport (about 90% of all requests in the first playtest). {@code SURFACE_ONLY} skips that pass. It is
-     * set as an API override, so the player's own DH config is left untouched, and removed while we are off.
+     * set as an API override, so the player's own DH config is left untouched, and removed while we are off or while
+     * {@code real_chunks_nearby} hands that pass to DH's own generator. A client generating the distance itself (the
+     * server shares its world generation) cannot generate chunks, so there the override always applies.
      */
     public static void applyPlan() {
-        if (active()) {
+        if (active() && (!Config.REAL_CHUNKS_NEARBY.get() || ReceivedWorldgen.present())) {
             DhApi.Delayed.configs.worldGenerator().GeneratorPlan().setValue(EDhApiGeneratorPlan.SURFACE_ONLY, DhTurbo.MOD_ID);
         } else {
             DhApi.Delayed.configs.worldGenerator().GeneratorPlan().clearValue();

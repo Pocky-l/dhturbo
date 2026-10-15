@@ -46,6 +46,14 @@ public final class Config {
             .translation("dhturbo.configuration.vanilla_surface")
             .define("vanilla_surface", true);
 
+    public static final ModConfigSpec.BooleanValue REAL_CHUNKS_NEARBY = BUILDER
+            .comment("Follow the Distant Horizons generator plan instead of switching it to 'surface only'. With its default plan",
+                    "('surface then chunks') detailed terrain near you is first drawn fast by this mod, then Distant Horizons",
+                    "replaces it with real chunk generation (every feature, slower, uses more CPU). Off: everything stays fast.",
+                    "Singleplayer and servers with Distant Horizons; clients that generate the distance themselves stay fast.")
+            .translation("dhturbo.configuration.real_chunks_nearby")
+            .define("real_chunks_nearby", false);
+
     public static final ModConfigSpec.BooleanValue STRUCTURES = BUILDER
             .comment("Build the world's structures on distant terrain: villages, outposts, temples, mansions, shipwrecks,",
                     "ruined portals and structures of mods, where and as the game will build them. Underground structures",

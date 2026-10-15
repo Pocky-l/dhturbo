@@ -7,6 +7,7 @@ import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
@@ -30,6 +31,16 @@ public final class DhTurbo {
         GenerationComparison.registerIfRequested();
         if (ModList.get().isLoaded("distanthorizons")) {
             DhIntegration.register();
+            // The generator plan follows real_chunks_nearby as soon as it is changed in game.
+            modBus.addListener(ModConfigEvent.Reloading.class, event -> {
+                if (event.getConfig().getSpec() == Config.SPEC) {
+                    try {
+                        DhIntegration.applyPlan();
+                    } catch (RuntimeException e) {
+                        // Distant Horizons is not ready yet (no world); the plan is applied when a level loads.
+                    }
+                }
+            });
         } else {
             LOGGER.info("Distant Horizons is not installed: DH Turbo only shares the world generation with players");
         }
