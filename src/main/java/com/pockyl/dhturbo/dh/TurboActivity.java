@@ -2,6 +2,9 @@ package com.pockyl.dhturbo.dh;
 
 import com.pockyl.dhturbo.surface.StructurePrefetch;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadInfo;
+import java.lang.management.ThreadMXBean;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,6 +31,9 @@ public final class TurboActivity {
     private static long msCount;
     private static long msNanos;
     private static double msPerTile;
+    /** CPU time of the generator's threads (workers, structure prefetch) at the last update, and cores they used. */
+    private static long cpuNanos = -1;
+    private static double cores;
 
     private TurboActivity() {
     }
@@ -69,13 +75,40 @@ public final class TurboActivity {
             }
             msCount = done;
             msNanos = nanos;
+            long cpu = generatorCpuNanos();
+            if (cpuNanos >= 0 && cpu >= cpuNanos) {
+                cores = (cpu - cpuNanos) / (double) (now - rateTime);
+            }
+            cpuNanos = cpu;
             rateCount = done;
             rateTime = now;
         }
         long failed = FAILED.sum();
         long prepared = StructurePrefetch.totalAreas();
-        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running%s%s", done,
-                rate, msPerTile, running, prepared > 0 ? ", structures ready in " + prepared + " areas" : "",
-                failed > 0 ? ", " + failed + " failed" : ""));
+        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running, CPU %.1f cores%s%s",
+                done, rate, msPerTile, running, cores,
+                prepared > 0 ? ", structures ready in " + prepared + " areas" : "", failed > 0 ? ", " + failed + " failed" : ""));
+    }
+
+    /** CPU time used so far by the live threads of the generator (named "DH Turbo ..."), 0 when the JVM cannot tell. */
+    private static long generatorCpuNanos() {
+        try {
+            ThreadMXBean threads = ManagementFactory.getThreadMXBean();
+            if (!threads.isThreadCpuTimeSupported() || !threads.isThreadCpuTimeEnabled()) {
+                return 0;
+            }
+            long total = 0;
+            for (ThreadInfo info : threads.getThreadInfo(threads.getAllThreadIds(), 0)) {
+                if (info != null && info.getThreadName().startsWith("DH Turbo")) {
+                    long time = threads.getThreadCpuTime(info.getThreadId());
+                    if (time > 0) {
+                        total += time;
+                    }
+                }
+            }
+            return total;
+        } catch (RuntimeException | LinkageError e) {
+            return 0;
+        }
     }
 }
