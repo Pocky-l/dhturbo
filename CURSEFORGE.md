@@ -86,6 +86,10 @@ Seibel and the Distant Horizons team; the logo is the Distant Horizons icon with
 
 [![Rancher's Vacpack](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/vacpack.png)](https://www.curseforge.com/minecraft/mc-mods/ranchers-vacpack) **[Rancher's Vacpack](https://www.curseforge.com/minecraft/mc-mods/ranchers-vacpack)** - a Slime Rancher vacuum gun for items and small mobs
 
+**🔮 Magic**
+
+[![HexTale](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/hextale.png)](https://www.curseforge.com/minecraft/mc-mods/hextale) **[HexTale](https://www.curseforge.com/minecraft/mc-mods/hextale)** - hextech magic to research, distil and bind with runes, inspired by Arcane and Thaumcraft
+
 **⚡ Tech & energy**
 
 [![Mekanism Advanced Generators](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/mekanismadvancedgenerators.png)](https://www.curseforge.com/minecraft/mc-mods/mekanism-advancedgenerators) **[Mekanism Advanced Generators](https://www.curseforge.com/minecraft/mc-mods/mekanism-advancedgenerators)** - nine tiers of solar panels, big solar generators, cubes and cables for Mekanism
