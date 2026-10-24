@@ -1,5 +1,6 @@
 package com.pockyl.dhturbo.client;
 
+import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.ConfigScreenHandler;
 import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
@@ -32,9 +33,13 @@ public final class DhTurboClient {
         if (ModList.get().isLoaded("distanthorizons")) {
             MinecraftForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut loggingOut) -> ClientGeneration.reset());
         }
-        MinecraftForge.EVENT_BUS.addListener((CustomizeGuiOverlayEvent.DebugText debugText) ->
-                TurboActivity.debugLine().ifPresent(debugText.getRight()::add));
         if (DhTurbo.DEBUG) {
+            // Developer runs only, and only with F3 open: Forge fires the event while the debug screen is closed too.
+            MinecraftForge.EVENT_BUS.addListener((CustomizeGuiOverlayEvent.DebugText debugText) -> {
+                if (Minecraft.getInstance().options.renderDebug) {
+                    TurboActivity.debugLine().ifPresent(debugText.getRight()::add);
+                }
+            });
             MinecraftForge.EVENT_BUS.addListener(DemoKeys::tick);
         }
     }
