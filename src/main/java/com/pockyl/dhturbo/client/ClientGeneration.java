@@ -56,7 +56,7 @@ public final class ClientGeneration {
             return null;
         }
         LevelGenInfo info = ReceivedWorldgen.forDimension(clientLevel.dimension());
-        if (info == null) {
+        if (info == null || !Config.generates(clientLevel.dimension())) {
             return null;
         }
         long seed = ReceivedWorldgen.seed();

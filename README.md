@@ -94,6 +94,7 @@ The mod adds no blocks or items.
 | `structures` | `true` | Build the world's structures (villages, temples, shipwrecks, ...) on distant terrain; underground ones are left out |
 | `ground_cover` | `true` | Grass and flowers: the game's own near you, per biome farther away |
 | `soft_plant_colors` | `true` | Client: blend plant colours into the ground under them instead of painting the whole block (all LODs, also from real chunks) |
+| `excluded_dimensions` | `[]` | Dimensions left to the Distant Horizons generator, by id, e.g. `["minecraft:the_end"]` - for mod dimensions you want generated from real chunks |
 | `share_worldgen` | `true` | Server: send players with this mod the world seed and terrain settings, so they generate distant terrain themselves; turn off if players must not know the seed |
 
 By default the mod switches the Distant Horizons generator plan to "surface only" at runtime, so Distant Horizons

@@ -34,5 +34,7 @@
   "dhturbo.configuration.ground_cover": "Трава и цветы",
   "dhturbo.configuration.ground_cover.tooltip": "Добавлять траву и цветы биома на сгенерированную дальнюю землю, чтобы луга и цветочные поля выглядели как вблизи.",
   "dhturbo.configuration.soft_plant_colors": "Мягкие цвета растений",
-  "dhturbo.configuration.soft_plant_colors.tooltip": "Подмешивать цвет растений к земле под ними, а не перекрашивать весь блок (мак больше не делает блок травы красным). Действует на LOD, построенные после изменения."
+  "dhturbo.configuration.soft_plant_colors.tooltip": "Подмешивать цвет растений к земле под ними, а не перекрашивать весь блок (мак больше не делает блок травы красным). Действует на LOD, построенные после изменения.",
+  "dhturbo.configuration.excluded_dimensions": "Исключённые измерения",
+  "dhturbo.configuration.excluded_dimensions.tooltip": "Измерения, дальний ландшафт которых остаётся генератору Distant Horizons, по id (например, minecraft:the_end). Действует на ландшафт, сгенерированный после изменения."
 }

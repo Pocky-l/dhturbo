@@ -1,6 +1,11 @@
 package com.pockyl.dhturbo;
 
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.common.ModConfigSpec;
+
+import java.util.List;
 
 public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
@@ -74,9 +79,22 @@ public final class Config {
             .translation("dhturbo.configuration.share_worldgen")
             .define("share_worldgen", true);
 
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> EXCLUDED_DIMENSIONS = BUILDER
+            .comment("Dimensions whose distant terrain this mod leaves to the Distant Horizons generator, by id, for example",
+                    "[\"minecraft:the_end\", \"twilightforest:twilight_forest\"]. Applies to terrain generated from then on; distant",
+                    "terrain already saved stays as it is.")
+            .translation("dhturbo.configuration.excluded_dimensions")
+            .defineListAllowEmpty("excluded_dimensions", List.of(), () -> "minecraft:the_end",
+                    value -> value instanceof String id && ResourceLocation.tryParse(id) != null);
+
     public static final ModConfigSpec SPEC = BUILDER.build();
 
     private Config() {
+    }
+
+    /** Whether DH Turbo generates the distant terrain of this dimension right now. */
+    public static boolean generates(ResourceKey<Level> dimension) {
+        return ENABLED.get() && !EXCLUDED_DIMENSIONS.get().contains(dimension.location().toString());
     }
 
     public static int threadCount() {
