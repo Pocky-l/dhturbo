@@ -1,5 +1,6 @@
 package com.pockyl.dhturbo.client;
 
+import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -22,9 +23,13 @@ public final class DhTurboClient {
         if (ModList.get().isLoaded("distanthorizons")) {
             NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientGeneration.reset());
         }
-        NeoForge.EVENT_BUS.addListener((CustomizeGuiOverlayEvent.DebugText event) ->
-                TurboActivity.debugLine().ifPresent(event.getRight()::add));
         if (DhTurbo.DEBUG) {
+            // Developer runs only, and only with F3 open: the event also fires while the debug screen is closed.
+            NeoForge.EVENT_BUS.addListener((CustomizeGuiOverlayEvent.DebugText event) -> {
+                if (Minecraft.getInstance().getDebugOverlay().showDebugScreen()) {
+                    TurboActivity.debugLine().ifPresent(event.getRight()::add);
+                }
+            });
             modBus.addListener(DemoKeys::register);
             NeoForge.EVENT_BUS.addListener(DemoKeys::tick);
         }

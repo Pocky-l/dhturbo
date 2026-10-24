@@ -18,8 +18,7 @@ from the world noise, with the game's own trees and structures.
 - 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): 3.7x faster than its
   default chunk generation and 4.7x faster than its rough surface mode, with a quarter of the CPU time; heights equal
   the real world on 98% of columns near you, checked against real chunks
-  ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)). The F3 screen shows the tiles
-  made, tiles per second, time per tile and the CPU cores in use.
+  ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)).
 - 🌲 **Real trees and plants nearby** - the game's own vegetation is replayed: trees, grass, flowers, sugar cane and
   pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the

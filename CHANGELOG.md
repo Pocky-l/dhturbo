@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config `excluded_dimensions`: dimensions listed there (by id, for example `minecraft:the_end` or a mod's dimension)
   get their distant terrain from the Distant Horizons generator, the rest still from this mod. Works in singleplayer,
   on servers and for clients that generate the distance themselves, and takes effect without restarting the game.
+### Removed
+- The "DH Turbo: ... tiles" status line. It showed up on the screen even with the debug screen (F3) closed.
 
 ## [1.3.0] - 2026-10-16
 ### Added
