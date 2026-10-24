@@ -50,7 +50,8 @@ generation:
 
 *Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, full resolution, distant and real
 trees, structures, the world's surface rules, grass and flowers, soft plant colours, real chunks nearby (follow the
-Distant Horizons generator plan). Servers can stop sharing the world seed (`share_worldgen`).
+Distant Horizons generator plan), dimensions to leave to Distant Horizons (`excluded_dimensions`). Servers can stop
+sharing the world seed (`share_worldgen`).
 
 ## 💛 Credits
 

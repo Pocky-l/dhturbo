@@ -15,7 +15,9 @@ import com.seibel.distanthorizons.core.pos.DhSectionPos;
 import com.seibel.distanthorizons.core.level.IDhServerLevel;
 import com.seibel.distanthorizons.core.wrapperInterfaces.world.ILevelWrapper;
 import it.unimi.dsi.fastutil.bytes.ByteArrayList;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
@@ -39,6 +41,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
     private static final byte MAX_DETAIL = 12;
     private static final int MAX_LIGHT = 15;
     private final IDhApiLevelWrapper levelWrapper;
+    private final ResourceKey<Level> dimension;
     private final LodTileWriter writer;
     /** Request statistics in the log, developer runs only. */
     private final GeneratorStats stats;
@@ -55,6 +58,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
 
     TurboWorldGenerator(IDhApiLevelWrapper levelWrapper, ServerLevel level, NoiseBasedChunkGenerator generator) {
         this.levelWrapper = levelWrapper;
+        this.dimension = level.dimension();
         this.stats = DhTurbo.DEBUG ? new GeneratorStats(level, levelWrapper.getDimensionName()) : null;
         // A world created without structures gets none in the distance either.
         boolean structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
@@ -63,9 +67,12 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
                 () -> Players.positions(level));
     }
 
-    /** The generator answering requests right now: DH's own one while DH Turbo is switched off. */
+    /**
+     * The generator answering requests right now: DH's own one while DH Turbo is switched off or this dimension is in
+     * {@code excluded_dimensions}.
+     */
     private IDhApiWorldGenerator delegate() {
-        return DhIntegration.active() ? null : dhGenerator();
+        return Config.generates(dimension) ? null : dhGenerator();
     }
 
     /** DH's own generator, created on first use; null when it cannot be created. */

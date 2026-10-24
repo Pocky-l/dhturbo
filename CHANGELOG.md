@@ -4,6 +4,13 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0+1.20.1] - Unreleased
+### Added
+- Config `excluded_dimensions`: dimensions listed there (by id, for example `minecraft:the_end` or a mod's dimension)
+  get their distant terrain from the Distant Horizons generator, the rest still from this mod. Works in singleplayer,
+  on servers and for clients that generate the distance themselves, and takes effect without restarting the game. In
+  the config screen (*Mods -> Turbo for Distant Horizons -> Config*) it is a text field of ids separated by commas.
+
 ## [1.3.1+1.20.1] - 2026-10-25
 ### Removed
 - The "DH Turbo: ... tiles" status line. It showed up on the screen even with the debug screen (F3) closed.

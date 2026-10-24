@@ -24,6 +24,7 @@ import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
+import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.bench.SurfaceBenchmark;
 import com.pockyl.dhturbo.dh.TurboActivity;
@@ -68,6 +69,19 @@ public final class ModGameTests {
         String line = TurboActivity.debugLine().orElse("");
         helper.assertTrue(line.startsWith("DH Turbo: ") && line.contains("0 running") && line.contains("failed"),
                 "finished and failed tiles are counted: " + line);
+        helper.succeed();
+    }
+
+    @GameTest(template = "empty")
+    public static void excludedDimensionsGoToDistantHorizons(GameTestHelper helper) {
+        List<? extends String> configured = Config.EXCLUDED_DIMENSIONS.get();
+        try {
+            Config.EXCLUDED_DIMENSIONS.set(List.of("minecraft:the_end"));
+            helper.assertTrue(Config.generates(Level.OVERWORLD), "the overworld is still generated");
+            helper.assertFalse(Config.generates(Level.END), "an excluded dimension is left to Distant Horizons");
+        } finally {
+            Config.EXCLUDED_DIMENSIONS.set(configured);
+        }
         helper.succeed();
     }
 

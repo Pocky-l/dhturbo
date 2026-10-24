@@ -34,5 +34,7 @@
   "dhturbo.configuration.ground_cover": "Grass and Flowers",
   "dhturbo.configuration.ground_cover.tooltip": "Put grass and the biome's flowers on generated distant ground, so meadows and flower fields look like they do up close.",
   "dhturbo.configuration.soft_plant_colors": "Soft Plant Colors",
-  "dhturbo.configuration.soft_plant_colors.tooltip": "Blend the colour of plants into the ground under them instead of painting the whole block (a poppy no longer turns a grass block red). Applies to LODs built after the change."
+  "dhturbo.configuration.soft_plant_colors.tooltip": "Blend the colour of plants into the ground under them instead of painting the whole block (a poppy no longer turns a grass block red). Applies to LODs built after the change.",
+  "dhturbo.configuration.excluded_dimensions": "Excluded Dimensions",
+  "dhturbo.configuration.excluded_dimensions.tooltip": "Dimensions whose distant terrain is left to the Distant Horizons generator, by id (for example minecraft:the_end). Applies to terrain generated from then on."
 }
