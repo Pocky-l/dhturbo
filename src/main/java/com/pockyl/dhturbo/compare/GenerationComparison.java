@@ -26,7 +26,10 @@ import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
+import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.RealStructures;
+import com.pockyl.dhturbo.surface.TerrainCheck;
+import com.pockyl.dhturbo.world.TerrainSupport;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -109,7 +112,7 @@ public final class GenerationComparison {
             return List.of("The overworld does not use a noise generator: nothing to compare");
         }
         ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
-                level.getSeed(), UnaryOperator.identity(), level.getStructureManager());
+                level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
         int minY = level.getMinBuildHeight();
         int[] spacings = java.util.Arrays.stream(System.getProperty(DhTurbo.MOD_ID + ".compare.spacings", "1,4").split(","))
                 .mapToInt(value -> Integer.parseInt(value.trim())).toArray();
@@ -229,6 +232,11 @@ public final class GenerationComparison {
         }
         report.add(String.format(Locale.ROOT, "Seed %d, %d areas of %dx%d chunks, %.1f s", level.getSeed(), areas,
                 AREA_CHUNKS, AREA_CHUNKS, (System.nanoTime() - start) / 1e9));
+        TerrainCheck.Result check = TerrainCheck.run(builder, generator, level.getChunkSource().randomState(), level,
+                level.getSeed());
+        report.add(String.format(Locale.ROOT, "Terrain check: %d of %d columns agree (%s); clients: %s", check.agreeing(),
+                check.compared(), check.passed() ? "drawn by DH Turbo" : "left to DH", TerrainSupport.clientProblem(level)
+                        .orElse("may generate it")));
         for (int s = 0; s < spacings.length; s++) {
             report.add("");
             report.add(String.format(Locale.ROOT, "===== Columns %d block(s) wide: %d columns =====", spacings[s],
@@ -277,8 +285,8 @@ public final class GenerationComparison {
         // The coarse builds wide tiles use, from a second builder with empty caches.
         RealStructures coarse = profiled ? null : new ColumnBuilder(
                 (NoiseBasedChunkGenerator) level.getChunkSource().getGenerator(), level.registryAccess(),
-                level.dimensionType(), level.getSeed(), UnaryOperator.identity(), level.getStructureManager())
-                .realStructures();
+                level.dimensionType(), level.getSeed(), UnaryOperator.identity(), level.getStructureManager(),
+                NoiseBinder.of(level)).realStructures();
         long coarseColumns = 0;
         long coarseNear = 0;
         long coarseBlock = 0;
@@ -492,7 +500,7 @@ public final class GenerationComparison {
             return List.of();
         }
         ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
-                level.getSeed(), UnaryOperator.identity(), level.getStructureManager());
+                level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
         int minY = level.getMinBuildHeight();
         int height = level.getHeight();
         Random random = new Random(level.getSeed() ^ 0xBEEF);

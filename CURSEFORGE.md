@@ -46,6 +46,10 @@ generation:
 
 [![Tectonic](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/tectonic.png)](https://www.curseforge.com/minecraft/mc-mods/tectonic) ✅ **[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic)** - its mountains and rivers in the distance; its terrain takes the generator about three times longer
 
+[![ReTerraForged](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/reterraforged.png)](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes) ✅ **[ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes)** - its continents, mountains and rivers in the distance (heights within 4 blocks on 99% of columns: its erosion is not drawn). In multiplayer the server draws them, players do not generate them themselves
+
+A world whose terrain the mod cannot read (a mod with its own chunk generator) is left to Distant Horizons' own generator: the mod checks every world against the game's generator when it loads and says so in the log.
+
 ## ⚙️ Configuration
 
 *Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, full resolution, distant and real

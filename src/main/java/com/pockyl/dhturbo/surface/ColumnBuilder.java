@@ -96,7 +96,15 @@ public final class ColumnBuilder {
      */
     public ColumnBuilder(NoiseBasedChunkGenerator generator, RegistryAccess registries, DimensionType dimensionType,
                          long seed, UnaryOperator<Holder<Biome>> levelBiome, @Nullable StructureTemplateManager templates) {
-        this.sampler = new SurfaceSampler(registries, generator.generatorSettings().value(), generator.getBiomeSource(), seed);
+        this(generator, registries, dimensionType, seed, levelBiome, templates, NoiseBinder.NONE);
+    }
+
+    /** @param binder prepares the noises like the level's own (terrain mods that attach state to the level's) */
+    public ColumnBuilder(NoiseBasedChunkGenerator generator, RegistryAccess registries, DimensionType dimensionType,
+                         long seed, UnaryOperator<Holder<Biome>> levelBiome, @Nullable StructureTemplateManager templates,
+                         NoiseBinder binder) {
+        this.sampler = new SurfaceSampler(registries, generator.generatorSettings().value(), generator.getBiomeSource(), seed,
+                binder);
         this.profile = profiled(dimensionType) ? new ProfileTerrain(sampler) : null;
         this.skyLight = dimensionType.hasSkyLight() ? MAX_LIGHT : 0;
         this.levelTop = Math.max(sampler.maxY(), dimensionType.minY() + dimensionType.height()) - sampler.minY();
@@ -168,6 +176,12 @@ public final class ColumnBuilder {
         return sampler;
     }
 
+    /** The full-profile terrain of worlds without a single surface, or null for height-field worlds. */
+    @Nullable
+    public ProfileTerrain profile() {
+        return profile;
+    }
+
     /**
      * Builds a tile of {@code width} x {@code width} columns {@code spacing} blocks apart, starting at block
      * (minX, minZ), and hands each column to the sink. Returns the number of tree features and structure pieces that
@@ -235,7 +249,9 @@ public final class ColumnBuilder {
                             canopy = trees.canopies()[i + j * width];
                             treeTop = trees.tops()[i + j * width];
                             realPlant = trees.plants()[i + j * width];
-                        } else if (fakeTrees) {
+                        }
+                        if (trees == null ? fakeTrees
+                                : canopy == null && !realTrees.replaysTrees(area.biome(i + edge, j + edge))) {
                             canopy = FakeTrees.at(seed, x, z, spacing,
                                     BiomeLook.of(levelBiome.apply(area.biome(i + edge, j + edge))));
                         }

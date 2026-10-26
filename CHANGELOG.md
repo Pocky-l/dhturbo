@@ -4,6 +4,18 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - Unreleased
+### Added
+- [ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes) support:
+  its continents, mountains and rivers now show in the distance as it generates them. Before, the distant terrain of
+  its worlds did not match the real one at all. Its erosion is not drawn, so distant land can sit a few blocks higher than the real chunks.
+  In multiplayer the server draws these worlds; players do not generate them themselves.
+- Worlds whose terrain the mod cannot read (for example a mod with its own chunk generator) are detected when they
+  load and left to the Distant Horizons generator, with a line in the log saying why, instead of being drawn wrong.
+### Fixed
+- Near you, forests of terrain mods with trees of their own (ReTerraForged) were bare in the distance: they get the
+  mod's tree shapes now.
+
 ## [1.4.0] - 2026-10-25
 ### Added
 - Config `excluded_dimensions`: dimensions listed there (by id, for example `minecraft:the_end` or a mod's dimension)

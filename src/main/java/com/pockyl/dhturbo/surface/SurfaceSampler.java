@@ -41,6 +41,7 @@ import java.util.Random;
  * Thread-safe: every thread gets its own copy of the cached density function.
  */
 public final class SurfaceSampler {
+    private final NoiseBinder binder;
     private final RandomState randomState;
     private final BiomeSource biomeSource;
     private final ThreadLocal<DensityFunction> density;
@@ -61,12 +62,20 @@ public final class SurfaceSampler {
     private final int seaLevel;
 
     public SurfaceSampler(RegistryAccess registries, NoiseGeneratorSettings settings, BiomeSource biomeSource, long seed) {
+        this(registries, settings, biomeSource, seed, NoiseBinder.NONE);
+    }
+
+    /** @param binder prepares the random states built here like the level's own one (terrain mods that need it) */
+    public SurfaceSampler(RegistryAccess registries, NoiseGeneratorSettings settings, BiomeSource biomeSource, long seed,
+                          NoiseBinder binder) {
+        this.binder = binder;
         NoiseRouter router = settings.noiseRouter();
         Registry<DensityFunction> functions = registries.registryOrThrow(Registries.DENSITY_FUNCTION);
         DensityFunction surfaceDensity = CaveStripper.strip(functions, router.finalDensity());
         // Same seed and settings apart from the final density: noises are wired identically to the real world.
         this.randomState = RandomState.create(withFinalDensity(settings, surfaceDensity),
                 registries.lookupOrThrow(Registries.NOISE), seed);
+        binder.bind(randomState);
         this.biomeSource = biomeSource;
         DensityFunction strippedFinal = randomState.router().finalDensity();
         DensityFunction wired = signal(strippedFinal, settings.noiseSettings());
@@ -83,8 +92,10 @@ public final class SurfaceSampler {
                 }
             }
         }
-        DensityFunction realWired = RandomState.create(withFinalDensity(settings, realInner != null ? realInner : router.finalDensity()),
-                registries.lookupOrThrow(Registries.NOISE), seed).router().finalDensity();
+        RandomState realState = RandomState.create(withFinalDensity(settings, realInner != null ? realInner : router.finalDensity()),
+                registries.lookupOrThrow(Registries.NOISE), seed);
+        binder.bind(realState);
+        DensityFunction realWired = realState.router().finalDensity();
         this.realDensity = ThreadLocal.withInitial(() -> realWired.mapAll(new ColumnCachingVisitor()));
         this.finalFromProbe = wired != strippedFinal && realInner != null
                 ? ThreadLocal.withInitial(() -> Probe.into(strippedFinal))
@@ -312,6 +323,11 @@ public final class SurfaceSampler {
 
     public int cellHeight() {
         return cellHeight;
+    }
+
+    /** Prepares further random states of this world (structures) like the sampler's own. */
+    public NoiseBinder binder() {
+        return binder;
     }
 
     /** The world's noises (same seed and wiring as the real world; the final density has no caves). */

@@ -22,6 +22,7 @@ import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.material.FluidState;
+import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import com.pockyl.dhturbo.DhTurbo;
 
@@ -233,6 +234,10 @@ final class VirtualLevel implements InvocationHandler {
             case "getLevel":
                 // Entities (a structure's mobs) need a real level. Pieces spawn them after placing their blocks.
                 throw new NoEntities();
+            case "getServer":
+                // Features of terrain mods load their templates through it (ReTerraForged's trees). Null on a client
+                // generating for a remote server: such features fail and are skipped there.
+                return ServerLifecycleHooks.getCurrentServer();
             case "getBlockEntity":
                 return count == 1 ? null : Optional.empty();
             case "getEntities", "players", "getEntitiesOfClass":

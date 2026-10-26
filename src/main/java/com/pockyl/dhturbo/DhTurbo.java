@@ -15,6 +15,7 @@ import com.pockyl.dhturbo.compare.GenerationComparison;
 import com.pockyl.dhturbo.compare.PregenBenchmark;
 import com.pockyl.dhturbo.dh.DhIntegration;
 import com.pockyl.dhturbo.network.WorldgenSharing;
+import com.pockyl.dhturbo.world.TerrainSupport;
 
 @Mod(DhTurbo.MOD_ID)
 public final class DhTurbo {
@@ -29,6 +30,7 @@ public final class DhTurbo {
     public DhTurbo(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
         WorldgenSharing.register(modBus);
+        TerrainSupport.register();
         GenerationComparison.registerIfRequested();
         PregenBenchmark.registerIfRequested();
         if (ModList.get().isLoaded("distanthorizons")) {

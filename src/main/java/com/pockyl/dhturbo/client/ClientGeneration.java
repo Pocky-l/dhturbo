@@ -14,6 +14,7 @@ import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.dh.LodTileWriter;
 import com.pockyl.dhturbo.dh.WorkerPool;
+import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.ReceivedWorldgen;
 import com.pockyl.dhturbo.world.WorldgenLoader;
@@ -85,7 +86,7 @@ public final class ClientGeneration {
             LodTileWriter writer = new LodTileWriter(level.levelWrapper, resolved.generator(), worldgen,
                     clientLevel.dimensionType(), seed,
                     biome -> biome.unwrapKey().flatMap(levelBiomes::getHolder).<Holder<Biome>>map(holder -> holder).orElse(biome),
-                    WorldgenLoader.templates(), null, () -> playerIn(clientLevel));
+                    WorldgenLoader.templates(), null, () -> playerIn(clientLevel), NoiseBinder.NONE);
             DhTurbo.LOGGER.info("Generating distant terrain of {} on this client", info);
             return Optional.of(writer);
         } catch (RuntimeException e) {

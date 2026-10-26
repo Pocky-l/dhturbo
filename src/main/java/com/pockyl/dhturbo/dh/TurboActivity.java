@@ -1,12 +1,14 @@
 package com.pockyl.dhturbo.dh;
 
 import com.pockyl.dhturbo.surface.StructurePrefetch;
+import com.pockyl.dhturbo.world.TerrainSupport;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -59,8 +61,10 @@ public final class TurboActivity {
     public static Optional<String> debugLine() {
         long done = DONE.sum();
         int running = Math.max(0, RUNNING.get());
+        Set<String> leftToDh = TerrainSupport.leftToDistantHorizons();
+        String note = leftToDh.isEmpty() ? "" : ", DH draws " + String.join(", ", leftToDh) + " (terrain not readable)";
         if (done == 0 && running == 0) {
-            return Optional.empty();
+            return note.isEmpty() ? Optional.empty() : Optional.of("DH Turbo: no tiles" + note);
         }
         long now = System.nanoTime();
         if (rateTime == 0) {
@@ -85,9 +89,10 @@ public final class TurboActivity {
         }
         long failed = FAILED.sum();
         long prepared = StructurePrefetch.totalAreas();
-        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running, CPU %.1f cores%s%s",
+        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running, CPU %.1f cores%s%s%s",
                 done, rate, msPerTile, running, cores,
-                prepared > 0 ? ", structures ready in " + prepared + " areas" : "", failed > 0 ? ", " + failed + " failed" : ""));
+                prepared > 0 ? ", structures ready in " + prepared + " areas" : "", failed > 0 ? ", " + failed + " failed" : "",
+                note));
     }
 
     /** CPU time used so far by the live threads of the generator (named "DH Turbo ..."), 0 when the JVM cannot tell. */

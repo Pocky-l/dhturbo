@@ -14,6 +14,7 @@ import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.dh.DhIntegration;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.ReceivedWorldgen;
+import com.pockyl.dhturbo.world.TerrainSupport;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +53,10 @@ public final class WorldgenSharing {
         }
         List<LevelGenInfo> levels = new ArrayList<>();
         for (ServerLevel level : player.server.getAllLevels()) {
-            LevelGenInfo.of(level).ifPresent(levels::add);
+            // Levels whose terrain a client cannot rebuild from the noise settings alone stay with Distant Horizons.
+            if (TerrainSupport.clientProblem(level).isEmpty()) {
+                LevelGenInfo.of(level).ifPresent(levels::add);
+            }
         }
         if (!levels.isEmpty()) {
             PacketDistributor.sendToPlayer(player, new WorldgenInfoPayload(player.server.overworld().getSeed(), levels));

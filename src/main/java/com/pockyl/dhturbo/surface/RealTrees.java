@@ -72,6 +72,7 @@ public final class RealTrees {
      * and with {@code plants} every other vegetation feature too.
      */
     private final Map<Holder<Biome>, int[]> biomeTrees = new HashMap<>();
+    private final Set<Holder<Biome>> replayedTrees = new HashSet<>();
     private final boolean plants;
     private final LongAdder failures = new LongAdder();
     private static final Map<String, Boolean> REPORTED = new ConcurrentHashMap<>();
@@ -101,7 +102,20 @@ public final class RealTrees {
         }
         for (Holder<Biome> biome : generator.getBiomeSource().possibleBiomes()) {
             biomeTrees.put(biome, treeIndices(biome));
+            if (generator.getBiomeGenerationSettings(biome).features().size() > STEP
+                    && generator.getBiomeGenerationSettings(biome).features().get(STEP).stream()
+                    .anyMatch(holder -> growsTrees(holder.value()))) {
+                replayedTrees.add(biome);
+            }
         }
+    }
+
+    /**
+     * Whether the biome's trees are replayed: it has the game's own tree features. Terrain mods may grow trees with
+     * features of their own that need the real level (ReTerraForged's templates); such biomes get approximated trees.
+     */
+    public boolean replaysTrees(Holder<Biome> biome) {
+        return replayedTrees.contains(biome);
     }
 
     /** Features that failed on the virtual level since the last call (they called something it cannot do). */

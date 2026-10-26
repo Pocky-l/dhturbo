@@ -152,6 +152,7 @@ public final class RealStructures {
         // The real noises (with caves): structures probe heights the way chunk generation does.
         this.randomState = RandomState.create(generator.generatorSettings().value(),
                 registries.lookupOrThrow(Registries.NOISE), seed);
+        sampler.binder().bind(randomState);
         this.state = ChunkGeneratorStructureState.createForNormal(randomState, seed, generator.getBiomeSource(),
                 registries.lookupOrThrow(Registries.STRUCTURE_SET));
         this.sets = state.possibleStructureSets().stream()

@@ -9,6 +9,7 @@ import net.minecraft.tags.BiomeTags;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
@@ -20,7 +21,10 @@ import net.minecraft.world.level.biome.TheEndBiomeSource;
 import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
+import net.minecraft.world.level.levelgen.FlatLevelSource;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
+import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.levelgen.flat.FlatLevelGeneratorSettings;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -31,12 +35,15 @@ import com.pockyl.dhturbo.dh.TurboActivity;
 import com.pockyl.dhturbo.surface.BiomeLook;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.GroundCover;
+import com.pockyl.dhturbo.surface.ProfileTerrain;
 import com.pockyl.dhturbo.surface.RealLakes;
 import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.StructurePrefetch;
 import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
+import com.pockyl.dhturbo.surface.TerrainCheck;
 import com.pockyl.dhturbo.world.LevelGenInfo;
+import com.pockyl.dhturbo.world.TerrainSupport;
 import com.pockyl.dhturbo.world.WorldgenLoader;
 
 import java.util.HashSet;
@@ -81,6 +88,64 @@ public final class ModGameTests {
             helper.assertFalse(Config.generates(Level.END), "an excluded dimension is left to Distant Horizons");
         } finally {
             Config.EXCLUDED_DIMENSIONS.set(configured);
+        }
+        helper.succeed();
+    }
+
+    /**
+     * A level is drawn only when this mod reads its terrain right: checked against the level's own generator. A sampler
+     * of other noise settings (here amplified terrain against the normal overworld, as a terrain mod the noise settings
+     * do not describe would look) fails the check, generators other than noise ones are not read at all, and the F3
+     * line names the levels left to Distant Horizons.
+     */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void unreadableTerrainIsLeftToDistantHorizons(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        Holder<NoiseGeneratorSettings> overworld = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> amplified = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.AMPLIFIED);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+        NoiseBasedChunkGenerator real = new NoiseBasedChunkGenerator(biomes, overworld);
+        RandomState realState = RandomState.create(overworld.value(), registries.lookupOrThrow(Registries.NOISE), SEED);
+        LevelHeightAccessor heights = LevelHeightAccessor.create(-64, 384);
+        long start = System.nanoTime();
+        TerrainCheck.Result same = TerrainCheck.run(new SurfaceSampler(registries, overworld.value(), biomes, SEED), null,
+                real, realState, heights, SEED);
+        long millis = (System.nanoTime() - start) / 1_000_000;
+        TerrainCheck.Result other = TerrainCheck.run(new SurfaceSampler(registries, amplified.value(), biomes, SEED), null,
+                real, realState, heights, SEED);
+        DhTurbo.LOGGER.info("Terrain check: same settings {}/{} ({} ms), amplified {}/{}", same.agreeing(), same.compared(),
+                millis, other.agreeing(), other.compared());
+        helper.assertTrue(same.passed(), "the overworld's own terrain is read right: " + same);
+        helper.assertFalse(other.passed(), "terrain the sampler does not read right is detected: " + other);
+        helper.assertTrue(other.reason() != null && other.reason().contains("agree on"), "the reason gives the numbers");
+
+        Holder<NoiseGeneratorSettings> netherSettings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getHolderOrThrow(NoiseGeneratorSettings.NETHER);
+        MultiNoiseBiomeSource netherBiomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
+        SurfaceSampler netherSampler = new SurfaceSampler(registries, netherSettings.value(), netherBiomes, SEED);
+        TerrainCheck.Result nether = TerrainCheck.run(netherSampler, new ProfileTerrain(netherSampler),
+                new NoiseBasedChunkGenerator(netherBiomes, netherSettings),
+                RandomState.create(netherSettings.value(), registries.lookupOrThrow(Registries.NOISE), SEED),
+                LevelHeightAccessor.create(0, 256), SEED);
+        helper.assertTrue(nether.passed(), "the Nether's caverns are read right: " + nether);
+
+        FlatLevelSource flat = new FlatLevelSource(FlatLevelGeneratorSettings.getDefault(registries.lookupOrThrow(Registries.BIOME),
+                registries.lookupOrThrow(Registries.STRUCTURE_SET), registries.lookupOrThrow(Registries.PLACED_FEATURE)));
+        helper.assertTrue(TerrainCheck.unreadable(flat) != null, "a flat world's generator is not read");
+        helper.assertTrue(TerrainCheck.unreadable(real) == null, "a noise generator is read");
+
+        TerrainSupport.leftToDistantHorizons(Level.END, "test");
+        try {
+            String line = TurboActivity.debugLine().orElse("");
+            helper.assertTrue(line.contains("DH draws minecraft:the_end"), "the F3 line names the level: " + line);
+        } finally {
+            TerrainSupport.drawnByUs(Level.END);
         }
         helper.succeed();
     }

@@ -17,6 +17,8 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.surface.TerrainCheck;
+import com.pockyl.dhturbo.world.TerrainSupport;
 import com.pockyl.dhturbo.world.ReceivedWorldgen;
 
 /**
@@ -95,14 +97,31 @@ public final class DhIntegration {
         if (levelWrapper.getLevelType() != EDhApiLevelType.SERVER_LEVEL) {
             return;
         }
-        if (!(levelWrapper.getWrappedMcObject() instanceof ServerLevel level)
-                || !(level.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator generator)) {
+        if (!(levelWrapper.getWrappedMcObject() instanceof ServerLevel level)) {
             return;
         }
+        String unreadable = TerrainCheck.unreadable(level.getChunkSource().getGenerator());
+        if (unreadable != null) {
+            leaveToDistantHorizons(level, unreadable);
+            return;
+        }
+        NoiseBasedChunkGenerator generator = (NoiseBasedChunkGenerator) level.getChunkSource().getGenerator();
         try {
+            TurboWorldGenerator turbo = new TurboWorldGenerator(levelWrapper, level, generator);
+            long start = System.nanoTime();
+            String problem = TerrainSupport.problem(level, turbo.builder());
+            if (problem != null) {
+                turbo.close();
+                leaveToDistantHorizons(level, problem);
+                return;
+            }
+            if (DhTurbo.DEBUG) {
+                DhTurbo.LOGGER.info("Terrain of {} checked in {} ms", levelWrapper.getDimensionName(),
+                        (System.nanoTime() - start) / 1_000_000);
+            }
+            TerrainSupport.drawnByUs(level.dimension());
             // Registered even while switched off, so generation can be switched on without reloading the world.
-            DhApiResult<Void> result = DhApi.worldGenOverrides.registerWorldGeneratorOverride(levelWrapper,
-                    new TurboWorldGenerator(levelWrapper, level, generator));
+            DhApiResult<Void> result = DhApi.worldGenOverrides.registerWorldGeneratorOverride(levelWrapper, turbo);
             if (result.success) {
                 applyPlan();
                 DhTurbo.LOGGER.info("Generating distant terrain of {} with DH Turbo", levelWrapper.getDimensionName());
@@ -113,5 +132,15 @@ public final class DhIntegration {
         } catch (RuntimeException e) {
             DhTurbo.LOGGER.error("Could not set up the generator for {}", levelWrapper.getDimensionName(), e);
         }
+    }
+
+    /**
+     * Not registering a generator leaves the level to DH's own one. With the plan override that is DH's rough surface
+     * (from the level's real noise, so terrain mods work there), or its full generation with {@code real_chunks_nearby}.
+     */
+    private static void leaveToDistantHorizons(ServerLevel level, String reason) {
+        TerrainSupport.leftToDistantHorizons(level.dimension(), reason);
+        DhTurbo.LOGGER.warn("DH Turbo cannot draw the distant terrain of {}: {}. Distant Horizons generates it instead",
+                level.dimension().location(), reason);
     }
 }

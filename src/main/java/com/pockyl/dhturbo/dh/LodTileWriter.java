@@ -17,6 +17,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
+import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.StructurePrefetch;
 
@@ -59,15 +60,20 @@ public final class LodTileWriter implements AutoCloseable {
     public LodTileWriter(IDhApiLevelWrapper levelWrapper, NoiseBasedChunkGenerator generator, RegistryAccess registries,
                          DimensionType dimensionType, long seed, UnaryOperator<Holder<Biome>> levelBiome,
                          @Nullable StructureTemplateManager templates, @Nullable GeneratorStats stats,
-                         Supplier<List<int[]>> players) {
+                         Supplier<List<int[]>> players, NoiseBinder binder) {
         this.levelWrapper = levelWrapper;
-        this.builder = new ColumnBuilder(generator, registries, dimensionType, seed, levelBiome, templates);
+        this.builder = new ColumnBuilder(generator, registries, dimensionType, seed, levelBiome, templates, binder);
         this.stats = stats;
         this.players = players;
         RealStructures structures = builder.realStructures();
         // Nothing is prepared while DH Turbo is switched off.
         this.prefetch = structures != null ? new StructurePrefetch(structures,
                 () -> Config.ENABLED.get() ? players.get() : List.of(), WorkerPool.get()) : null;
+    }
+
+    /** The column builder the tiles come from. */
+    public ColumnBuilder builder() {
+        return builder;
     }
 
     /** Stops preparing structures ahead. */

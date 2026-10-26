@@ -118,6 +118,16 @@ Results on 2026-10-15 (seed 20261009, 48 random areas within 20 000 blocks):
 With [Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith) and
 [Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic): top block kind 94.2%, land heights exact 95.7%.
 
+With [ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes)
+0.0.22 (its default preset): top block kind 90.5%, heights exact 60.3% and within 4 blocks 99%. Its terrain comes from
+its own heightmap, which the generator reads; the erosion it adds while chunks generate is not drawn, so land comes out
+1-4 blocks higher and eroded slopes keep their grass.
+
+Before drawing a world the generator compares 32 of its columns with the world's own generator (heights within 6
+blocks; the Nether and the End block by block) and needs 75% to agree. Vanilla and ReTerraForged worlds agree on 32 of
+32; the ReTerraForged world read without its heightmap (what 1.4.0 drew) on 0, amplified terrain checked against the
+normal overworld on 18. Worlds that fail are left to Distant Horizons' own generator.
+
 ### Speed
 
 In Distant Horizons' own pipeline: `/dh pregen` on a dedicated server with Distant Horizons 3.3.3 (its 6 world

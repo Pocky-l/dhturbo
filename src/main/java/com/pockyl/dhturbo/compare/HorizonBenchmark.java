@@ -6,6 +6,7 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.dh.WorkerPool;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
+import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.StructurePrefetch;
 
@@ -57,7 +58,7 @@ final class HorizonBenchmark {
             int originX = random.nextInt(20_000) - 10_000;
             int originZ = random.nextInt(20_000) - 10_000;
             ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
-                    level.getSeed(), UnaryOperator.identity(), level.getStructureManager());
+                    level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
             List<Tile> tiles = tiles(originX, originZ, radius);
             RealStructures structures = builder.realStructures();
             StructurePrefetch prefetcher = prefetch && structures != null ? new StructurePrefetch(structures,

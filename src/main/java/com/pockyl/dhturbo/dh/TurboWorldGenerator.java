@@ -23,6 +23,8 @@ import net.neoforged.fml.loading.FMLEnvironment;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.surface.ColumnBuilder;
+import com.pockyl.dhturbo.surface.NoiseBinder;
 
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -64,7 +66,12 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         boolean structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
         this.writer = new LodTileWriter(levelWrapper, generator, level.registryAccess(), level.dimensionType(),
                 level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats,
-                () -> Players.positions(level));
+                () -> Players.positions(level), NoiseBinder.of(level));
+    }
+
+    /** The column builder of this level's tiles. */
+    ColumnBuilder builder() {
+        return writer.builder();
     }
 
     /**
