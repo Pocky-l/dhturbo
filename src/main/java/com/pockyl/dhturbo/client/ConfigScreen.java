@@ -21,15 +21,16 @@ import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
 /**
  * The in-game config editor behind the Config button of the mod list. Forge for 1.20.1 has no generic one, so this
- * screen walks the config spec: a switch for every flag and a text field for every number, named and explained by the
- * translation keys of the config (the comment when there is no translated tooltip). Changes are saved when the screen
- * is closed.
+ * screen walks the config spec: a switch for every flag, a text field for every number and a text field of comma-separated
+ * entries for every list, named and explained by the translation keys of the config (the comment when there is no
+ * translated tooltip). Changes are saved when the screen is closed.
  */
 public final class ConfigScreen extends Screen {
     private static final String KEY = DhTurbo.MOD_ID + ".configuration.";
@@ -93,6 +94,9 @@ public final class ConfigScreen extends Screen {
         if (current instanceof Double) {
             return numberBox(screen, name, valueSpec, value, current, Double::valueOf);
         }
+        if (current instanceof List<?> list) {
+            return listBox(screen, name, valueSpec, value, list);
+        }
         return null;
     }
 
@@ -110,6 +114,26 @@ public final class ConfigScreen extends Screen {
                 parsed = null;
             }
             boolean valid = parsed != null && !(parsed instanceof Double number && !Double.isFinite(number)) && valueSpec.test(parsed);
+            box.setTextColor(valid ? VALID_COLOR : INVALID_COLOR);
+            if (valid) {
+                screen.set(value, parsed);
+            }
+        });
+        return box;
+    }
+
+    /** A text field of the entries separated by commas; it takes the list once every entry is valid, until then it shows red. */
+    private static EditBox listBox(ConfigScreen screen, Component name, ForgeConfigSpec.ValueSpec valueSpec,
+            ForgeConfigSpec.ConfigValue<?> value, List<?> current) {
+        EditBox box = new EditBox(Minecraft.getInstance().font, 0, 0, CONTROL_WIDTH, 20, name);
+        box.setMaxLength(1024);
+        box.setValue(String.join(", ", current.stream().map(String::valueOf).toList()));
+        box.setResponder(text -> {
+            List<String> parsed = Arrays.stream(text.split(","))
+                    .map(String::trim)
+                    .filter(entry -> !entry.isEmpty())
+                    .toList();
+            boolean valid = valueSpec.test(parsed);
             box.setTextColor(valid ? VALID_COLOR : INVALID_COLOR);
             if (valid) {
                 screen.set(value, parsed);
