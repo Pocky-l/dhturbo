@@ -82,7 +82,7 @@ Seibel and the Distant Horizons team; the logo is the Distant Horizons icon with
 
 **🎨 Graphics & performance**
 
-[![Pocky Shaders](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/pocky_shaders.png)](https://www.curseforge.com/minecraft/mc-mods/pocky-shaders) **[Pocky Shaders](https://www.curseforge.com/minecraft/mc-mods/pocky-shaders)** - a cosy, natural shader pack that sets itself up
+[![Pocky Shaders](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/more-mods/pocky_shaders.png)](https://www.curseforge.com/minecraft/shaders/pocky-shaders) **[Pocky Shaders](https://www.curseforge.com/minecraft/shaders/pocky-shaders)** - a cosy, natural shader pack that shows the weather of these mods
 
 **⚔️ Gear & gameplay**
 
