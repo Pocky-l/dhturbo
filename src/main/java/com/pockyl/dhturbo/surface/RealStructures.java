@@ -132,6 +132,8 @@ public final class RealStructures {
     private final LongAdder failures = new LongAdder();
     /** Nanoseconds spent per phase: finding starts, terrain, terrain adaptation, pieces. */
     private final LongAdder[] timings = {new LongAdder(), new LongAdder(), new LongAdder(), new LongAdder()};
+    /** Per structure: nanoseconds, tries and valid starts. */
+    private final Map<String, LongAdder[]> startCosts = new ConcurrentHashMap<>();
     private static final Map<String, Boolean> REPORTED = new ConcurrentHashMap<>();
 
     public RealStructures(NoiseBasedChunkGenerator generator, SurfaceSampler sampler, StructureTemplateManager templates,
@@ -187,9 +189,15 @@ public final class RealStructures {
 
     /** Milliseconds spent so far finding starts, sampling terrain, adapting it and placing pieces. */
     public String timings() {
-        return String.format("starts %d ms, terrain %d ms, adaptation %d ms, pieces %d ms",
+        StringBuilder costly = new StringBuilder();
+        startCosts.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue()[0].sum(), a.getValue()[0].sum())).limit(10)
+                .forEach(entry -> costly.append(String.format(java.util.Locale.ROOT, " %s %d ms/%d tries/%d valid;",
+                        entry.getKey(), entry.getValue()[0].sum() / 1_000_000, entry.getValue()[1].sum(),
+                        entry.getValue()[2].sum())));
+        return String.format("starts %d ms, terrain %d ms, adaptation %d ms, pieces %d ms |%s",
                 timings[0].sum() / 1_000_000, timings[1].sum() / 1_000_000, timings[2].sum() / 1_000_000,
-                timings[3].sum() / 1_000_000);
+                timings[3].sum() / 1_000_000, costly);
     }
 
     /** Structures reaching into a block area (inclusive bounds), built block-exactly and cached. */
@@ -323,8 +331,16 @@ public final class RealStructures {
         if (structure instanceof OceanMonumentStructure && !monumentSurroundingPossible(chunk)) {
             return null;
         }
+        long begin = System.nanoTime();
         StructureStart start = structure.generate(registries, generator, generator.getBiomeSource(), randomState,
                 templates, seed, chunk, 0, heightAccessor, structure.biomes()::contains);
+        LongAdder[] cost = startCosts.computeIfAbsent(name(structure),
+                key -> new LongAdder[]{new LongAdder(), new LongAdder(), new LongAdder()});
+        cost[0].add(System.nanoTime() - begin);
+        cost[1].increment();
+        if (start.isValid()) {
+            cost[2].increment();
+        }
         return start.isValid() ? start : null;
     }
 

@@ -25,6 +25,12 @@ and caves make every column expensive. Three things make it cheap here:
   `interpolated` marker), not the squeezed final density. Columns between corners interpolate the corner densities
   trilinearly, as vanilla does, using the real values with caves.
 
+Terrain and biomes read the same noises (continentalness, erosion, ridges): one set of column caches serves both,
+as vanilla's noise chunk does, so each is computed once per column.
+
+Wider columns stand on cell corners, where the search gives the real height directly, so every column gets its own
+search instead of a blend of its neighbours.
+
 Result: heights equal the real world on 98% of full-detail columns (the rest are mostly cave openings, which the
 distant terrain leaves closed).
 
@@ -40,10 +46,10 @@ badlands bands, hoodoos and icebergs come out as in the real world. Snow layers 
 
 Vanilla decorates a chunk by seeding one random per feature from the world seed, the chunk position and the feature's
 index in its generation step. Seeds do not depend on other features, so the vegetation of a chunk can be replayed on
-its own. Near the player the mod replays every surface vegetation feature (trees, grass, flowers, sugar cane, pumpkins)
-with vanilla's seeds on a `VirtualLevel`: a `WorldGenLevel` implementation that reads the computed terrain and records
-the blocks placed. Trees therefore stand where the game will grow them, with the same species and shape. Farther away,
-where one column covers several blocks, trees and plants are approximated per biome.
+its own. Up to 4-block columns the mod replays every surface vegetation feature (trees, grass, flowers, sugar cane,
+pumpkins) with vanilla's seeds on a `VirtualLevel`: a `WorldGenLevel` implementation that reads the computed terrain and
+records the blocks placed. Trees therefore stand where the game will grow them, with the same species and shape; a wide
+column shows what stands on its corner. Farther away trees and plants are approximated per biome.
 
 ## 4. Structures (`surface/RealStructures`)
 
@@ -73,7 +79,18 @@ are built from the full vertical profile: the density on every cell level of the
 block, then the surface rules over the whole column (netherrack, soul sand valleys, nylium, basalt deltas, bedrock
 floor and roof). Fortresses, bastions and end cities are built as in section 4.
 
-## 6. Speed
+## 6. Exact terrain near the player (`surface/ExactChunks`, `dh/ExactRefiner`)
+
+The sections above are a fast approximation. While the generator has nothing else to do, the chunks within `exact_radius`
+of a player are generated for real: biomes, noise, surface, carvers, features and structures run as in chunk generation,
+on proto chunks of our own, without the chunk map, lighting or saving. Decorating a chunk needs its neighbours up to the
+carver step, so chunks come in batches of 8 x 8 sharing a two-chunk border (2.25 proto chunks per chunk; the idea is from
+[Horizon](https://github.com/horizon-rust/horizon)). Chunks three apart are decorated in parallel. They reach Distant
+Horizons through its API for real chunks, so it lights and stores them like chunks a player loaded, and chunks it
+already holds as real are left alone. A chunk costs about 75 ms of CPU, against about 6 ms for the fast tile, so this
+runs at the lowest priority on half of the workers.
+
+## 7. Speed
 
 - One tile is split over every worker thread (fork-join), so a single request uses the whole CPU.
 - Structures, the most expensive part, are built once and cached.
@@ -96,13 +113,22 @@ by column and block by block:
 It starts a dedicated server on a fixed seed in `run/compare/`, writes `run/compare/dhturbo-compare.txt` and stops.
 To include terrain mods, put their jars in `run/compare/mods/` and add `-PcompareWorld=<new world name>`.
 
-Results on 2026-10-15 (seed 20261009, 48 random areas within 20 000 blocks):
+Results on 2026-11-06 (seed 20261009, 48 random areas within 20 000 blocks; real and generated columns go through the
+same check):
 
-| What | Full-detail columns | 4-block columns |
-|---|---|---|
-| Terrain height exact | 98.2% | 80.6% (97% with `full_resolution`) |
-| Top block kind | 98.2% | 97.1% |
-| Snowy columns | 99.7% | 100% |
+| What | 1 block | 4 blocks | 8 blocks | 16 blocks | Exact pass |
+|---|---|---|---|---|---|
+| Height exact, all columns | 98.1% | 96.3% | 97.5% | 98.6% | 100% |
+| Height exact, land above y 66 | 97.6% | 93.6% | 95.4% | 96.3% | 100% |
+| Top block kind | 98.3% | 97.7% | 98.6% | 99.3% | 100% |
+| Biome | 99.7% | 99.7% | 99.7% | 99.5% | 99.2% |
+| Blocks from 8 under the ground up | 99.3% | 99.1% | 98.5% | 98.6% | 99.75% |
+
+Exact pass: 6 to 8 areas, `-PcompareExact=1`. Its biome line compares one block lower than the real column.
+
+No generator can reach 100% of the blocks. The game's own result depends on the order chunks are generated in, because
+trees of neighbouring chunks overlap: the same chunks decorated in opposite orders agree on 99.73% of all blocks and on
+68% of whole columns. The exact pass stands at 99.72% against real chunks, which is that limit; its ground is identical.
 
 | Structures (12 per world, real chunks generated under them) | Result |
 |---|---|
@@ -116,7 +142,7 @@ Results on 2026-10-15 (seed 20261009, 48 random areas within 20 000 blocks):
 | End | 100% |
 
 With [Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith) and
-[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic): top block kind 94.2%, land heights exact 95.7%.
+[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic): top block kind 93.5%, heights exact 98.1%, land 95.1%.
 
 With [ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes)
 0.0.22 (its default preset): top block kind 90.5%, heights exact 60.3% and within 4 blocks 99%. Its terrain comes from
@@ -139,10 +165,13 @@ generator threads), 64 chunks around 0 0 (16 384 chunks, full detail), seed 2026
 
 | Generator | Time | Chunks per second | CPU time |
 |---|---|---|---|
-| This mod | 35.1 s | 467 | 236 s |
-| This mod, `structures = false` | 33.1 s | 496 | 231 s |
-| Distant Horizons, default plan (real chunks) | 131.1 s | 125 | 821 s |
-| Distant Horizons, `SURFACE_ONLY` (rough surface) | 164.2 s | 100 | 989 s |
+| This mod | 18 s | about 900 | 146 s |
+| This mod 1.5.0 | 33 s | about 500 | 224 s |
+| Distant Horizons, default plan (real chunks) | 131 to 214 s | 77 to 125 | 821 to 1081 s |
+| Distant Horizons, `SURFACE_ONLY` (rough surface) | 164 to 197 s | 83 to 100 | 989 to 1137 s |
+
+Medians of six runs alternating with the old version, on a machine doing other work too; single runs vary by 20%. The
+Distant Horizons rows are the two runs we have, the faster one from 2026-10-16.
 
 Switch the mod off (`enabled = false`) and set Distant Horizons' `generatorPlan` for the other rows. Full detail is
 the costliest part of the horizon; farther out the mod samples fewer columns, while the default plan still generates
@@ -155,14 +184,15 @@ Filling the horizon around a player, without Distant Horizons (the generator alo
 ```
 
 fills the horizon around three fresh spawns the way Distant Horizons asks for it: tiles of 64 columns, finer near the
-player, nearest first, as many in flight as Distant Horizons allows. Results on 2026-10-15, 6 worker threads, 4096
+player, nearest first, as many in flight as Distant Horizons allows. 6 worker threads in 1.5.0, 8 in this version, 4096
 blocks around the player:
 
 | | Horizon filled |
 |---|---|
-| Terrain only (`structures = false`) | 4.1-6.0 s |
+| Terrain only (`structures = false`), 1.3.0 | 4.1-6.0 s |
 | With structures, first version | 12.9-15.2 s |
-| With structures, two builds and cheaper searches | 7.2-8.9 s |
+| With structures, 1.5.0 | 7.4-9.6 s |
+| With structures, more trees and exact heights, this version | 5.1-8.7 s |
 
 At Distant Horizons' pace in game (20 tiles a second here), the idle time prepares the structures ahead. Time per tile
 1-2 km out (detail 3): p95 310-710 ms without, 40-45 ms with it.

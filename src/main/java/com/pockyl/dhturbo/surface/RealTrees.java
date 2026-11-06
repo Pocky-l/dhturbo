@@ -198,7 +198,9 @@ public final class RealTrees {
             pos.set(entry.getLongKey());
             int i = Math.floorDiv(pos.getX() - minX, spacing);
             int j = Math.floorDiv(pos.getZ() - minZ, spacing);
-            if (i < 0 || j < 0 || i >= width || j >= width) {
+            // A wide column shows what stands on its corner, like every other block of it.
+            if (i < 0 || j < 0 || i >= width || j >= width
+                    || pos.getX() != minX + i * spacing || pos.getZ() != minZ + j * spacing) {
                 continue;
             }
             int index = i + j * width;

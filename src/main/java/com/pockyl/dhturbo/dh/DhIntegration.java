@@ -39,6 +39,19 @@ public final class DhIntegration {
         });
     }
 
+    /** Measuring tools: the Distant Horizons wrapper of a level with a generator of ours. */
+    public static IDhApiLevelWrapper levelWrapper(ServerLevel level) {
+        return TurboWorldGenerator.refiner(level.dimension()).wrapper();
+    }
+
+    /** Measuring tools: replaces one batch of chunks with real generation now; returns the chunks handed to DH. */
+    public static long refineNow(ServerLevel level, int batchX, int batchZ) throws Exception {
+        ExactRefiner refiner = TurboWorldGenerator.refiner(level.dimension());
+        long before = refiner.refined();
+        refiner.refine(batchX, batchZ);
+        return refiner.refined() - before;
+    }
+
     /** Whether DH Turbo generates; when off, its generators hand every request to DH's own generator. */
     public static boolean active() {
         return Config.ENABLED.get();

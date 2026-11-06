@@ -26,6 +26,7 @@ public final class TurboActivity {
     private static final LongAdder FAILED = new LongAdder();
     private static final LongAdder NANOS = new LongAdder();
     private static final AtomicInteger RUNNING = new AtomicInteger();
+    private static volatile long lastStart = System.nanoTime();
 
     private static long rateCount;
     private static long rateTime;
@@ -41,7 +42,13 @@ public final class TurboActivity {
     }
 
     /** A tile started generating; returns the start time to pass to {@link #finished} or {@link #failed}. */
+    /** Time since the last tile was started. */
+    public static long idleNanos() {
+        return RUNNING.get() > 0 ? 0 : System.nanoTime() - lastStart;
+    }
+
     public static long started() {
+        lastStart = System.nanoTime();
         RUNNING.incrementAndGet();
         return System.nanoTime();
     }

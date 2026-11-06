@@ -15,12 +15,14 @@ from the world noise, with the game's own trees and structures.
 
 - 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: the horizon fills as fast as the land
   around you.
-- 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): 3.7x faster than its
-  default chunk generation and 4.7x faster than its rough surface mode, with a quarter of the CPU time; heights equal
-  the real world on 98% of columns near you, checked against real chunks
+- 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): about 7x faster than its
+  default chunk generation with under a fifth of the CPU time; 94-98% of land columns have the real height at every
+  distance and biomes agree on 99.5%, checked against real chunks
   ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)).
-- 🌲 **Real trees and plants nearby** - the game's own vegetation is replayed: trees, grass, flowers, sugar cane and
-  pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
+- 🎯 **Exact terrain near you** - while the generator is idle, the chunks around you are redrawn by the game's real
+  generator: ground 100% as in the real world, with caves, ores and every tree. Lowest priority, config `exact_radius`.
+- 🌲 **Real trees and plants** - the game's own vegetation is replayed up to 4-block columns: trees, grass, flowers,
+  sugar cane and pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
   distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
   by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
@@ -35,7 +37,8 @@ from the world noise, with the game's own trees and structures.
 - 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
   themselves, even without Distant Horizons on the server.
 
-**Limits:** underground structures (mineshafts, strongholds, ancient cities) and caves are not drawn.
+**Limits:** beyond `exact_radius`, underground structures (mineshafts, strongholds, ancient cities) and caves are not
+drawn.
 
 ## 🧩 Compatibility
 
@@ -52,8 +55,8 @@ A world whose terrain the mod cannot read (a mod with its own chunk generator) i
 
 ## ⚙️ Configuration
 
-*Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, full resolution, distant and real
-trees, structures, the world's surface rules, grass and flowers, soft plant colours, real chunks nearby (follow the
+*Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, exact terrain radius, full resolution,
+distant and real trees, structures, the world's surface rules, grass and flowers, soft plant colours, real chunks nearby (follow the
 Distant Horizons generator plan), dimensions to leave to Distant Horizons (`excluded_dimensions`). Servers can stop
 sharing the world seed (`share_worldgen`).
 

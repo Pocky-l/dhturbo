@@ -1,14 +1,23 @@
 package com.pockyl.dhturbo.compare;
 
+import com.seibel.distanthorizons.api.DhApi;
+import com.seibel.distanthorizons.api.interfaces.world.IDhApiLevelWrapper;
+import com.seibel.distanthorizons.api.objects.DhApiResult;
+import com.seibel.distanthorizons.api.objects.data.DhApiTerrainDataPoint;
 import net.minecraft.commands.CommandSource;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.dh.DhIntegration;
 import com.pockyl.dhturbo.dh.TurboActivity;
 
 import java.io.IOException;
@@ -18,6 +27,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -32,6 +42,8 @@ import java.util.concurrent.TimeUnit;
  */
 public final class PregenBenchmark {
     private static final long WARM_UP_MILLIS = 10_000;
+    /** Distant Horizons keeps new data in memory for up to 10 s before it can be read back. */
+    private static final long EXACT_SETTLE_MILLIS = 15_000;
     private static final long POLL_MILLIS = 1_000;
     private static final long TIMEOUT_MILLIS = TimeUnit.MINUTES.toMillis(60);
 
@@ -78,15 +90,19 @@ public final class PregenBenchmark {
                     "%s: radius %d chunks (%d chunks), %s in %.1f s, %.0f chunks/s, CPU %.0f s (%.1f cores), DH Turbo tiles %d",
                     label, radius, side * side, done ? "done" : "TIMED OUT", seconds, side * side / seconds, cpuSeconds,
                     cpuSeconds / seconds, tiles() - tilesBefore);
+            if (Boolean.getBoolean(DhTurbo.MOD_ID + ".pregen.exact")) {
+                result += System.lineSeparator() + exactCheck(server);
+            }
         } catch (InterruptedException e) {
             return;
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             result = label + ": failed: " + e;
             DhTurbo.LOGGER.error("[pregen] benchmark failed", e);
         }
         DhTurbo.LOGGER.info("[pregen] {}", result);
         try {
-            Files.write(server.getServerDirectory().resolve("dhturbo-pregen.txt"), List.of(result),
+            Files.write(server.getServerDirectory().resolve("dhturbo-pregen.txt"),
+                    List.of(result + " | " + com.pockyl.dhturbo.surface.BuildProfile.report()),
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
             DhTurbo.LOGGER.error("[pregen] cannot write the report", e);
@@ -130,6 +146,66 @@ public final class PregenBenchmark {
         synchronized (output) {
             return output.toString();
         }
+    }
+
+    /**
+     * Replaces two batches away from spawn with real generation through Distant Horizons' own path, reads back what it
+     * stored, and only then generates the real chunks there to compare (a loaded chunk would replace the stored data).
+     */
+    private static String exactCheck(MinecraftServer server) throws Exception {
+        ServerLevel level = server.overworld();
+        IDhApiLevelWrapper wrapper = DhIntegration.levelWrapper(level);
+        Map<Long, DhApiTerrainDataPoint> fast = storedTops(wrapper);
+        long begin = System.nanoTime();
+        long handed = DhIntegration.refineNow(level, 2, 2) + DhIntegration.refineNow(level, 3, 2);
+        double seconds = (System.nanoTime() - begin) / 1e9;
+        Thread.sleep(EXACT_SETTLE_MILLIS);
+        Map<Long, DhApiTerrainDataPoint> exact = storedTops(wrapper);
+        int[] counts = new int[3];
+        for (Map.Entry<Long, DhApiTerrainDataPoint> entry : exact.entrySet()) {
+            int x = BlockPos.getX(entry.getKey());
+            int z = BlockPos.getZ(entry.getKey());
+            BlockPos surface = server.submit(() -> new BlockPos(x, level.getChunk(x >> 4, z >> 4)
+                    .getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15), z)).join();
+            BlockState real = server.submit(() -> level.getBlockState(surface)).join();
+            counts[0]++;
+            counts[1] += sameTop(entry.getValue(), surface, real, level) ? 1 : 0;
+            DhApiTerrainDataPoint before = fast.get(entry.getKey());
+            counts[2] += before != null && sameTop(before, surface, real, level) ? 1 : 0;
+        }
+        return String.format(Locale.ROOT, "exact pass: %d chunks handed to DH in %.1f s; of %d stored columns the top block "
+                + "and height equal the real chunk on %d after the pass, %d before it (trees included)", handed, seconds,
+                counts[0], counts[1], counts[2]);
+    }
+
+    private static boolean sameTop(DhApiTerrainDataPoint top, BlockPos surface, BlockState real, ServerLevel level) {
+        boolean height = top.topYBlockPos == surface.getY() + 1
+                || top.topYBlockPos == surface.getY() + 1 - level.getMinBuildHeight();
+        return height && top.blockStateWrapper.getWrappedMcObject() == real;
+    }
+
+    /** The highest stored block of every third column of the checked area. */
+    private static Map<Long, DhApiTerrainDataPoint> storedTops(IDhApiLevelWrapper wrapper) {
+        Map<Long, DhApiTerrainDataPoint> tops = new java.util.HashMap<>();
+        var cache = DhApi.Delayed.terrainRepo.createSoftCache();
+        for (int x = 256; x < 512; x += 3) {
+            for (int z = 256; z < 384; z += 3) {
+                DhApiResult<DhApiTerrainDataPoint[]> column = DhApi.Delayed.terrainRepo.getColumnDataAtBlockPos(wrapper, x, z, cache);
+                if (!column.success || column.payload == null) {
+                    continue;
+                }
+                DhApiTerrainDataPoint top = null;
+                for (DhApiTerrainDataPoint point : column.payload) {
+                    if (point != null && !point.blockStateWrapper.isAir() && (top == null || point.topYBlockPos > top.topYBlockPos)) {
+                        top = point;
+                    }
+                }
+                if (top != null) {
+                    tops.put(BlockPos.asLong(x, 0, z), top);
+                }
+            }
+        }
+        return tops;
     }
 
     private static long processCpuNanos() {

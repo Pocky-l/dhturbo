@@ -13,6 +13,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.surface.BuildProfile.Stage;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -31,10 +32,10 @@ public final class ColumnBuilder {
     private static final int MAX_LIGHT = 15;
     private static final BlockState SNOW_LAYER = Blocks.SNOW.defaultBlockState();
     /**
-     * Columns at most this wide get the game's own trees (when enabled); wider ones approximate trees. Only full-detail
-     * tiles: with 2-block columns the replay tripled the cost of tiles that are already 500+ blocks away.
+     * Columns at most this wide get the game's own trees (when enabled), wider ones approximate trees: the cost grows
+     * with the area of the tile, 10 ms at full detail, 30 ms with 2-block columns, 120 ms with 4-block columns.
      */
-    private static final int REAL_TREES_MAX_SPACING = 1;
+    private static final int REAL_TREES_MAX_SPACING = 4;
     /** Rows of columns per parallel band. */
     private static final int BAND_ROWS = 8;
 
@@ -89,6 +90,10 @@ public final class ColumnBuilder {
      * registries come from local data packs without tags.
      */
     private final UnaryOperator<Holder<Biome>> levelBiome;
+    /** Real generation for detailed tiles, or null. */
+    @Nullable
+    private volatile ExactChunks exact;
+    private volatile int exactMaxSpacing;
 
     /**
      * @param templates the structure templates of the world (its data packs), or null to leave structures out (also
@@ -160,6 +165,12 @@ public final class ColumnBuilder {
         }
     }
 
+    /** Tiles with columns up to {@code maxSpacing} blocks wide come from real generation from now on. */
+    public void useExact(@Nullable ExactChunks exact, int maxSpacing) {
+        this.exact = exact;
+        this.exactMaxSpacing = maxSpacing;
+    }
+
     /** The structures of the world, or null when they are off or there are none. */
     @Nullable
     public RealStructures realStructures() {
@@ -188,17 +199,28 @@ public final class ColumnBuilder {
      * failed.
      */
     public long build(int minX, int minZ, int spacing, int width, Sink sink) {
+        BuildProfile.tile();
+        ExactChunks real = exact;
+        if (real != null && spacing <= exactMaxSpacing && real.tile(minX, minZ, spacing, width, levelBiome, sink)) {
+            return 0;
+        }
         if (profile != null) {
             return buildProfiles(minX, minZ, spacing, width, sink);
         }
-        boolean real = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
+        long lap = System.nanoTime();
+        boolean replay = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
         // A margin of columns around the tile: slopes at the edges, and trees of neighbouring chunks.
-        int margin = real ? RealTrees.MARGIN / spacing + 1 : 1;
+        int margin = replay ? (RealTrees.MARGIN + spacing - 1) / spacing : 1;
         // Keep the area's lattice on vanilla's cell corners (multiples of 4 blocks): the tile's own corner is one.
         int cellColumns = Math.max(1, SurfaceTile.CELL_WIDTH / spacing);
         margin = (margin + cellColumns - 1) / cellColumns * cellColumns;
+        // Columns at least a cell apart stand on cell corners: each one's own search is the real height there, while
+        // heights between two of them miss every hill narrower than the gap. Corner densities (caves pulling at the
+        // surface between corners) only matter when columns lie between corners, or with full_resolution.
+        boolean wide = spacing >= SurfaceTile.CELL_WIDTH;
         SurfaceTile area = SurfaceTile.generate(sampler, minX - margin * spacing, minZ - margin * spacing, spacing,
-                width + 2 * margin, fullResolution ? 1 : 2);
+                width + 2 * margin, fullResolution || wide ? 1 : 2, fullResolution || !wide);
+        lap = BuildProfile.lap(Stage.LATTICE, lap);
         List<RealStructures.Built> structures = realStructures != null && spacing <= RealStructures.MAX_SPACING
                 ? realStructures.around(area.minX, area.minZ, area.minX + area.width * spacing - 1,
                         area.minZ + area.width * spacing - 1, spacing <= RealStructures.FINE_MAX_SPACING)
@@ -214,16 +236,25 @@ public final class ColumnBuilder {
                 }
             }
         }
-        RealTrees.TileTrees trees = real ? realTrees.plant(area, minX, minZ, width, areaTops(area)) : null;
+        lap = BuildProfile.lap(Stage.STRUCTURES, lap);
+        // Full-detail tiles run the surface rules once, over the area: trees check the ground they make.
+        VanillaSurface.Column[] ruled = replay && spacing == 1 && vanillaSurface != null ? ruledArea(area) : null;
+        BlockState[] tops = ruled != null ? tops(area, ruled) : null;
+        lap = BuildProfile.lap(Stage.TOPS, lap);
+        RealTrees.TileTrees trees = replay ? realTrees.plant(area, minX, minZ, width, tops) : null;
+        lap = BuildProfile.lap(Stage.TREES, lap);
         RealLakes.Lake[] lakes = realLakes != null && spacing <= RealLakes.MAX_SPACING
                 ? realLakes.plan(minX, minZ, spacing, width)
                 : null;
-        long failures = (real ? realTrees.takeFailures() : 0)
+        long failures = (replay ? realTrees.takeFailures() : 0)
                 + (realStructures != null ? realStructures.takeFailures() : 0);
+        lap = BuildProfile.lap(Stage.LAKES, lap);
         // Columns are built in parallel bands of rows (each with its own surface rule pass), then handed to the sink in
         // order on this thread.
         @SuppressWarnings("unchecked")
         List<Layer>[] columns = (List<Layer>[]) new List[width * width];
+        @SuppressWarnings("unchecked")
+        Holder<Biome>[] columnBiomes = (Holder<Biome>[]) new Holder[width * width];
         int edge = margin;
         List<Runnable> bands = new ArrayList<>();
         for (int first = 0; first < width; first += BAND_ROWS) {
@@ -231,7 +262,7 @@ public final class ColumnBuilder {
             int to = Math.min(width, first + BAND_ROWS);
             bands.add(() -> {
                 VanillaSurface.Pass rules = null;
-                if (vanillaSurface != null) {
+                if (vanillaSurface != null && ruled == null) {
                     int seaLevel = sampler.seaLevel();
                     rules = vanillaSurface.pass(minX, minZ + from * spacing, spacing == 1
                             ? (x, z) -> Math.max(area.heightAt(x, z), seaLevel)
@@ -267,13 +298,20 @@ public final class ColumnBuilder {
                         // The game's own plants when the vegetation was replayed; otherwise placed by hash.
                         Plants plants = trees != null && realTrees.plants() ? new Plants(true, realPlant) : HASHED;
                         RealLakes.Lake lake = lakes != null ? lakes[i + j * width] : null;
+                        Holder<Biome> columnBiome = area.biome(i + edge, j + edge);
                         if (lake != null && !covered) {
                             lakeColumn(points, lake);
                         } else {
-                            column(points, x, z, area, i + edge, j + edge, canopy, treeTop, rules, covered, plants);
+                            VanillaSurface.Column made = ruled != null ? ruled[i + edge + (j + edge) * area.width]
+                                    : rules != null ? rules.column(x, z, area.height(i + edge, j + edge)) : null;
+                            if (made != null) {
+                                columnBiome = made.biome();
+                            }
+                            column(points, x, z, area, i + edge, j + edge, canopy, treeTop, made, covered, plants);
                         }
+                        columnBiomes[i + j * width] = columnBiome;
                         if (structure != null) {
-                            overlay(points, structure, x, z, levelBiome.apply(area.biome(i + edge, j + edge)));
+                            overlay(points, structure, x, z, levelBiome.apply(columnBiome));
                         }
                         columns[i + j * width] = points;
                     }
@@ -281,11 +319,13 @@ public final class ColumnBuilder {
             });
         }
         SurfaceTile.run(bands);
+        lap = BuildProfile.lap(Stage.COLUMNS, lap);
         for (int i = 0; i < width; i++) {
             for (int j = 0; j < width; j++) {
-                sink.column(i, j, levelBiome.apply(area.biome(i + margin, j + margin)), columns[i + j * width]);
+                sink.column(i, j, levelBiome.apply(columnBiomes[i + j * width]), columns[i + j * width]);
             }
         }
+        BuildProfile.lap(Stage.SINK, lap);
         return failures;
     }
 
@@ -396,11 +436,11 @@ public final class ColumnBuilder {
      * @param treeTop top block the trees replaced (podzol under giant spruces), or null
      */
     private void column(List<Layer> points, int x, int z, SurfaceTile area, int i, int j,
-                        FakeTrees.Canopy canopy, BlockState treeTop, @Nullable VanillaSurface.Pass rules, boolean covered,
+                        FakeTrees.Canopy canopy, BlockState treeTop, @Nullable VanillaSurface.Column ruled, boolean covered,
                         Plants plants) {
         int ground = area.height(i, j);
-        if (rules != null) {
-            ruledColumn(points, x, z, area, i, j, canopy, treeTop, rules.column(x, z, ground), covered, plants);
+        if (ruled != null) {
+            ruledColumn(points, x, z, area, i, j, canopy, treeTop, ruled, covered, plants);
             return;
         }
         // The level's own holder: on a client only it carries biome tags (they come from the server).
@@ -475,16 +515,22 @@ public final class ColumnBuilder {
         }
     }
 
-    /**
-     * The top block of every column of a full-detail area as the world's surface rules make it (null where it is water
-     * or the rules cannot run), for the trees that check the ground they grow on.
-     */
-    @Nullable
-    private BlockState[] areaTops(SurfaceTile area) {
-        if (vanillaSurface == null) {
-            return null;
+    /** The top block of every column of an area as the surface rules made it, null where it is water. */
+    private BlockState[] tops(SurfaceTile area, VanillaSurface.Column[] ruled) {
+        BlockState[] tops = new BlockState[ruled.length];
+        int seaLevel = sampler.seaLevel();
+        for (int n = 0; n < ruled.length; n++) {
+            VanillaSurface.Column column = ruled[n];
+            if (area.heights[n] >= seaLevel && column.top() > column.bottom()) {
+                tops[n] = column.at(column.top() - 1);
+            }
         }
-        BlockState[] tops = new BlockState[area.width * area.width];
+        return tops;
+    }
+
+    /** The world's surface rules over every column of a full-detail area. */
+    private VanillaSurface.Column[] ruledArea(SurfaceTile area) {
+        VanillaSurface.Column[] ruled = new VanillaSurface.Column[area.width * area.width];
         int seaLevel = sampler.seaLevel();
         List<Runnable> bands = new ArrayList<>();
         for (int first = 0; first < area.width; first += BAND_ROWS) {
@@ -495,20 +541,13 @@ public final class ColumnBuilder {
                         (x, z) -> Math.max(area.heightAt(x, z), seaLevel), true);
                 for (int j = from; j < to; j++) {
                     for (int i = 0; i < area.width; i++) {
-                        int ground = area.height(i, j);
-                        if (ground < seaLevel) {
-                            continue;
-                        }
-                        VanillaSurface.Column column = rules.column(area.minX + i, area.minZ + j, ground);
-                        if (column.top() > column.bottom()) {
-                            tops[i + j * area.width] = column.at(column.top() - 1);
-                        }
+                        ruled[i + j * area.width] = rules.column(area.minX + i, area.minZ + j, area.height(i, j)).copy();
                     }
                 }
             });
         }
         SurfaceTile.run(bands);
-        return tops;
+        return ruled;
     }
 
     /**
@@ -534,7 +573,7 @@ public final class ColumnBuilder {
     private void ruledColumn(List<Layer> points, int x, int z, SurfaceTile area, int i, int j,
                              FakeTrees.Canopy canopy, BlockState treeTop, VanillaSurface.Column column,
                              boolean covered, Plants plants) {
-        Holder<Biome> biome = levelBiome.apply(area.biome(i, j));
+        Holder<Biome> biome = levelBiome.apply(column.biome());
         int minY = sampler.minY();
         int top = levelTop;
         int columnTop = column.top();

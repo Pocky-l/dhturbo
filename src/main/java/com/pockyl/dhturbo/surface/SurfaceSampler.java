@@ -8,6 +8,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeSource;
+import net.minecraft.world.level.biome.Climate;
 import net.minecraft.util.KeyDispatchDataCodec;
 import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.DensityFunctions;
@@ -44,7 +45,7 @@ public final class SurfaceSampler {
     private final NoiseBinder binder;
     private final RandomState randomState;
     private final BiomeSource biomeSource;
-    private final ThreadLocal<DensityFunction> density;
+    private final ThreadLocal<ColumnNoises> noises;
     /**
      * The same value with caves, as vanilla interpolates it: below the surface it carries the cave noises, which pull
      * the surface between cell corners. Only used inside the cell the cave-free search found.
@@ -79,7 +80,8 @@ public final class SurfaceSampler {
         this.biomeSource = biomeSource;
         DensityFunction strippedFinal = randomState.router().finalDensity();
         DensityFunction wired = signal(strippedFinal, settings.noiseSettings());
-        this.density = ThreadLocal.withInitial(() -> wired.mapAll(new ColumnCachingVisitor()));
+        NoiseRouter wiredRouter = randomState.router();
+        this.noises = ThreadLocal.withInitial(() -> new ColumnNoises(wired, wiredRouter));
         // With caves the final density holds more interpolated values (noodle caves have their own, and vanilla adds
         // them per block, outside the terrain's). The terrain's is the one that loses its caves the same way.
         DensityFunction realInner = null;
@@ -139,7 +141,7 @@ public final class SurfaceSampler {
      * heightmap (water is not solid). {@code hintY} is where the search starts: the height of a nearby column.
      */
     public int surfaceHeight(int x, int z, int hintY) {
-        DensityFunction function = density.get();
+        DensityFunction function = noises.get().density;
         int y = Mth.clamp(Math.floorDiv(hintY - minY, cellHeight) * cellHeight + minY, minY, maxY - cellHeight);
         double value = function.compute(new DensityFunction.SinglePointContext(x, y, z));
         if (value > 0) {
@@ -218,7 +220,7 @@ public final class SurfaceSampler {
 
     /** The probed density at a block: positive is solid. Only meaningful on cell corners. */
     public double density(int x, int y, int z) {
-        return density.get().compute(new DensityFunction.SinglePointContext(x, y, z));
+        return noises.get().density.compute(new DensityFunction.SinglePointContext(x, y, z));
     }
 
     /** The interpolated density with caves at a cell corner, as vanilla interpolates it. */
@@ -271,6 +273,20 @@ public final class SurfaceSampler {
     @FunctionalInterface
     public interface CornerSource {
         double at(int x, int y, int z);
+    }
+
+    /** One thread's terrain density and climate, sharing the caches of what they have in common. */
+    private static final class ColumnNoises {
+        final DensityFunction density;
+        final Climate.Sampler climate;
+
+        ColumnNoises(DensityFunction wired, NoiseRouter router) {
+            ColumnCachingVisitor visitor = new ColumnCachingVisitor();
+            this.density = wired.mapAll(visitor);
+            this.climate = new Climate.Sampler(router.temperature().mapAll(visitor), router.vegetation().mapAll(visitor),
+                    router.continents().mapAll(visitor), router.erosion().mapAll(visitor),
+                    router.depth().mapAll(visitor), router.ridges().mapAll(visitor), List.of());
+        }
     }
 
     /** Stands in for the interpolated value inside a final density; holds the value to use. */
@@ -337,13 +353,13 @@ public final class SurfaceSampler {
 
     /** Biome of a quart (4x4x4 blocks), as chunk generation stores it. */
     public Holder<Biome> noiseBiome(int quartX, int quartY, int quartZ) {
-        return biomeSource.getNoiseBiome(quartX, quartY, quartZ, randomState.sampler());
+        return biomeSource.getNoiseBiome(quartX, quartY, quartZ, noises.get().climate);
     }
 
     /** Biome at the given block, sampled the way chunk generation does. */
     public Holder<Biome> biome(int x, int y, int z) {
         return biomeSource.getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z),
-                randomState.sampler());
+                noises.get().climate);
     }
 
     /** First non-solid Y between a solid cell corner {@code lowY} and the non-solid corner above it. */

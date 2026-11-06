@@ -107,6 +107,7 @@ public final class VanillaSurface {
         private BlockState[] blocks = new BlockState[0];
         private int bottom;
         private int top;
+        private Holder<Biome> biome;
 
         public int bottom() {
             return bottom;
@@ -118,6 +119,21 @@ public final class VanillaSurface {
 
         public BlockState at(int y) {
             return blocks[y - bottom];
+        }
+
+        /** The biome at the column's surface, as the level reports it (with vanilla's fuzzy zoom). */
+        public Holder<Biome> biome() {
+            return biome;
+        }
+
+        /** A copy that stays valid after the next column of its pass. */
+        public Column copy() {
+            Column copy = new Column();
+            copy.blocks = Arrays.copyOf(blocks, Math.max(0, top - bottom));
+            copy.bottom = bottom;
+            copy.top = top;
+            copy.biome = biome;
+            return copy;
         }
     }
 
@@ -190,6 +206,7 @@ public final class VanillaSurface {
             int surface = Math.max(ground, seaLevel);
             Holder<Biome> topBiome = biome(x, surface, z);
             columnBiome = topBiome;
+            column.biome = topBiome;
             boolean badlands = topBiome.is(Biomes.BADLANDS) || topBiome.is(Biomes.ERODED_BADLANDS)
                     || topBiome.is(Biomes.WOODED_BADLANDS);
             column.bottom = Math.max(minY, Math.min(ground, seaLevel) - (badlands ? BADLANDS_DEPTH : DEPTH));

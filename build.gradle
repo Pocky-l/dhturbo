@@ -44,6 +44,10 @@ neoForge {
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // -PclientWorld=<save name>: the dev client opens that world directly.
+            providers.gradleProperty('clientWorld').map { [it] }.getOrElse([]).each {
+                programArguments.addAll '--quickPlaySingleplayer', it
+            }
         }
 
         server {
@@ -63,6 +67,8 @@ neoForge {
             systemProperty 'dhturbo.compare', providers.gradleProperty('compareAreas').getOrElse('48')
             systemProperty 'dhturbo.compare.exit', 'true'
             systemProperty 'dhturbo.compare.spacings', providers.gradleProperty('compareSpacings').getOrElse('1,4')
+            // -PcompareExact=<spacing>: tiles up to this column width come from real generation (surface/ExactChunks).
+            systemProperty 'dhturbo.compare.exact', providers.gradleProperty('compareExact').getOrElse('0')
             systemProperty 'dhturbo.compare.probe', providers.gradleProperty('compareProbe').getOrElse('')
             // -PcompareHorizon=<radius>: instead of comparing, time filling the horizon around fresh spawns.
             systemProperty 'dhturbo.compare.horizon', providers.gradleProperty('compareHorizon').getOrElse('0')
@@ -80,6 +86,8 @@ neoForge {
             programArgument '--nogui'
             systemProperty 'dhturbo.pregen', providers.gradleProperty('pregenRadius').getOrElse('64')
             systemProperty 'dhturbo.pregen.label', providers.gradleProperty('pregenLabel').getOrElse('run')
+            // -PpregenExact=true: afterwards checks the exact pass through Distant Horizons' own chunk path.
+            systemProperty 'dhturbo.pregen.exact', providers.gradleProperty('pregenExact').getOrElse('false')
         }
 
         gameTestServer {

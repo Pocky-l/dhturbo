@@ -1,11 +1,14 @@
 package com.pockyl.dhturbo.world;
 
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 
 import com.pockyl.dhturbo.DhTurbo;
@@ -42,6 +45,17 @@ public final class TerrainSupport {
             LEFT_TO_DH.clear();
             CLIENT_VERDICTS.clear();
         });
+        NeoForge.EVENT_BUS.addListener(TerrainSupport::tellHost);
+    }
+
+    /** Whoever runs the world hears why its distance looks different, without reading the log. */
+    private static void tellHost(PlayerEvent.PlayerLoggedInEvent event) {
+        if (!LEFT_TO_DH.isEmpty() && event.getEntity() instanceof ServerPlayer player && (player.hasPermissions(2)
+                || player.server.isSingleplayerOwner(player.getGameProfile()))) {
+            String dimensions = String.join(", ", leftToDistantHorizons());
+            player.sendSystemMessage(Component.translatableWithFallback("dhturbo.left_to_dh",
+                    "DH Turbo can't read the terrain of %s: Distant Horizons draws it there.", dimensions));
+        }
     }
 
     /**

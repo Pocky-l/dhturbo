@@ -35,14 +35,16 @@ Both versions have the same features and need [Distant Horizons](https://www.cur
 
 - 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: the horizon fills as fast as the land
   around you.
-- 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): 3.7x faster than its
-  default chunk generation and 4.7x faster than its rough surface mode, with a quarter of the CPU time; heights equal
-  the real world on 98% of columns near you, checked against real chunks
+- 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): about 7x faster than its
+  default chunk generation with under a fifth of the CPU time; 94-98% of land columns have the real height at every
+  distance and biomes agree on 99.5%, checked against real chunks
   ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)).
+- 🎯 **Exact terrain near you** - while the generator is idle, the chunks around you are redrawn by the game's real
+  generator: ground 100% as in the real world, with caves, ores and every tree. Lowest priority, config `exact_radius`.
 - 🧵 **Every core at work** - each tile is split across all worker threads, and while Distant Horizons is busy with
   its own work, idle threads prepare the structures around you before their tiles are asked for.
-- 🌲 **Real trees and plants nearby** - the game's own vegetation is replayed: trees, grass, flowers, sugar cane and
-  pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
+- 🌲 **Real trees and plants** - the game's own vegetation is replayed up to 4-block columns: trees, grass, flowers,
+  sugar cane and pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
   distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
   by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
@@ -88,8 +90,9 @@ The mod adds no blocks or items.
 | Option | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Generate distant terrain with this mod instead of the Distant Horizons generator |
-| `threads` | `0` | Worker threads, 0 = half of the CPU cores (needs a restart) |
-| `full_resolution` | `false` | Compute every terrain column instead of one in four; about 3x slower, sharper distant cliffs |
+| `threads` | `0` | Worker threads, 0 = two thirds of the CPU cores (needs a restart) |
+| `exact_radius` | `32` | Chunks around players redrawn by the game's real generator while idle; 0 = off |
+| `full_resolution` | `false` | Let caves shape columns up to 4 blocks wide everywhere; about twice the time, few columns change |
 | `fake_trees` | `true` | Draw trees in distant forests |
 | `real_trees` | `true` | Replay the game's tree placement on detailed terrain near the player |
 | `vanilla_surface` | `true` | Cover distant ground with the world's own surface rules; off: one typical block per biome, a little faster |

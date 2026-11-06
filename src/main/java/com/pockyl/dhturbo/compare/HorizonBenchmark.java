@@ -5,6 +5,7 @@ import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.dh.WorkerPool;
+import com.pockyl.dhturbo.surface.BuildProfile;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.RealStructures;
@@ -107,6 +108,7 @@ final class HorizonBenchmark {
     private static List<String> fill(ColumnBuilder builder, List<Tile> tiles, int inFlight, int rate,
                                      StructurePrefetch prefetcher, int originX, int originZ) {
         Semaphore slots = new Semaphore(inFlight);
+        BuildProfile.reset();
         long start = System.nanoTime();
         double[] doneAt = new double[tiles.size()];
         double[] latency = new double[tiles.size()];
@@ -171,6 +173,7 @@ final class HorizonBenchmark {
                     values.size(), values.get(values.size() / 2), values.get(values.size() * 95 / 100),
                     values.getLast(), lastDone / 1000));
         }
+        lines.add("  stages: " + BuildProfile.report());
         if (builder.realStructures() != null) {
             lines.add("  structures: " + builder.realStructures().timings());
         }

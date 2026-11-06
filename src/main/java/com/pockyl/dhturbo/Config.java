@@ -16,14 +16,14 @@ public final class Config {
             .define("enabled", true);
 
     public static final ModConfigSpec.IntValue THREADS = BUILDER
-            .comment("Worker threads of the generator, 0 = half of the CPU cores.",
+            .comment("Worker threads of the generator, 0 = two thirds of the CPU cores.",
                     "One LOD tile is split across all of them. Takes effect after a game restart.")
             .translation("dhturbo.configuration.threads")
             .defineInRange("threads", 0, 0, 64);
 
     public static final ModConfigSpec.BooleanValue FULL_RESOLUTION = BUILDER
-            .comment("Compute the height of every LOD column everywhere instead of one in four (the rest is interpolated).",
-                    "About 3x slower, sharper distant cliffs.")
+            .comment("Let caves shape the height of LOD columns up to 4 blocks wide everywhere, as they do at cell corners.",
+                    "Every column already has its own height; this changes few of them and costs about twice the time.")
             .translation("dhturbo.configuration.full_resolution")
             .define("full_resolution", false);
 
@@ -58,6 +58,13 @@ public final class Config {
                     "Singleplayer and servers with Distant Horizons; clients that generate the distance themselves stay fast.")
             .translation("dhturbo.configuration.real_chunks_nearby")
             .define("real_chunks_nearby", false);
+
+    public static final ModConfigSpec.IntValue EXACT_RADIUS = BUILDER
+            .comment("Chunks around players that get the world's real terrain in the background, while the generator has",
+                    "nothing else to do: caves, ores on cliffs, every tree and plant, block for block. Uses spare CPU at the",
+                    "lowest priority. 0 = off. Singleplayer and servers with Distant Horizons.")
+            .translation("dhturbo.configuration.exact_radius")
+            .defineInRange("exact_radius", 32, 0, 256);
 
     public static final ModConfigSpec.BooleanValue STRUCTURES = BUILDER
             .comment("Build the world's structures on distant terrain: villages, outposts, temples, mansions, shipwrecks,",
@@ -99,6 +106,6 @@ public final class Config {
 
     public static int threadCount() {
         int configured = THREADS.get();
-        return configured > 0 ? configured : Math.max(1, Runtime.getRuntime().availableProcessors() / 2);
+        return configured > 0 ? configured : Math.max(1, Runtime.getRuntime().availableProcessors() * 2 / 3);
     }
 }

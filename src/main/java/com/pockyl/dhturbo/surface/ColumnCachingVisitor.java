@@ -5,6 +5,9 @@ import net.minecraft.util.KeyDispatchDataCodec;
 import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.DensityFunctions;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * Rewrites a wired density function for single-column sampling.
  * <p>
@@ -13,12 +16,17 @@ import net.minecraft.world.level.levelgen.DensityFunctions;
  * terrain splines and so on. This visitor replaces the 2D markers with caches keyed by the column, which makes every
  * probe after the first one in a column pay for the 3D noises only. Other markers and holder indirections are
  * stripped. The result holds mutable caches and must be confined to one thread.
+ * <p>
+ * Functions rewritten by the same visitor share their caches: continentalness, erosion and ridges feed both the
+ * terrain and the biomes, and are computed once per column for the two (as vanilla's noise chunk does).
  */
 final class ColumnCachingVisitor implements DensityFunction.Visitor {
     private static final KeyDispatchDataCodec<? extends DensityFunction> FLAT_CACHE =
             DensityFunctions.flatCache(DensityFunctions.zero()).codec();
     private static final KeyDispatchDataCodec<? extends DensityFunction> CACHE_2D =
             DensityFunctions.cache2d(DensityFunctions.zero()).codec();
+
+    private final Map<DensityFunction, DensityFunction> caches = new HashMap<>();
 
     @Override
     public DensityFunction apply(DensityFunction function) {
@@ -28,10 +36,10 @@ final class ColumnCachingVisitor implements DensityFunction.Visitor {
         if (function instanceof DensityFunctions.MarkerOrMarked marker) {
             KeyDispatchDataCodec<? extends DensityFunction> codec = marker.codec();
             if (codec == FLAT_CACHE) {
-                return new FlatColumnCache(marker.wrapped());
+                return caches.computeIfAbsent(function, key -> new FlatColumnCache(marker.wrapped()));
             }
             if (codec == CACHE_2D) {
-                return new ColumnCache(marker.wrapped());
+                return caches.computeIfAbsent(function, key -> new ColumnCache(marker.wrapped()));
             }
             return marker.wrapped();
         }

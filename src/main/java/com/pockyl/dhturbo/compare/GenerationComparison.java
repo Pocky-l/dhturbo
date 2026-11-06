@@ -25,7 +25,9 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.surface.BuildProfile;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
+import com.pockyl.dhturbo.surface.ExactChunks;
 import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.TerrainCheck;
@@ -113,6 +115,10 @@ public final class GenerationComparison {
         }
         ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
                 level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
+        int exactSpacing = Integer.getInteger(DhTurbo.MOD_ID + ".compare.exact", 0);
+        if (exactSpacing > 0) {
+            builder.useExact(new ExactChunks(level, generator), exactSpacing);
+        }
         int minY = level.getMinBuildHeight();
         int[] spacings = java.util.Arrays.stream(System.getProperty(DhTurbo.MOD_ID + ".compare.spacings", "1,4").split(","))
                 .mapToInt(value -> Integer.parseInt(value.trim())).toArray();
@@ -141,17 +147,24 @@ public final class GenerationComparison {
                     int x = minX + i * spacing;
                     int z = minZ + j * spacing;
                     ChunkAccess chunk = chunks[((x - minX) >> 4) + ((z - minZ) >> 4) * AREA_CHUNKS];
-                    Surface real = real(level, chunk, x, z);
+                    // Both columns go through one classification, so neither side is judged more strictly.
+                    Surface real = ours(realColumn(chunk, x, z, minY, level.getHeight()), minY);
                     Surface ours = ours(layers, minY);
                     Holder<Biome> realBiome = level.getBiome(new BlockPos(x, real.height, z));
                     sink.add(x, z, real, ours, realBiome, biome);
+                    sink.addBlocks(chunk, x, z, layers, minY, real.height);
                 });
             }
         }
         List<String> report = new ArrayList<>();
         // Build cost alone (no comparison), one tile of 64 columns per spacing at every area's corner.
+        if (exactSpacing > 0) {
+            report.add(orderEffect(level, generator, areas));
+        }
         StringBuilder timing = new StringBuilder("Build time per 64x64 tile:");
+        List<String> profiles = new ArrayList<>();
         for (int spacing : spacings) {
+            BuildProfile.reset();
             Random timingRandom = new Random(level.getSeed());
             long nanos = 0;
             for (int area = 0; area < areas; area++) {
@@ -163,8 +176,10 @@ public final class GenerationComparison {
                 nanos += System.nanoTime() - begin;
             }
             timing.append(String.format(Locale.ROOT, " spacing %d %.1f ms", spacing, nanos / 1e6 / Math.max(1, areas)));
+            profiles.add("  spacing " + spacing + ", " + BuildProfile.report());
         }
         report.add(timing.toString());
+        report.addAll(profiles);
         if (builder.vanillaSurface() != null) {
             long begin = System.nanoTime();
             for (int n = 0; n < 100; n++) {
@@ -598,25 +613,66 @@ public final class GenerationComparison {
         return whole == 0 ? 0 : 100.0 * part / whole;
     }
 
-    private static Surface real(ServerLevel level, ChunkAccess chunk, int x, int z) {
-        int height = chunk.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x & 15, z & 15) + 1;
-        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, height - 1, z);
-        BlockState top = chunk.getBlockState(pos);
-        BlockState above = chunk.getBlockState(pos.setY(height));
-        int surfaceTop = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15) + 1;
-        if (above.is(Blocks.POWDER_SNOW)) {
-            // Powder snow has no collision, so motion heightmaps skip it; from above it is the snowy top.
-            int powderTop = height;
-            while (chunk.getBlockState(pos.setY(powderTop)).is(Blocks.POWDER_SNOW)) {
-                powderTop++;
-            }
-            return new Surface("snow", Blocks.POWDER_SNOW, powderTop, false, false, false);
+    /**
+     * The same chunks generated twice, with the chunks decorated in opposite orders: what differs is decided by the
+     * order alone (trees of neighbouring chunks that overlap), so no generator can match the real world closer than this.
+     */
+    private static String orderEffect(ServerLevel level, NoiseBasedChunkGenerator generator, int areas) {
+        ExactChunks forward = new ExactChunks(level, generator);
+        ExactChunks backward = new ExactChunks(level, generator, true);
+        Random random = new Random(level.getSeed() ^ 0xFACE);
+        long[] counts = new long[4];
+        for (int area = 0; area < areas; area++) {
+            int tileX = (random.nextInt(2 * RANGE) - RANGE) & ~63;
+            int tileZ = (random.nextInt(2 * RANGE) - RANGE) & ~63;
+            Map<Long, List<ColumnBuilder.Layer>> first = new java.util.HashMap<>();
+            forward.tile(tileX, tileZ, 1, 64, UnaryOperator.identity(),
+                    (i, j, biome, layers) -> first.put(((long) i << 32 | j), layers));
+            backward.tile(tileX, tileZ, 1, 64, UnaryOperator.identity(), (i, j, biome, layers) -> {
+                List<ColumnBuilder.Layer> other = first.get(((long) i << 32 | j));
+                counts[0]++;
+                boolean same = true;
+                int height = layers.getLast().top();
+                BlockState[] column = new BlockState[height];
+                for (ColumnBuilder.Layer layer : other) {
+                    java.util.Arrays.fill(column, layer.bottom(), layer.top(), layer.state());
+                }
+                for (ColumnBuilder.Layer layer : layers) {
+                    for (int y = layer.bottom(); y < layer.top(); y++) {
+                        counts[2]++;
+                        if (column[y] != layer.state()) {
+                            counts[3]++;
+                            same = false;
+                        }
+                    }
+                }
+                counts[1] += same ? 1 : 0;
+            });
         }
-        boolean tree = top.is(BlockTags.LOGS) || surfaceTop > height + 1
-                && chunk.getBlockState(pos.setY(surfaceTop - 1)).is(BlockTags.LEAVES);
-        boolean snow = above.is(Blocks.SNOW);
-        boolean plant = !above.isAir() && !snow && !above.liquid();
-        return new Surface(kind(top), top.getBlock(), height, tree, plant, snow);
+        return String.format(Locale.ROOT, "Same chunks, opposite decoration order: %.2f%% of %d blocks equal, "
+                        + "%.2f%% of %d columns identical (the ceiling for any comparison with real chunks)",
+                100.0 * (counts[2] - counts[3]) / Math.max(1, counts[2]), counts[2], 100.0 * counts[1] / Math.max(1, counts[0]),
+                counts[0]);
+    }
+
+    /** A real column as runs of one block, bottom to top, like the columns we build. */
+    private static List<ColumnBuilder.Layer> realColumn(ChunkAccess chunk, int x, int z, int minY, int height) {
+        List<ColumnBuilder.Layer> layers = new ArrayList<>();
+        BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, minY, z);
+        BlockState run = null;
+        int from = 0;
+        for (int y = 0; y < height; y++) {
+            BlockState state = chunk.getBlockState(pos.setY(y + minY));
+            if (state != run) {
+                if (run != null) {
+                    layers.add(new ColumnBuilder.Layer(run, 0, from, y));
+                }
+                run = state;
+                from = y;
+            }
+        }
+        layers.add(new ColumnBuilder.Layer(run, 0, from, height));
+        return layers;
     }
 
     /** Our column seen the same way: canopy (leaves, logs) and plants do not count as ground. */
@@ -716,6 +772,42 @@ public final class GenerationComparison {
         /** Per real biome: [columns, looks snowy in both, only real, only ours]. */
         final Map<String, int[]> snowByBiome = new TreeMap<>();
         final List<String> probes = new ArrayList<>();
+        long blockCount;
+        long blocksSame;
+        long visibleBlocks;
+        long visibleSame;
+        int columnsIdentical;
+        int visibleIdentical;
+        final Map<String, Integer> blockDiffs = new java.util.HashMap<>();
+
+        /** Every block of a column against the real one; visible = from 8 blocks under the real ground up. */
+        void addBlocks(ChunkAccess chunk, int x, int z, List<ColumnBuilder.Layer> layers, int minY, int realGround) {
+            BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, 0, z);
+            boolean identical = true;
+            boolean visibleSameColumn = true;
+            for (ColumnBuilder.Layer layer : layers) {
+                for (int y = layer.bottom(); y < layer.top(); y++) {
+                    BlockState real = chunk.getBlockState(pos.setY(y + minY));
+                    boolean same = real == layer.state() || real.isAir() && layer.state().isAir();
+                    boolean visible = y + minY >= realGround - 8;
+                    blockCount++;
+                    blocksSame += same ? 1 : 0;
+                    if (visible) {
+                        visibleBlocks++;
+                        visibleSame += same ? 1 : 0;
+                    }
+                    if (!same) {
+                        identical = false;
+                        if (visible) {
+                            visibleSameColumn = false;
+                            blockDiffs.merge(id(real.getBlock()) + " -> " + id(layer.state().getBlock()), 1, Integer::sum);
+                        }
+                    }
+                }
+            }
+            columnsIdentical += identical ? 1 : 0;
+            visibleIdentical += visibleSameColumn ? 1 : 0;
+        }
 
         void add(int x, int z, Surface real, Surface ours, Holder<Biome> realBiome, Holder<Biome> ourBiome) {
             columns++;
@@ -790,6 +882,12 @@ public final class GenerationComparison {
         }
 
         void report(List<String> out) {
+            out.add(String.format(Locale.ROOT, "Blocks identical: visible (from 8 under the ground up) %.2f%% of %d, "
+                            + "whole column %.2f%% of %d; columns identical: visible %.2f%%, whole %.2f%%",
+                    100.0 * visibleSame / Math.max(1, visibleBlocks), visibleBlocks, 100.0 * blocksSame / Math.max(1, blockCount),
+                    blockCount, 100.0 * visibleIdentical / Math.max(1, columns), 100.0 * columnsIdentical / Math.max(1, columns)));
+            blockDiffs.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(12).forEach(
+                    entry -> out.add(String.format(Locale.ROOT, "  visible diff %s: %d", entry.getKey(), entry.getValue())));
             out.addAll(probes);
             int same = 0;
             for (Map.Entry<String, Integer> entry : kinds.entrySet()) {

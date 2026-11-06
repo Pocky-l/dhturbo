@@ -4,6 +4,7 @@ import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiDistantGenerat
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiGeneratorPlan;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiWorldGenerationStep;
 import com.seibel.distanthorizons.api.enums.worldGeneration.EDhApiWorldGeneratorReturnType;
+import com.seibel.distanthorizons.core.dataObjects.fullData.sources.FullDataSourceV2;
 import com.seibel.distanthorizons.api.interfaces.override.worldGenerator.IDhApiWorldGenerator;
 import com.seibel.distanthorizons.api.interfaces.world.IDhApiLevelWrapper;
 import com.seibel.distanthorizons.api.objects.data.IDhApiFullDataSource;
@@ -21,11 +22,13 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.neoforged.fml.loading.FMLEnvironment;
 
+import com.pockyl.dhturbo.surface.ExactChunks;
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.NoiseBinder;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,6 +48,8 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
     private final IDhApiLevelWrapper levelWrapper;
     private final ResourceKey<Level> dimension;
     private final LodTileWriter writer;
+    /** Replaces tiles near the players with real generation while idle; unused on clients. */
+    private final ExactRefiner refiner;
     /** Request statistics in the log, developer runs only. */
     private final GeneratorStats stats;
     private final AtomicInteger loggedErrors = new AtomicInteger();
@@ -57,6 +62,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
      */
     private final Set<Long> fastDetailTiles = ConcurrentHashMap.newKeySet();
     private static final int FAST_TILES_KEPT = 65_536;
+    private static final Map<ResourceKey<Level>, ExactRefiner> REFINERS = new ConcurrentHashMap<>();
 
     TurboWorldGenerator(IDhApiLevelWrapper levelWrapper, ServerLevel level, NoiseBasedChunkGenerator generator) {
         this.levelWrapper = levelWrapper;
@@ -67,6 +73,27 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         this.writer = new LodTileWriter(levelWrapper, generator, level.registryAccess(), level.dimensionType(),
                 level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats,
                 () -> Players.positions(level), NoiseBinder.of(level));
+        this.refiner = new ExactRefiner(level, levelWrapper, new ExactChunks(level, generator),
+                () -> Players.positions(level), this::realData);
+        REFINERS.put(dimension, refiner);
+    }
+
+    /** Whether Distant Horizons holds data from a real chunk (or a refined one) for this chunk. */
+    private boolean realData(int chunkX, int chunkZ) {
+        try {
+            long section = DhSectionPos.encode((byte) 6, chunkX >> 2, chunkZ >> 2);
+            ByteArrayList steps = new ByteArrayList();
+            dhServerLevel().getFullDataProvider().repo.getColumnGenerationStepForPos(section, steps);
+            int index = FullDataSourceV2.relativePosToIndex((chunkX & 3) * 16, (chunkZ & 3) * 16);
+            return index < steps.size() && steps.getByte(index) == EDhApiWorldGenerationStep.LIGHT.value;
+        } catch (RuntimeException | LinkageError e) {
+            return true;
+        }
+    }
+
+    /** The refiner of a dimension, for the measuring tools. */
+    static ExactRefiner refiner(ResourceKey<Level> dimension) {
+        return REFINERS.get(dimension);
     }
 
     /** The column builder of this level's tiles. */
@@ -241,6 +268,8 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
 
     @Override
     public void close() {
+        refiner.close();
+        REFINERS.remove(dimension, refiner);
         writer.close();
         IDhApiWorldGenerator generator = dhGenerator;
         if (generator != null) {

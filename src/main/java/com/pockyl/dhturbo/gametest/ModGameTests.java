@@ -41,6 +41,7 @@ import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.StructurePrefetch;
 import com.pockyl.dhturbo.surface.SurfaceDetail;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
+import com.pockyl.dhturbo.surface.SurfaceTile;
 import com.pockyl.dhturbo.surface.TerrainCheck;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.TerrainSupport;
@@ -672,6 +673,57 @@ public final class ModGameTests {
         if (expected.isEmpty() || !expected.equals(actual)) {
             helper.fail("Structures built from the client's data differ: " + expected + " vs " + actual);
             return;
+        }
+        helper.succeed();
+    }
+
+    /** Terrain and biomes share column caches: not a single biome may come out different from the game's sampler. */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void sharedColumnCachesKeepTheBiomes(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        NoiseGeneratorSettings settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+        SurfaceSampler sampler = new SurfaceSampler(registries, settings, biomes, SEED);
+        Random random = new Random(7);
+        for (int i = 0; i < 4000; i++) {
+            int x = random.nextInt(200_000) - 100_000;
+            int z = random.nextInt(200_000) - 100_000;
+            // Probing the terrain first fills the caches the biome then reads.
+            int height = sampler.surfaceHeight(x & ~3, z & ~3, 64);
+            int quartX = x >> 2;
+            int quartY = height >> 2;
+            int quartZ = z >> 2;
+            Holder<Biome> expected = biomes.getNoiseBiome(quartX, quartY, quartZ, sampler.randomState().sampler());
+            if (sampler.noiseBiome(quartX, quartY, quartZ) != expected) {
+                helper.fail("Biome differs from the game's sampler at quart " + quartX + " " + quartY + " " + quartZ);
+                return;
+            }
+        }
+        helper.succeed();
+    }
+
+    /** Columns a cell or more apart stand on cell corners: each must have its own search's height, not a lerp. */
+    @GameTest(template = "empty", timeoutTicks = 2400)
+    public static void wideColumnsKeepTheirOwnHeight(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        NoiseGeneratorSettings settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+        SurfaceSampler sampler = new SurfaceSampler(registries, settings, biomes, SEED);
+        SurfaceTile tile = SurfaceTile.generate(sampler, 4096, -8192, 8, 32, 1, false);
+        for (int j = 0; j < tile.width; j++) {
+            for (int i = 0; i < tile.width; i++) {
+                int height = tile.height(i, j);
+                if (sampler.surfaceHeight(tile.minX + i * 8, tile.minZ + j * 8, height) != height) {
+                    helper.fail("Column " + i + " " + j + " is not its own search's height");
+                    return;
+                }
+            }
         }
         helper.succeed();
     }

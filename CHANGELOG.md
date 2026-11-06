@@ -4,6 +4,30 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-11-06
+### Added
+- Exact terrain near you: while the generator has nothing else to do, the chunks around you are redrawn by the game's
+  real generator, in the background and at the lowest priority: caves, ores on cliffs, lakes above sea level and every
+  tree and plant, block for block. Config `exact_radius` (chunks, 0 = off). Works in singleplayer and on servers with
+  Distant Horizons, also with terrain mods. Chunks you have already visited are left as they are.
+- Trees stand where the game grows them up to 4-block columns (before: full detail only).
+- A line in chat for whoever runs the world when the mod cannot read a dimension's terrain and leaves it to Distant
+  Horizons.
+### Changed
+- The generator is 1.8x as fast in Distant Horizons' own pregeneration with a third less CPU time, and fills the
+  horizon about 20% sooner, with more trees and exact heights included: terrain and biomes now share what they compute
+  per column. With Terralith and Tectonic tiles take less than half the time.
+- Distant heights are exact: every column gets its own height instead of a blend of its neighbours. On land, 4-block
+  columns match the real world on 94% of columns instead of 56%, 16-block columns on 96% instead of 42%.
+- Distant biomes follow the game's own blur at their borders: they differ on 0.3% of columns, before 2 to 17%, so grass
+  and water colours line up.
+- `threads` now defaults to two thirds of the CPU cores (was half): the generator runs below normal priority, and it
+  measured 12% faster.
+- `full_resolution` now only adds the pull of caves on columns up to 4 blocks wide; every column has its own height
+  anyway.
+- The accuracy figures are measured more fairly: real and generated columns go through the same check, and blocks are
+  also compared one by one.
+
 ## [1.5.0] - 2026-10-26
 ### Added
 - [ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes) support:
