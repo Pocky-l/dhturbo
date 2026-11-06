@@ -7,4 +7,7 @@ package com.pockyl.dhturbo.client;
 public interface RenderSectionContent {
     /** Quads of the last build, or -1 when the section has not been built yet. */
     int dhturbo$quads();
+
+    /** Built empty although its terrain is generated: void, as around the End islands. */
+    boolean dhturbo$generatedEmpty();
 }

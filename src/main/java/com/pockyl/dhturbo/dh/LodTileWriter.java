@@ -42,6 +42,11 @@ public final class LodTileWriter implements AutoCloseable {
      * player forever. Real chunks ({@code LIGHT}) still replace this data when the player loads them.
      */
     private static final EDhApiWorldGenerationStep STEP = EDhApiWorldGenerationStep.FEATURES;
+    /**
+     * Step of preview tiles: below {@code SURFACE}, the least any plan needs, so DH asks for the real tile as soon as it
+     * wants this section for good. {@code SURFACE} itself would not do: DH's two checks disagree on it and the tile stays.
+     */
+    private static final EDhApiWorldGenerationStep PREVIEW_STEP = EDhApiWorldGenerationStep.NOISE;
 
     private final IDhApiLevelWrapper levelWrapper;
     private final ColumnBuilder builder;
@@ -86,8 +91,14 @@ public final class LodTileWriter implements AutoCloseable {
 
     /** Fills a DH data source of a tile starting at block (minX, minZ) with columns {@code spacing} blocks wide. */
     public void fill(int minX, int minZ, int spacing, IDhApiFullDataSource dataSource) {
+        fill(minX, minZ, spacing, false, dataSource);
+    }
+
+    /** @param preview a tile that is replaced within seconds, see {@link ColumnBuilder#build(int, int, int, int, boolean, ColumnBuilder.Sink)} */
+    public void fill(int minX, int minZ, int spacing, boolean preview, IDhApiFullDataSource dataSource) {
         long start = System.nanoTime();
-        if (prefetch != null) {
+        EDhApiWorldGenerationStep step = preview ? PREVIEW_STEP : STEP;
+        if (prefetch != null && !preview) {
             int size = dataSource.getWidthInDataColumns() * spacing;
             prefetch.requested(nearestPlayer(minX + size / 2, minZ + size / 2), spacing);
             if (spacing <= RealStructures.MAX_SPACING) {
@@ -95,14 +106,14 @@ public final class LodTileWriter implements AutoCloseable {
             }
         }
         List<DhApiTerrainDataPoint> points = new ArrayList<>();
-        long failures = builder.build(minX, minZ, spacing, dataSource.getWidthInDataColumns(), (i, j, biome, layers) -> {
+        long failures = builder.build(minX, minZ, spacing, dataSource.getWidthInDataColumns(), preview, (i, j, biome, layers) -> {
             points.clear();
             IDhApiBiomeWrapper biomeWrapper = biomeWrapper(biome);
             for (ColumnBuilder.Layer layer : layers) {
                 points.add(DhApiTerrainDataPoint.create((byte) 0, layer.state().getLightEmission(), layer.skyLight(),
                         layer.bottom(), layer.top(), blockWrapper(layer.state()), biomeWrapper));
             }
-            dataSource.setApiDataPointColumn(i, j, STEP, points);
+            dataSource.setApiDataPointColumn(i, j, step, points);
         });
         if (stats != null) {
             stats.treeFailures(failures);

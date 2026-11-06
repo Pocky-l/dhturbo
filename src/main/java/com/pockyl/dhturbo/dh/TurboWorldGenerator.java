@@ -27,6 +27,7 @@ import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.NoiseBinder;
+import com.pockyl.dhturbo.surface.SavedChunks;
 
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +54,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
     /** Request statistics in the log, developer runs only. */
     private final GeneratorStats stats;
     private final AtomicInteger loggedErrors = new AtomicInteger();
+    private final boolean dedicatedServer;
     /** DH's own generator, which takes over while DH Turbo is switched off. Created on first use. */
     private volatile IDhApiWorldGenerator dhGenerator;
     private volatile boolean dhGeneratorUnavailable;
@@ -67,15 +69,20 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
     TurboWorldGenerator(IDhApiLevelWrapper levelWrapper, ServerLevel level, NoiseBasedChunkGenerator generator) {
         this.levelWrapper = levelWrapper;
         this.dimension = level.dimension();
+        this.dedicatedServer = level.getServer().isDedicatedServer();
         this.stats = DhTurbo.DEBUG ? new GeneratorStats(level, levelWrapper.getDimensionName()) : null;
         // A world created without structures gets none in the distance either.
         boolean structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
         this.writer = new LodTileWriter(levelWrapper, generator, level.registryAccess(), level.dimensionType(),
                 level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats,
                 () -> Players.positions(level), NoiseBinder.of(level));
-        this.refiner = new ExactRefiner(level, levelWrapper, new ExactChunks(level, generator),
+        this.refiner = new ExactRefiner(level, levelWrapper, new ExactChunks(level, generator), new SavedChunks(level),
                 () -> Players.positions(level), this::realData);
-        REFINERS.put(dimension, refiner);
+        // Left over from the last world when Distant Horizons never closed that generator.
+        ExactRefiner previous = REFINERS.put(dimension, refiner);
+        if (previous != null) {
+            previous.close();
+        }
     }
 
     /** Whether Distant Horizons holds data from a real chunk (or a refined one) for this chunk. */
@@ -91,6 +98,11 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         }
     }
 
+    /** Distant Horizons lost its data: saved chunks and exact terrain are needed again. */
+    static void forgetProgress() {
+        REFINERS.values().forEach(ExactRefiner::forgetProgress);
+    }
+
     /** The refiner of a dimension, for the measuring tools. */
     static ExactRefiner refiner(ResourceKey<Level> dimension) {
         return REFINERS.get(dimension);
@@ -102,11 +114,11 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
     }
 
     /**
-     * The generator answering requests right now: DH's own one while DH Turbo is switched off or this dimension is in
-     * {@code excluded_dimensions}.
+     * The generator answering requests right now: DH's own one while DH Turbo is switched off, this dimension is in
+     * {@code excluded_dimensions} or the player asked for existing chunks only.
      */
     private IDhApiWorldGenerator delegate() {
-        return Config.generates(dimension) ? null : dhGenerator();
+        return Config.generates(dimension) && !DhIntegration.existingChunksOnly() ? null : dhGenerator();
     }
 
     /** DH's own generator, created on first use; null when it cannot be created. */
@@ -181,11 +193,12 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         if (stats != null) {
             stats.request(detailLevel, lodPosX, lodPosZ, minX + halfWidth, minZ + halfWidth);
         }
+        boolean preview = HorizonFill.takePreview(sectionPos);
         return CompletableFuture.runAsync(() -> {
             long start = TurboActivity.started();
             try {
-                writer.fill(minX, minZ, spacing, dataSource);
-            } catch (RuntimeException e) {
+                writer.fill(minX, minZ, spacing, preview, dataSource);
+            } catch (RuntimeException | Error e) {
                 TurboActivity.failed();
                 // DH swallows failed futures silently; without this a broken tile is just a hole in the horizon.
                 if (stats != null) {
@@ -197,6 +210,9 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
                 throw e;
             }
             TurboActivity.finished(start);
+            if (!dedicatedServer) {
+                keepToItself(dataSource);
+            }
             if (fullDetail && Config.REAL_CHUNKS_NEARBY.get()) {
                 if (fastDetailTiles.size() > FAST_TILES_KEPT) {
                     fastDetailTiles.clear();
@@ -205,6 +221,19 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
             }
             resultConsumer.accept(dataSource);
         }, WorkerPool.get());
+    }
+
+    /**
+     * A tile is its section's whole data, so nothing is passed to other detail levels: DH would rewrite and rebuild up to
+     * eight parents for each tile (which then have little or no data of their own) and fill every child with stretched
+     * columns, level by level, far more work than the tile itself. A section DH later wants is simply generated. A
+     * dedicated server keeps DH's way: its pregeneration only asks for full detail and relies on the parents being filled.
+     */
+    static void keepToItself(IDhApiFullDataSource dataSource) {
+        if (dataSource instanceof FullDataSourceV2 tile) {
+            tile.applyToParent = false;
+            tile.applyToChildren = false;
+        }
     }
 
     /**

@@ -199,16 +199,21 @@ public final class ColumnBuilder {
      * failed.
      */
     public long build(int minX, int minZ, int spacing, int width, Sink sink) {
+        return build(minX, minZ, spacing, width, false, sink);
+    }
+
+    /** @param preview a tile that is replaced within seconds: terrain and surface only, no replayed trees, lakes, structures */
+    public long build(int minX, int minZ, int spacing, int width, boolean preview, Sink sink) {
         BuildProfile.tile();
         ExactChunks real = exact;
-        if (real != null && spacing <= exactMaxSpacing && real.tile(minX, minZ, spacing, width, levelBiome, sink)) {
+        if (!preview && real != null && spacing <= exactMaxSpacing && real.tile(minX, minZ, spacing, width, levelBiome, sink)) {
             return 0;
         }
         if (profile != null) {
             return buildProfiles(minX, minZ, spacing, width, sink);
         }
         long lap = System.nanoTime();
-        boolean replay = realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
+        boolean replay = !preview && realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
         // A margin of columns around the tile: slopes at the edges, and trees of neighbouring chunks.
         int margin = replay ? (RealTrees.MARGIN + spacing - 1) / spacing : 1;
         // Keep the area's lattice on vanilla's cell corners (multiples of 4 blocks): the tile's own corner is one.
@@ -221,7 +226,7 @@ public final class ColumnBuilder {
         SurfaceTile area = SurfaceTile.generate(sampler, minX - margin * spacing, minZ - margin * spacing, spacing,
                 width + 2 * margin, fullResolution || wide ? 1 : 2, fullResolution || !wide);
         lap = BuildProfile.lap(Stage.LATTICE, lap);
-        List<RealStructures.Built> structures = realStructures != null && spacing <= RealStructures.MAX_SPACING
+        List<RealStructures.Built> structures = !preview && realStructures != null && spacing <= RealStructures.MAX_SPACING
                 ? realStructures.around(area.minX, area.minZ, area.minX + area.width * spacing - 1,
                         area.minZ + area.width * spacing - 1, spacing <= RealStructures.FINE_MAX_SPACING)
                 : List.of();
@@ -243,7 +248,7 @@ public final class ColumnBuilder {
         lap = BuildProfile.lap(Stage.TOPS, lap);
         RealTrees.TileTrees trees = replay ? realTrees.plant(area, minX, minZ, width, tops) : null;
         lap = BuildProfile.lap(Stage.TREES, lap);
-        RealLakes.Lake[] lakes = realLakes != null && spacing <= RealLakes.MAX_SPACING
+        RealLakes.Lake[] lakes = !preview && realLakes != null && spacing <= RealLakes.MAX_SPACING
                 ? realLakes.plan(minX, minZ, spacing, width)
                 : null;
         long failures = (replay ? realTrees.takeFailures() : 0)
@@ -720,18 +725,22 @@ public final class ColumnBuilder {
 
     /** Adds a tree's trunk and crown (and snow on it) above the ground; returns where the air starts. */
     private int canopy(List<Layer> points, int x, int z, Holder<Biome> biome, FakeTrees.Canopy canopy, int groundRel, int top) {
-        int leavesBottom = Math.min(top, groundRel + Math.max(0, canopy.leavesBottom()));
-        int leavesTop = Math.min(top, groundRel + canopy.leavesTop());
-        if (leavesBottom > groundRel) {
-            BlockState under = canopy.trunk() ? canopy.log() : Blocks.AIR.defaultBlockState();
-            points.add(new Layer(under, MAX_LIGHT, groundRel, leavesBottom));
+        int airFrom = groundRel;
+        BlockState crown = null;
+        for (FakeTrees.Span span : canopy.spans()) {
+            int from = Math.min(top, groundRel + span.from());
+            int to = Math.min(top, groundRel + span.to());
+            if (to <= from) {
+                continue;
+            }
+            if (from > airFrom) {
+                points.add(new Layer(Blocks.AIR.defaultBlockState(), MAX_LIGHT, airFrom, from));
+            }
+            points.add(new Layer(span.block(), MAX_LIGHT, from, to));
+            airFrom = to;
+            crown = span.block();
         }
-        if (leavesTop > leavesBottom) {
-            points.add(new Layer(canopy.leaves(), MAX_LIGHT, leavesBottom, leavesTop));
-        }
-        int airFrom = Math.max(groundRel, Math.max(leavesBottom, leavesTop));
-        BlockState crown = leavesTop > leavesBottom ? canopy.leaves() : canopy.log();
-        if (airFrom > groundRel && airFrom + 1 < top
+        if (crown != null && airFrom + 1 < top
                 && SurfaceDetail.snowLayerOn(biome, crown, x, airFrom + sampler.minY(), z)) {
             points.add(new Layer(SNOW_LAYER, MAX_LIGHT, airFrom, airFrom + 1));
             airFrom++;

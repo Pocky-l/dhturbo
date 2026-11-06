@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
@@ -52,7 +53,8 @@ import java.util.function.UnaryOperator;
 /**
  * The real world generator on chunks that never enter the game: biomes, noise, surface, carvers and every feature and
  * structure run as in chunk generation, on proto chunks of our own, without the chunk map, lighting, entities or
- * saving. Tiles built from them equal the real world block for block: caves, aquifers, ores on cliffs, every tree.
+ * saving, and the real level never hears of their blocks. Tiles built from them match the real world up to the order
+ * chunks are decorated in: caves, aquifers, ores on cliffs, trees.
  * <p>
  * Decorating a chunk needs its neighbours up to the carver step, so chunks are generated in batches of
  * {@value #BATCH} x {@value #BATCH} that share that border: {@code ((B + 4) / B)^2} proto chunks per chunk.
@@ -287,6 +289,14 @@ public final class ExactChunks {
         BuildProfile.lap(Stage.EXACT_FEATURES, begin);
     }
 
+    /** Tests: writes a block the way features do, on a chunk of our own at that position. */
+    public boolean writeForTest(BlockPos pos, BlockState state) {
+        ChunkAccess[] grid = new ChunkAccess[GRID * GRID];
+        Grid chunks = new Grid(pos.getX() >> 4, pos.getZ() >> 4, grid);
+        grid[0] = new ProtoChunk(new ChunkPos(pos), UpgradeData.EMPTY, level, biomes, null);
+        return new Region(level, featureStep, grid[0], chunks).setBlock(pos, state, 2);
+    }
+
     /** A chunk holding nothing but its structure starts. */
     private ProtoChunk stub(int x, int z) {
         try {
@@ -426,6 +436,33 @@ public final class ExactChunks {
         @Override
         public boolean hasChunk(int x, int z) {
             return chunks.at(x, z) != null;
+        }
+
+        /**
+         * The base class without its report to the real level, which would register every bed and bell of these chunks
+         * as a villager point of interest in the world, and drop real ones that a block here replaces.
+         */
+        @Override
+        public boolean setBlock(BlockPos pos, BlockState state, int flags, int recursionLeft) {
+            if (!ensureCanWrite(pos)) {
+                return false;
+            }
+            ChunkAccess chunk = getChunk(pos);
+            BlockState old = chunk.setBlockState(pos, state, false);
+            if (state.hasBlockEntity()) {
+                CompoundTag tag = new CompoundTag();
+                tag.putInt("x", pos.getX());
+                tag.putInt("y", pos.getY());
+                tag.putInt("z", pos.getZ());
+                tag.putString("id", "DUMMY");
+                chunk.setBlockEntityNbt(tag);
+            } else if (old != null && old.hasBlockEntity()) {
+                chunk.removeBlockEntity(pos);
+            }
+            if (state.hasPostProcess(this, pos)) {
+                chunk.markPosForPostprocessing(pos);
+            }
+            return true;
         }
     }
 }

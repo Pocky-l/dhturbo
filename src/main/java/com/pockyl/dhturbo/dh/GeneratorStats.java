@@ -3,6 +3,7 @@ package com.pockyl.dhturbo.dh;
 import net.minecraft.server.level.ServerLevel;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.surface.BuildProfile;
 
 import java.util.Locale;
 import java.util.Set;
@@ -86,6 +87,8 @@ public final class GeneratorStats {
                 "[stats %s] last 10 s: %d tiles, %.1f ms/tile, %d errors, %d failed tree features, %d total |%s", name,
                 count, count == 0 ? 0 : tileNanos / 1e6 / count, errors.sumThenReset(), treeFailures.sumThenReset(), total,
                 levels));
+        DhTurbo.LOGGER.info("[stages {}] {}", name, BuildProfile.report());
+        BuildProfile.reset();
     }
 
     private int distanceToPlayer(int x, int z) {

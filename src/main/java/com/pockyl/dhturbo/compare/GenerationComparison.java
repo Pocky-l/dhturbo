@@ -152,7 +152,7 @@ public final class GenerationComparison {
                     Surface ours = ours(layers, minY);
                     Holder<Biome> realBiome = level.getBiome(new BlockPos(x, real.height, z));
                     sink.add(x, z, real, ours, realBiome, biome);
-                    sink.addBlocks(chunk, x, z, layers, minY, real.height);
+                    sink.addBlocks(chunk, x, z, layers, minY, real.height, Stats.name(realBiome));
                 });
             }
         }
@@ -779,9 +779,14 @@ public final class GenerationComparison {
         int columnsIdentical;
         int visibleIdentical;
         final Map<String, Integer> blockDiffs = new java.util.HashMap<>();
+        /** Tree blocks, each counted once: [both, only real, only ours] for logs, then the same for leaves. */
+        final long[] treeBlocks = new long[6];
+        /** The same for logs alone, by real biome. */
+        final Map<String, long[]> logsByBiome = new TreeMap<>();
 
         /** Every block of a column against the real one; visible = from 8 blocks under the real ground up. */
-        void addBlocks(ChunkAccess chunk, int x, int z, List<ColumnBuilder.Layer> layers, int minY, int realGround) {
+        void addBlocks(ChunkAccess chunk, int x, int z, List<ColumnBuilder.Layer> layers, int minY, int realGround, String biome) {
+            long[] biomeLogs = logsByBiome.computeIfAbsent(biome, key -> new long[3]);
             BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos(x, 0, z);
             boolean identical = true;
             boolean visibleSameColumn = true;
@@ -790,6 +795,11 @@ public final class GenerationComparison {
                     BlockState real = chunk.getBlockState(pos.setY(y + minY));
                     boolean same = real == layer.state() || real.isAir() && layer.state().isAir();
                     boolean visible = y + minY >= realGround - 8;
+                    countTreeBlock(0, real.is(BlockTags.LOGS), layer.state().is(BlockTags.LOGS));
+                    if (real.is(BlockTags.LOGS) || layer.state().is(BlockTags.LOGS)) {
+                        biomeLogs[real.is(BlockTags.LOGS) && layer.state().is(BlockTags.LOGS) ? 0 : real.is(BlockTags.LOGS) ? 1 : 2]++;
+                    }
+                    countTreeBlock(3, real.is(BlockTags.LEAVES), layer.state().is(BlockTags.LEAVES));
                     blockCount++;
                     blocksSame += same ? 1 : 0;
                     if (visible) {
@@ -807,6 +817,12 @@ public final class GenerationComparison {
             }
             columnsIdentical += identical ? 1 : 0;
             visibleIdentical += visibleSameColumn ? 1 : 0;
+        }
+
+        private void countTreeBlock(int offset, boolean real, boolean ours) {
+            if (real || ours) {
+                treeBlocks[offset + (real && ours ? 0 : real ? 1 : 2)]++;
+            }
         }
 
         void add(int x, int z, Surface real, Surface ours, Holder<Biome> realBiome, Holder<Biome> ourBiome) {
@@ -888,6 +904,13 @@ public final class GenerationComparison {
                     blockCount, 100.0 * visibleIdentical / Math.max(1, columns), 100.0 * columnsIdentical / Math.max(1, columns)));
             blockDiffs.entrySet().stream().sorted((a, b) -> b.getValue() - a.getValue()).limit(12).forEach(
                     entry -> out.add(String.format(Locale.ROOT, "  visible diff %s: %d", entry.getKey(), entry.getValue())));
+            out.add(String.format(Locale.ROOT, "Tree blocks: logs both %d, only real %d, only ours %d; "
+                            + "leaves both %d, only real %d, only ours %d",
+                    treeBlocks[0], treeBlocks[1], treeBlocks[2], treeBlocks[3], treeBlocks[4], treeBlocks[5]));
+            logsByBiome.entrySet().stream().filter(entry -> entry.getValue()[0] + entry.getValue()[1] + entry.getValue()[2] > 0)
+                    .sorted((a, b) -> Long.compare(b.getValue()[1] + b.getValue()[2], a.getValue()[1] + a.getValue()[2])).limit(10)
+                    .forEach(entry -> out.add(String.format(Locale.ROOT, "  logs in %s: both %d, only real %d, only ours %d",
+                            entry.getKey(), entry.getValue()[0], entry.getValue()[1], entry.getValue()[2])));
             out.addAll(probes);
             int same = 0;
             for (Map.Entry<String, Integer> entry : kinds.entrySet()) {

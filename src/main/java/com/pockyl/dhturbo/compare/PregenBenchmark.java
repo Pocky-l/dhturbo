@@ -214,8 +214,6 @@ public final class PregenBenchmark {
     }
 
     private static long tiles() {
-        String line = TurboActivity.debugLine().orElse("DH Turbo: 0 tiles");
-        String count = line.substring("DH Turbo: ".length(), line.indexOf(' ', "DH Turbo: ".length()));
-        return Long.parseLong(count);
+        return TurboActivity.tiles();
     }
 }

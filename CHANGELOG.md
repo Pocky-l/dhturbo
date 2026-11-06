@@ -6,14 +6,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.6.0] - 2026-11-06
 ### Added
+- Horizon first: in singleplayer, ground you have not seen shows at once. The whole view fills with coarse terrain within
+  about 3 seconds of joining a new world, then sharpens pass by pass, starting with what you look at. In test runs (6-core PC,
+  LOD radius 256 chunks) half the view took 11 seconds before and all of it 32; the picture is now 95% final after 15 seconds
+  instead of 28, and every tile is done in about 27.
+- Saved chunks show in the distance: builds, adventure maps and pregenerated terrain reach Distant Horizons as the world
+  saved them, nearest first, in the background. Before, an existing world showed the seed's terrain until you went there.
+- `/dhturbo regenerate` for operators and the host: deletes the world's distant terrain, which is then drawn again.
+  Terrain drawn by an older version keeps its old look until then.
 - Exact terrain near you: while the generator has nothing else to do, the chunks around you are redrawn by the game's
-  real generator, in the background and at the lowest priority: caves, ores on cliffs, lakes above sea level and every
-  tree and plant, block for block. Config `exact_radius` (chunks, 0 = off). Works in singleplayer and on servers with
-  Distant Horizons, also with terrain mods. Chunks you have already visited are left as they are.
-- Trees stand where the game grows them up to 4-block columns (before: full detail only).
+  real generator in the background: caves, ores on cliffs, lakes above sea level, trees and plants. In test runs 92 to
+  95% of columns then matched the real world. It waits while the server is busy or you move fast. Config
+  `exact_radius` (chunks, default 16, 0 = off); dedicated servers opt in with `exact_radius_server`. Chunks the world has
+  saved are left as they are.
+- The game's tree placement is replayed up to 4-block columns (before: full detail only): about 7 in 10 tree columns land
+  on the real spot at full detail, over half at 4-block columns, jungles far fewer.
+- A line on the F3 screen shows what the generator is doing, the exact pass included.
 - A line in chat for whoever runs the world when the mod cannot read a dimension's terrain and leaves it to Distant
   Horizons.
 ### Changed
+- Distant Horizons does far less work per tile in singleplayer: a tile no longer rewrites and rebuilds its parents, and a
+  section is rebuilt once when the tiles around it have settled, not once for each of them.
+- Forests on 2- and 4-block columns are as dense as real ones in Distant Horizons: wide columns take wood and leaves from
+  their whole width, not only from their corner.
+- Needs Distant Horizons 3.3.3 or a later 3.3 version: it reaches into Distant Horizons, and other versions are untested.
+- A server with Distant Horizons no longer sends players the world seed: it sends them the distant terrain anyway.
 - The generator is 1.8x as fast in Distant Horizons' own pregeneration with a third less CPU time, and fills the
   horizon about 20% sooner, with more trees and exact heights included: terrain and biomes now share what they compute
   per column. With Terralith and Tectonic tiles take less than half the time.
@@ -27,6 +44,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   anyway.
 - The accuracy figures are measured more fairly: real and generated columns go through the same check, and blocks are
   also compared one by one.
+### Fixed
+- On some starts the mod did nothing: Distant Horizons picked its own generator before this one was ready and kept it for
+  the session, so the distance came out bare and slow with no message. In test runs on a fast PC this happened on one
+  start in four, and more often the longer the world took to load. Distant Horizons now waits for the choice.
+- A Distant Horizons generator plan set to "disabled", or "chunks only" with existing chunks only, is respected: nothing
+  is generated, also not by this mod.
+- The End keeps its detail around the islands: sections of pure void counted as not generated yet, so the coarse terrain
+  next to them never gave way to finer terrain.
+- After leaving a dimension and coming back on a server, structures around you are prepared ahead again.
+- Distant trees keep their shape: branches no longer grow into walls of logs down to the ground, bushes no longer join
+  the crowns above them, and the leaves of far forests no longer reach the ground.
+- Trunks no longer stand as thick as a wide LOD column: columns over 2 blocks wide show crowns only.
 
 ## [1.5.0] - 2026-10-26
 ### Added

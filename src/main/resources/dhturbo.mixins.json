@@ -6,9 +6,12 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "CappedProcessorMixin",
-    "FullDataSourceV2Mixin"
+    "FullDataSourceV2Mixin",
+    "ServerLodRequestStateMixin",
+    "WorldGenerationQueueMixin"
   ],
   "client": [
+    "FullDataSourceProviderV2Mixin",
     "LodQuadTreeMixin",
     "LodRenderSectionMixin",
     "QuadTreeTickNodeHolderMixin",

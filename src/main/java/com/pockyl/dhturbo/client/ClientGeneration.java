@@ -8,10 +8,13 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.biome.Biome;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.dh.DhIntegration;
 import com.pockyl.dhturbo.dh.LodTileWriter;
 import com.pockyl.dhturbo.dh.WorkerPool;
 import com.pockyl.dhturbo.surface.NoiseBinder;
@@ -52,7 +55,8 @@ public final class ClientGeneration {
     /** The tile writer for the level, or null while it is being built or when the level cannot be generated here. */
     @Nullable
     public static LodTileWriter writer(DhClientLevel level) {
-        if (!Config.ENABLED.get() || !ReceivedWorldgen.present() || ((ClientLevelState) level).dhturbo$serverSendsLods()
+        if (!Config.ENABLED.get() || !ReceivedWorldgen.present() || !DhIntegration.generationWanted()
+                || ((ClientLevelState) level).dhturbo$serverSendsLods()
                 || !(level.levelWrapper.getWrappedMcObject() instanceof ClientLevel clientLevel)) {
             return null;
         }
@@ -66,11 +70,11 @@ public final class ClientGeneration {
         return writer.isDone() ? writer.join().orElse(null) : null;
     }
 
-    /** The local player's block X and Z while it is in the level. */
-    private static List<int[]> playerIn(ClientLevel level) {
+    /** The local player's block X and Z while it is in the dimension: its level object changes on every return. */
+    private static List<int[]> playerIn(ResourceKey<Level> dimension) {
         LocalPlayer player = Minecraft.getInstance().player;
-        return player != null && player.level() == level ? List.of(new int[]{player.getBlockX(), player.getBlockZ()})
-                : List.of();
+        return player != null && player.level().dimension() == dimension
+                ? List.of(new int[]{player.getBlockX(), player.getBlockZ()}) : List.of();
     }
 
     private static Optional<LodTileWriter> build(DhClientLevel level, ClientLevel clientLevel, LevelGenInfo info, long seed) {
@@ -83,10 +87,11 @@ public final class ClientGeneration {
                 return Optional.empty();
             }
             Registry<Biome> levelBiomes = clientLevel.registryAccess().registryOrThrow(Registries.BIOME);
+            ResourceKey<Level> dimension = clientLevel.dimension();
             LodTileWriter writer = new LodTileWriter(level.levelWrapper, resolved.generator(), worldgen,
                     clientLevel.dimensionType(), seed,
                     biome -> biome.unwrapKey().flatMap(levelBiomes::getHolder).<Holder<Biome>>map(holder -> holder).orElse(biome),
-                    WorldgenLoader.templates(), null, () -> playerIn(clientLevel), NoiseBinder.NONE);
+                    WorldgenLoader.templates(), null, () -> playerIn(dimension), NoiseBinder.NONE);
             DhTurbo.LOGGER.info("Generating distant terrain of {} on this client", info);
             return Optional.of(writer);
         } catch (RuntimeException e) {

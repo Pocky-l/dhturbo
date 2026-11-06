@@ -9,13 +9,15 @@
   "dhturbo.configuration.threads.tooltip": "0 = two thirds of the CPU cores. One LOD tile is split across all threads. Takes effect after a restart.",
   "dhturbo.left_to_dh": "DH Turbo can't read the terrain of %s: Distant Horizons draws it there.",
   "dhturbo.configuration.exact_radius": "Exact Terrain Radius",
-  "dhturbo.configuration.exact_radius.tooltip": "Chunks around you redrawn from the real generator while idle. 0 = off.",
+  "dhturbo.configuration.exact_radius.tooltip": "Chunks around you redrawn from the real generator while idle. Inside render distance nothing changes. 0 = off.",
+  "dhturbo.configuration.exact_radius_server": "Exact Terrain Radius on Servers",
+  "dhturbo.configuration.exact_radius_server.tooltip": "The same on a dedicated server, around every player. Takes server CPU. 0 = off.",
   "dhturbo.configuration.full_resolution": "Full Resolution",
   "dhturbo.configuration.full_resolution.tooltip": "Let caves shape 1 to 4-block columns everywhere. Slower, few columns change.",
   "dhturbo.configuration.fake_trees": "Fake Trees",
   "dhturbo.configuration.fake_trees.tooltip": "Add approximate tree canopies to forests, so they are not bald until real chunks load.",
   "dhturbo.configuration.real_trees": "Real Trees",
-  "dhturbo.configuration.real_trees.tooltip": "On detailed LODs near the player, replay the game's own tree placement: trees stand where and as they will in the real world.",
+  "dhturbo.configuration.real_trees.tooltip": "On detailed LODs near the player, replay the game's tree placement: most trees stand where and as they will in the real world. Needs Fake Trees.",
   "key.categories.dhturbo": "Turbo for Distant Horizons (developer)",
   "key.dhturbo.toggle": "Switch Generator (DH Turbo / Distant Horizons)",
   "key.dhturbo.clear_lods": "Clear Distant Terrain",
@@ -27,7 +29,7 @@
   "dhturbo.message.clear_failed": "could not clear distant terrain, see the log",
   "dhturbo.message.no_distant_horizons": "Distant Horizons is not installed",
   "dhturbo.configuration.share_worldgen": "Share World Generation",
-  "dhturbo.configuration.share_worldgen.tooltip": "Server: send players with this mod the world seed and generation settings, so their client generates distant terrain itself. Turn off if players must not know the seed.",
+  "dhturbo.configuration.share_worldgen.tooltip": "Server without Distant Horizons: send players with this mod the seed and generation settings, so their client generates distant terrain. Turn off if players must not know the seed.",
   "dhturbo.configuration.real_chunks_nearby": "Real Chunks Nearby",
   "dhturbo.configuration.real_chunks_nearby.tooltip": "Follow the Distant Horizons generator plan instead of switching it to 'surface only': with its default plan, detailed terrain near you is drawn fast first, then replaced by real chunk generation (slower, uses more CPU). Off: everything stays fast.",
   "dhturbo.configuration.structures": "Structures",
@@ -39,5 +41,5 @@
   "dhturbo.configuration.soft_plant_colors": "Soft Plant Colors",
   "dhturbo.configuration.soft_plant_colors.tooltip": "Blend the colour of plants into the ground under them instead of painting the whole block (a poppy no longer turns a grass block red). Applies to LODs built after the change.",
   "dhturbo.configuration.excluded_dimensions": "Excluded Dimensions",
-  "dhturbo.configuration.excluded_dimensions.tooltip": "Dimensions whose distant terrain is left to the Distant Horizons generator, by id (for example minecraft:the_end). Applies to terrain generated from then on."
+  "dhturbo.configuration.excluded_dimensions.tooltip": "Dimensions left to the Distant Horizons generator, by id (for example minecraft:the_end). It draws its rough surface there. Applies to terrain generated from then on."
 }

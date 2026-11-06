@@ -1,13 +1,15 @@
 package com.pockyl.dhturbo.dh;
 
+import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.surface.StructurePrefetch;
 import com.pockyl.dhturbo.world.TerrainSupport;
+
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
@@ -26,6 +28,9 @@ public final class TurboActivity {
     private static final LongAdder FAILED = new LongAdder();
     private static final LongAdder NANOS = new LongAdder();
     private static final AtomicInteger RUNNING = new AtomicInteger();
+    private static final LongAdder EXACT_CHUNKS = new LongAdder();
+    private static final LongAdder SAVED_CHUNKS = new LongAdder();
+    private static volatile String exactStatus;
     private static volatile long lastStart = System.nanoTime();
 
     private static long rateCount;
@@ -41,12 +46,32 @@ public final class TurboActivity {
     private TurboActivity() {
     }
 
-    /** A tile started generating; returns the start time to pass to {@link #finished} or {@link #failed}. */
     /** Time since the last tile was started. */
     public static long idleNanos() {
         return RUNNING.get() > 0 ? 0 : System.nanoTime() - lastStart;
     }
 
+    /** Tiles finished since the game started. */
+    public static long tiles() {
+        return DONE.sum();
+    }
+
+    /** Chunks of real terrain went to Distant Horizons. */
+    public static void exactChunks(int chunks) {
+        EXACT_CHUNKS.add(chunks);
+    }
+
+    /** Saved chunks went to Distant Horizons. */
+    public static void savedChunks(int chunks) {
+        SAVED_CHUNKS.add(chunks);
+    }
+
+    /** What the exact pass is doing, null while it is off. */
+    public static void exactStatus(@Nullable String status) {
+        exactStatus = status;
+    }
+
+    /** A tile started generating; returns the start time to pass to {@link #finished} or {@link #failed}. */
     public static long started() {
         lastStart = System.nanoTime();
         RUNNING.incrementAndGet();
@@ -64,14 +89,21 @@ public final class TurboActivity {
         FAILED.increment();
     }
 
-    /** The F3 line, or empty before the first tile. Called from the render thread only. */
-    public static Optional<String> debugLine() {
+    /** The F3 line. Called from the render thread only. */
+    public static String debugLine() {
+        if (!Config.ENABLED.get()) {
+            return "DH Turbo: off, Distant Horizons generates";
+        }
         long done = DONE.sum();
         int running = Math.max(0, RUNNING.get());
         Set<String> leftToDh = TerrainSupport.leftToDistantHorizons();
         String note = leftToDh.isEmpty() ? "" : ", DH draws " + String.join(", ", leftToDh) + " (terrain not readable)";
+        String exact = exactStatus;
+        if (exact != null) {
+            note = ", saved " + SAVED_CHUNKS.sum() + ", exact " + EXACT_CHUNKS.sum() + " chunks (" + exact + ")" + note;
+        }
         if (done == 0 && running == 0) {
-            return note.isEmpty() ? Optional.empty() : Optional.of("DH Turbo: no tiles" + note);
+            return "DH Turbo: no tiles" + note;
         }
         long now = System.nanoTime();
         if (rateTime == 0) {
@@ -96,10 +128,10 @@ public final class TurboActivity {
         }
         long failed = FAILED.sum();
         long prepared = StructurePrefetch.totalAreas();
-        return Optional.of(String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running, CPU %.1f cores%s%s%s",
+        return String.format(Locale.ROOT, "DH Turbo: %d tiles, %.0f/s, %.1f ms/tile, %d running, CPU %.1f cores%s%s%s",
                 done, rate, msPerTile, running, cores,
                 prepared > 0 ? ", structures ready in " + prepared + " areas" : "", failed > 0 ? ", " + failed + " failed" : "",
-                note));
+                note);
     }
 
     /** CPU time used so far by the live threads of the generator (named "DH Turbo ..."), 0 when the JVM cannot tell. */

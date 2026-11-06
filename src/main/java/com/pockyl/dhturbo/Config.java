@@ -33,8 +33,8 @@ public final class Config {
             .define("fake_trees", true);
 
     public static final ModConfigSpec.BooleanValue REAL_TREES = BUILDER
-            .comment("On detailed LODs near the player, replay the game's own tree placement: trees stand where and as",
-                    "they will in the real world. Otherwise (and farther away) trees are approximate.")
+            .comment("On detailed LODs near the player, replay the game's own tree placement: most trees stand where and as",
+                    "they will in the real world. Otherwise (and farther away) trees are approximate. Needs fake_trees.")
             .translation("dhturbo.configuration.real_trees")
             .define("real_trees", true);
 
@@ -60,11 +60,17 @@ public final class Config {
             .define("real_chunks_nearby", false);
 
     public static final ModConfigSpec.IntValue EXACT_RADIUS = BUILDER
-            .comment("Chunks around players that get the world's real terrain in the background, while the generator has",
-                    "nothing else to do: caves, ores on cliffs, every tree and plant, block for block. Uses spare CPU at the",
-                    "lowest priority. 0 = off. Singleplayer and servers with Distant Horizons.")
+            .comment("Chunks around you that get the world's real terrain in the background: caves, ores on cliffs, trees and",
+                    "plants. Runs while the generator has nothing else to do, waits while the server is busy or you move fast.",
+                    "Chunks inside your render distance are real anyway, so a radius below it does nothing. 0 = off. Singleplayer.")
             .translation("dhturbo.configuration.exact_radius")
-            .defineInRange("exact_radius", 32, 0, 256);
+            .defineInRange("exact_radius", 16, 0, 256);
+
+    public static final ModConfigSpec.IntValue EXACT_RADIUS_SERVER = BUILDER
+            .comment("The same on a dedicated server with Distant Horizons, around every player online. 0 = off: it takes",
+                    "CPU from the server, and thread priorities do nothing on most Linux hosts.")
+            .translation("dhturbo.configuration.exact_radius_server")
+            .defineInRange("exact_radius_server", 0, 0, 256);
 
     public static final ModConfigSpec.BooleanValue STRUCTURES = BUILDER
             .comment("Build the world's structures on distant terrain: villages, outposts, temples, mansions, shipwrecks,",
@@ -81,15 +87,16 @@ public final class Config {
             .define("soft_plant_colors", true);
 
     public static final ModConfigSpec.BooleanValue SHARE_WORLDGEN = BUILDER
-            .comment("Server: send players with this mod the world seed and generation settings, so their client generates",
-                    "distant terrain itself (also on servers without Distant Horizons). Turn off if players must not know the seed.")
+            .comment("Server without Distant Horizons: send players with this mod the world seed and generation settings, so",
+                    "their client generates distant terrain itself. Turn off if players must not know the seed. A server with",
+                    "Distant Horizons never sends them: it sends the distant terrain.")
             .translation("dhturbo.configuration.share_worldgen")
             .define("share_worldgen", true);
 
     public static final ModConfigSpec.ConfigValue<List<? extends String>> EXCLUDED_DIMENSIONS = BUILDER
             .comment("Dimensions whose distant terrain this mod leaves to the Distant Horizons generator, by id, for example",
-                    "[\"minecraft:the_end\", \"twilightforest:twilight_forest\"]. Applies to terrain generated from then on; distant",
-                    "terrain already saved stays as it is.")
+                    "[\"minecraft:the_end\", \"twilightforest:twilight_forest\"]. That generator then draws its rough surface; for",
+                    "real chunks turn on real_chunks_nearby too. Applies to terrain generated from then on.")
             .translation("dhturbo.configuration.excluded_dimensions")
             .defineListAllowEmpty("excluded_dimensions", List.of(), () -> "minecraft:the_end",
                     value -> value instanceof String id && ResourceLocation.tryParse(id) != null);
@@ -102,6 +109,11 @@ public final class Config {
     /** Whether DH Turbo generates the distant terrain of this dimension right now. */
     public static boolean generates(ResourceKey<Level> dimension) {
         return ENABLED.get() && !EXCLUDED_DIMENSIONS.get().contains(dimension.location().toString());
+    }
+
+    /** Chunks around players that get real terrain; the setting depends on who pays for the CPU. */
+    public static int exactRadius(boolean dedicatedServer) {
+        return (dedicatedServer ? EXACT_RADIUS_SERVER : EXACT_RADIUS).get();
     }
 
     public static int threadCount() {

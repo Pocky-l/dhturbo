@@ -22,14 +22,14 @@ public final class DhTurboClient {
         // Leaving a server forgets its seed and generators (Distant Horizons is optional, guard its classes).
         if (ModList.get().isLoaded("distanthorizons")) {
             NeoForge.EVENT_BUS.addListener((ClientPlayerNetworkEvent.LoggingOut event) -> ClientGeneration.reset());
-        }
-        if (DhTurbo.DEBUG) {
-            // Developer runs only, and only with F3 open: the event also fires while the debug screen is closed.
+            // Only with F3 open: the event also fires while the debug screen is closed.
             NeoForge.EVENT_BUS.addListener((CustomizeGuiOverlayEvent.DebugText event) -> {
                 if (Minecraft.getInstance().getDebugOverlay().showDebugScreen()) {
-                    TurboActivity.debugLine().ifPresent(event.getRight()::add);
+                    event.getRight().add(TurboActivity.debugLine());
                 }
             });
+        }
+        if (DhTurbo.DEBUG) {
             modBus.addListener(DemoKeys::register);
             NeoForge.EVENT_BUS.addListener(DemoKeys::tick);
         }

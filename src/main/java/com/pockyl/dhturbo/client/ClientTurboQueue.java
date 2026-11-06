@@ -163,7 +163,7 @@ public final class ClientTurboQueue implements IFullDataSourceRetrievalQueue {
             long start = TurboActivity.started();
             try {
                 writer.fill(DhSectionPos.getMinCornerBlockX(pos), DhSectionPos.getMinCornerBlockZ(pos), spacing, dataSource);
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | Error e) {
                 TurboActivity.failed();
                 failed.incrementAndGet();
                 if (loggedErrors.incrementAndGet() <= MAX_LOGGED_ERRORS) {

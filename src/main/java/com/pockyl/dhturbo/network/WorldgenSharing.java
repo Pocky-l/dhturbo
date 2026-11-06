@@ -19,7 +19,7 @@ import com.pockyl.dhturbo.world.TerrainSupport;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Sends players the world generation info when they join, if the server allows it (see {@link Config#SHARE_WORLDGEN}). */
+/** Sends players the world generation info when they join, if the server needs it and allows it (see {@link #shares}). */
 public final class WorldgenSharing {
     private WorldgenSharing() {
     }
@@ -42,8 +42,13 @@ public final class WorldgenSharing {
                 });
     }
 
+    /** A server with Distant Horizons sends the distant terrain itself: its seed would give clients nothing but the seed. */
+    public static boolean shares(boolean distantHorizonsOnServer) {
+        return Config.SHARE_WORLDGEN.get() && !distantHorizonsOnServer;
+    }
+
     private static void playerJoined(PlayerEvent.PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player) || !Config.SHARE_WORLDGEN.get()
+        if (!(event.getEntity() instanceof ServerPlayer player) || !shares(ModList.get().isLoaded("distanthorizons"))
                 || !player.connection.hasChannel(WorldgenInfoPayload.TYPE)) {
             return;
         }

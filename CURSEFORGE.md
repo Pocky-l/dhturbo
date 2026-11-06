@@ -9,20 +9,29 @@ from the world noise, with the game's own trees and structures.
 *▶️ Watch the showcase on [YouTube](https://www.youtube.com/watch?v=scB_5JrGfXc)*
 
 📦 **Requires** [NeoForge](https://neoforged.net) 1.21.1 or [Forge](https://files.minecraftforge.net) 1.20.1, and
-[Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 or newer
+[Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 (3.3.3 or a later 3.3 on 1.21.1)
 
 ## ✨ Features
 
-- 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: the horizon fills as fast as the land
-  around you.
+- 🚀 **Fast distant terrain** - level-of-detail terrain without generating chunks: a far tile costs about as much as a
+  near one.
+- ⚡ **Horizon first** - in singleplayer the whole view of a new world is there about 3 seconds after you join, coarse at
+  first, then it sharpens pass by pass, starting with what you look at. Every tile is done in under 30 seconds (6-core PC,
+  LOD radius 256 chunks).
 - 📊 **Measured** - in Distant Horizons' own pregeneration (1 km around spawn, same world): about 7x faster than its
   default chunk generation with under a fifth of the CPU time; 94-98% of land columns have the real height at every
   distance and biomes agree on 99.5%, checked against real chunks
-  ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)).
-- 🎯 **Exact terrain near you** - while the generator is idle, the chunks around you are redrawn by the game's real
-  generator: ground 100% as in the real world, with caves, ores and every tree. Lowest priority, config `exact_radius`.
+  ([how it works](https://github.com/Pocky-l/dhturbo/blob/main/docs/how-it-works.md)). In play, Distant Horizons' own
+  saving and meshing often set the pace.
+- 🎯 **Exact terrain near you** - while the generator is idle, the chunks just past your render distance are redrawn by
+  the game's real generator, with caves, ores on cliffs, trees and plants: in test runs 92 to 95% of columns then
+  matched the real world. It waits while the server is busy or you move fast. Config `exact_radius`; dedicated servers
+  opt in with `exact_radius_server`.
+- 🏠 **Your world in the distance** - chunks the world has saved (builds, adventure maps, pregenerated terrain) reach
+  Distant Horizons as they are, nearest first, in the background.
 - 🌲 **Real trees and plants** - the game's own vegetation is replayed up to 4-block columns: trees, grass, flowers,
-  sugar cane and pumpkins in the same spots, species and shapes; farther away, approximate trees shaped like their species.
+  sugar cane and pumpkins with its species and shapes. About 7 in 10 tree columns land on the real spot at full detail,
+  over half at 4-block columns, jungles far fewer; farther away, approximate trees shaped like their species.
 - 🏔️ **The world's own surface** - the game's surface rules (also those of data packs and terrain mods) cover the
   distant ground: gravel shores, calcite, powder snow, badlands bands and hoodoos, frozen ocean icebergs; snow and ice
   by temperature; cliffs show grass on top and dirt and stone on their walls, like the real ones.
@@ -34,31 +43,34 @@ from the world noise, with the game's own trees and structures.
 - 🌋 **Lava lakes** - where and as the game places them.
 - 🌼 **Grass and flowers** - distant meadows get grass and the biome's own flowers (tulip fields, flower forest
   patches where the game puts them); flowers no longer turn whole blocks red or yellow in the distance.
-- 🌐 **Multiplayer** - on a server it shares the seed and terrain settings, so players generate the distance
-  themselves, even without Distant Horizons on the server.
+- 🌐 **Multiplayer** - a server without Distant Horizons shares the seed and terrain settings, so players generate the
+  distance themselves; a server with it sends its own distant terrain and keeps the seed.
 
-**Limits:** beyond `exact_radius`, underground structures (mineshafts, strongholds, ancient cities) and caves are not
-drawn.
+**Limits:** terrain already drawn stays as it was until you run `/dhturbo regenerate`, also after an update. Players
+generating the distance on a server without Distant Horizons get the seed's terrain: builds show once they have been
+there. Beyond `exact_radius`, underground structures (mineshafts, strongholds, ancient cities) and caves are not drawn.
 
 ## 🧩 Compatibility
 
 Terrain, biome and structure mods that work through data packs are generated like vanilla. Checked against real
 generation:
 
-[![Terralith](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/terralith.png)](https://www.curseforge.com/minecraft/mc-mods/terralith) ✅ **[Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith)** - its biomes, surface and structures in the distance (top block 94%, heights 96% exact)
+[![Terralith](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/terralith.png)](https://www.curseforge.com/minecraft/mc-mods/terralith) ✅ **[Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith)** - its biomes, surface and structures in the distance (top block 94%, land heights 95% exact)
 
-[![Tectonic](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/tectonic.png)](https://www.curseforge.com/minecraft/mc-mods/tectonic) ✅ **[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic)** - its mountains and rivers in the distance; its terrain takes the generator about three times longer
+[![Tectonic](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/tectonic.png)](https://www.curseforge.com/minecraft/mc-mods/tectonic) ✅ **[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic)** - its mountains and rivers in the distance; its terrain takes the generator about twice as long
 
 [![ReTerraForged](https://raw.githubusercontent.com/Pocky-l/dhturbo/main/docs/compat/reterraforged.png)](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes) ✅ **[ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes)** - its continents, mountains and rivers in the distance (heights within 4 blocks on 99% of columns: its erosion is not drawn). In multiplayer the server draws them, players do not generate them themselves
 
-A world whose terrain the mod cannot read (a mod with its own chunk generator) is left to Distant Horizons' own generator: the mod checks every world against the game's generator when it loads and says so in the log.
+A world whose terrain the mod cannot read (a mod with its own chunk generator) is left to Distant Horizons, which draws its rough surface there: the mod checks every world against the game's generator when it loads and tells whoever runs the world in chat.
 
 ## ⚙️ Configuration
 
-*Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, exact terrain radius, full resolution,
+*Mods > Turbo for Distant Horizons > Config*: generator on/off, worker threads, exact terrain radius (singleplayer and
+dedicated servers apart), full resolution,
 distant and real trees, structures, the world's surface rules, grass and flowers, soft plant colours, real chunks nearby (follow the
-Distant Horizons generator plan), dimensions to leave to Distant Horizons (`excluded_dimensions`). Servers can stop
-sharing the world seed (`share_worldgen`).
+Distant Horizons generator plan), dimensions to leave to Distant Horizons (`excluded_dimensions`). Servers without
+Distant Horizons can stop sharing the world seed (`share_worldgen`). With F3 open, a line shows what the mod is doing.
+`/dhturbo regenerate` redraws the world's distant terrain, for example after an update.
 
 ## 💛 Credits
 

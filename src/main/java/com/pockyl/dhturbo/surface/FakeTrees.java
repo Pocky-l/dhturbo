@@ -5,28 +5,36 @@ import net.minecraft.world.level.block.state.BlockState;
 
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
+
 /**
  * Deterministic stand-ins for trees: no features are generated, a hash of the position decides where crowns are.
  * <p>
- * Close LOD columns (a few blocks wide) get crowns shaped like the species ({@link BiomeLook.Shape}) with a trunk and
- * air below, so single trees read as trees. Wide columns only get a leaf block of the right height with the biome's
- * canopy coverage as probability, which averages out to the right shade of forest from afar.
+ * Close LOD columns (a few blocks wide) get crowns shaped like the species ({@link BiomeLook.Shape}) with air below,
+ * so single trees read as trees. Wide columns get one crown with the biome's canopy coverage as probability, which
+ * averages out to the right shade of forest from afar.
  */
 public final class FakeTrees {
     /** Columns up to this width get individual tree shapes. */
     public static final int SHAPED_MAX_SPACING = 4;
+    /** Columns up to this width show trunks: a trunk fills its whole column, wider ones would make it a wall. */
+    public static final int TRUNK_MAX_SPACING = 2;
 
     private FakeTrees() {
     }
 
-    /**
-     * Leaves over a column, heights in blocks above the ground.
-     *
-     * @param trunk whether the column holds the trunk ({@code log} under the leaves instead of air)
-     */
-    public record Canopy(BlockState leaves, BlockState log, boolean trunk, int leavesBottom, int leavesTop) {
+    /** A run of one block over a column, in blocks above the ground ({@code to} is exclusive). */
+    public record Span(BlockState block, int from, int to) {
+    }
+
+    /** What trees put over a column: runs of blocks, lowest first, with air between them. */
+    public record Canopy(List<Span> spans) {
+        int top() {
+            return spans.getLast().to();
+        }
+
         public boolean higherThan(@Nullable Canopy other) {
-            return other == null || leavesTop > other.leavesTop;
+            return other == null || top() > other.top();
         }
     }
 
@@ -41,19 +49,20 @@ public final class FakeTrees {
             if (unit(hash) >= look.treeCoverage()) {
                 return null;
             }
-            return new Canopy(tree.leaves(), tree.log(), false, 0, height(tree, hash & 0xFFFFFF));
+            return crown(tree, height(tree, hash & 0xFFFFFF), 0, tree.radius(), false);
         }
-        return shaped(seed, x, z, tree, look.treeCoverage());
+        return shaped(seed, x, z, tree, look.treeCoverage(), spacing <= TRUNK_MAX_SPACING);
     }
 
     /**
      * The part of a crown above a column {@code distance} blocks from the trunk, or null when the column is outside.
      *
      * @param height height of the tree top above the ground
+     * @param trunks whether a column at the middle of the crown shows the trunk
      */
     @Nullable
-    public static Canopy crown(BiomeLook.Tree tree, int height, double distance, double radius) {
-        boolean trunk = distance < 0.75;
+    private static Canopy crown(BiomeLook.Tree tree, int height, double distance, double radius, boolean trunks) {
+        boolean trunk = trunks && distance < 0.75;
         if (distance > radius) {
             return null;
         }
@@ -89,11 +98,12 @@ public final class FakeTrees {
             }
             top = bottom + 1;
         }
-        return new Canopy(tree.leaves(), tree.log(), trunk, bottom, top);
+        Span leaves = new Span(tree.leaves(), bottom, top);
+        return new Canopy(trunk ? List.of(new Span(tree.log(), 0, bottom), leaves) : List.of(leaves));
     }
 
     @Nullable
-    private static Canopy shaped(long seed, int x, int z, BiomeLook.Tree tree, double coverage) {
+    private static Canopy shaped(long seed, int x, int z, BiomeLook.Tree tree, double coverage, boolean trunks) {
         int cell = Math.max(4, Mth.ceil(tree.radius() * 2) + 1);
         // Probability of a tree per cell that gives the requested canopy coverage.
         double chance = Math.min(1, coverage * cell * cell / (Math.PI * tree.radius() * tree.radius()));
@@ -109,7 +119,7 @@ public final class FakeTrees {
                 int centerX = (cellX + dx) * cell + (int) (hash & 0xFF) % cell;
                 int centerZ = (cellZ + dz) * cell + (int) ((hash >>> 8) & 0xFF) % cell;
                 double distance = Math.sqrt((double) (x - centerX) * (x - centerX) + (double) (z - centerZ) * (z - centerZ));
-                Canopy canopy = crown(tree, height(tree, (hash >>> 16) & 0xFFFFFF), distance, tree.radius());
+                Canopy canopy = crown(tree, height(tree, (hash >>> 16) & 0xFFFFFF), distance, tree.radius(), trunks);
                 if (canopy != null && canopy.higherThan(best)) {
                     best = canopy;
                 }

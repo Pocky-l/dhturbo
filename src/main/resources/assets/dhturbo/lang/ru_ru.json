@@ -9,13 +9,15 @@
   "dhturbo.configuration.threads.tooltip": "0 = две трети ядер процессора. Каждый LOD-тайл делится между всеми потоками. Применяется после перезапуска.",
   "dhturbo.left_to_dh": "DH Turbo не может прочитать рельеф %s: там его рисует Distant Horizons.",
   "dhturbo.configuration.exact_radius": "Радиус точной местности",
-  "dhturbo.configuration.exact_radius.tooltip": "Чанки вокруг вас, которые в простое перерисовываются настоящим генератором. 0 = выкл.",
+  "dhturbo.configuration.exact_radius.tooltip": "Чанки вокруг вас, которые в простое перерисовываются настоящим генератором. Внутри дальности прорисовки ничего не меняется. 0 = выкл.",
+  "dhturbo.configuration.exact_radius_server": "Радиус точной местности на серверах",
+  "dhturbo.configuration.exact_radius_server.tooltip": "То же на выделенном сервере, вокруг каждого игрока. Нагружает процессор сервера. 0 = выкл.",
   "dhturbo.configuration.full_resolution": "Полное разрешение",
   "dhturbo.configuration.full_resolution.tooltip": "Учитывать пещеры в колонках шириной 1-4 блока везде. Медленнее, меняется мало колонок.",
   "dhturbo.configuration.fake_trees": "Фейковые деревья",
   "dhturbo.configuration.fake_trees.tooltip": "Добавлять в леса примерные кроны, чтобы они не были лысыми до загрузки настоящих чанков.",
   "dhturbo.configuration.real_trees": "Настоящие деревья",
-  "dhturbo.configuration.real_trees.tooltip": "На подробных LOD рядом с игроком повторять ванильную расстановку деревьев: деревья стоят там и такие, какими будут в настоящем мире.",
+  "dhturbo.configuration.real_trees.tooltip": "На подробных LOD рядом с игроком повторять ванильную расстановку деревьев: большинство деревьев стоят там и такие, какими будут в настоящем мире. Нужны «Фейковые деревья».",
   "key.categories.dhturbo": "Turbo for Distant Horizons (разработчик)",
   "key.dhturbo.toggle": "Переключить генератор (DH Turbo / Distant Horizons)",
   "key.dhturbo.clear_lods": "Очистить дальний ландшафт",
@@ -27,7 +29,7 @@
   "dhturbo.message.clear_failed": "не удалось очистить дальний ландшафт, подробности в логе",
   "dhturbo.message.no_distant_horizons": "Distant Horizons не установлен",
   "dhturbo.configuration.share_worldgen": "Делиться генерацией мира",
-  "dhturbo.configuration.share_worldgen.tooltip": "Сервер: отправлять игрокам с этим модом сид и настройки генерации мира, чтобы их клиент сам генерировал дальний ландшафт. Выключите, если игрокам нельзя знать сид.",
+  "dhturbo.configuration.share_worldgen.tooltip": "Сервер без Distant Horizons: отправлять игрокам с этим модом сид и настройки генерации, чтобы их клиент сам генерировал дальний ландшафт. Выключите, если игрокам нельзя знать сид.",
   "dhturbo.configuration.real_chunks_nearby": "Настоящие чанки рядом",
   "dhturbo.configuration.real_chunks_nearby.tooltip": "Следовать плану генератора Distant Horizons, а не переключать его на «только поверхность»: при плане по умолчанию детальный рельеф рядом сначала быстро рисуется этим модом, затем заменяется настоящей генерацией чанков (медленнее, больше нагрузка на процессор). Выкл.: всё остаётся быстрым.",
   "dhturbo.configuration.structures": "Структуры",
@@ -39,5 +41,5 @@
   "dhturbo.configuration.soft_plant_colors": "Мягкие цвета растений",
   "dhturbo.configuration.soft_plant_colors.tooltip": "Подмешивать цвет растений к земле под ними, а не перекрашивать весь блок (мак больше не делает блок травы красным). Действует на LOD, построенные после изменения.",
   "dhturbo.configuration.excluded_dimensions": "Исключённые измерения",
-  "dhturbo.configuration.excluded_dimensions.tooltip": "Измерения, дальний ландшафт которых остаётся генератору Distant Horizons, по id (например, minecraft:the_end). Действует на ландшафт, сгенерированный после изменения."
+  "dhturbo.configuration.excluded_dimensions.tooltip": "Измерения, дальний ландшафт которых остаётся генератору Distant Horizons, по id (например, minecraft:the_end). Он рисует там грубую поверхность. Действует на ландшафт, сгенерированный после изменения."
 }

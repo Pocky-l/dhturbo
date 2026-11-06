@@ -1,5 +1,8 @@
 package com.pockyl.dhturbo.surface;
 
+import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectRBTreeMap;
+import it.unimi.dsi.fastutil.ints.Int2ObjectSortedMap;
 import it.unimi.dsi.fastutil.ints.IntRBTreeSet;
 import it.unimi.dsi.fastutil.ints.IntSortedSet;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
@@ -27,8 +30,10 @@ import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
 import com.pockyl.dhturbo.DhTurbo;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -179,14 +184,7 @@ public final class RealTrees {
         Long2ObjectMap<BlockState> writes = place(minX - CHUNK_REACH, minZ - CHUNK_REACH, width * spacing + 2 * CHUNK_REACH, terrain);
 
         int columns = width * width;
-        int[] leavesBottom = new int[columns];
-        int[] leavesTop = new int[columns];
-        int[] logTop = new int[columns];
-        Arrays.fill(leavesBottom, Integer.MAX_VALUE);
-        Arrays.fill(leavesTop, Integer.MIN_VALUE);
-        Arrays.fill(logTop, Integer.MIN_VALUE);
-        BlockState[] leaves = new BlockState[columns];
-        BlockState[] logs = new BlockState[columns];
+        List<Int2ObjectSortedMap<BlockState>> placed = new ArrayList<>(Collections.nCopies(columns, null));
         BlockState[] tops = new BlockState[columns];
         BlockState[] plantsOnGround = new BlockState[columns];
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
@@ -198,13 +196,20 @@ public final class RealTrees {
             pos.set(entry.getLongKey());
             int i = Math.floorDiv(pos.getX() - minX, spacing);
             int j = Math.floorDiv(pos.getZ() - minZ, spacing);
-            // A wide column shows what stands on its corner, like every other block of it.
-            if (i < 0 || j < 0 || i >= width || j >= width
-                    || pos.getX() != minX + i * spacing || pos.getZ() != minZ + j * spacing) {
+            if (i < 0 || j < 0 || i >= width || j >= width) {
+                continue;
+            }
+            int cornerX = minX + i * spacing;
+            int cornerZ = minZ + j * spacing;
+            boolean corner = pos.getX() == cornerX && pos.getZ() == cornerZ;
+            // Distant Horizons merges real columns slice by slice and only air loses: a wide column holds wood and leaves
+            // wherever any column under it does, or forests come out thinner than the real ones. What lies on the ground
+            // stays with the corner, like the ground itself.
+            if (!corner && !state.is(BlockTags.LEAVES) && !state.is(BlockTags.LOGS)) {
                 continue;
             }
             int index = i + j * width;
-            int relative = pos.getY() - terrain.ground(pos.getX(), pos.getZ());
+            int relative = pos.getY() - terrain.ground(cornerX, cornerZ);
             if (relative == -1) {
                 if (!state.is(BlockTags.LOGS) && !state.is(Blocks.DIRT)) {
                     tops[index] = state;
@@ -217,35 +222,70 @@ public final class RealTrees {
                     }
                     continue;
                 }
-                if (state.is(BlockTags.LOGS)) {
-                    if (relative >= logTop[index]) {
-                        logTop[index] = relative;
-                        logs[index] = state;
-                    }
-                } else {
-                    leavesBottom[index] = Math.min(leavesBottom[index], relative);
-                    if (relative >= leavesTop[index]) {
-                        leavesTop[index] = relative;
-                        leaves[index] = state;
-                    }
+                Int2ObjectSortedMap<BlockState> blocks = placed.get(index);
+                if (blocks == null) {
+                    blocks = new Int2ObjectRBTreeMap<>();
+                    placed.set(index, blocks);
+                }
+                if (corner || !blocks.containsKey(relative)) {
+                    blocks.put(relative, state);
                 }
             }
         }
 
         FakeTrees.Canopy[] canopies = new FakeTrees.Canopy[columns];
+        boolean trunks = spacing <= FakeTrees.TRUNK_MAX_SPACING;
         for (int index = 0; index < columns; index++) {
-            boolean hasLeaves = leaves[index] != null;
-            boolean hasLog = logs[index] != null;
-            if (hasLeaves) {
-                int top = Math.max(leavesTop[index], logTop[index]) + 1;
-                boolean trunk = hasLog && logTop[index] >= leavesBottom[index] - 1;
-                canopies[index] = new FakeTrees.Canopy(leaves[index], hasLog ? logs[index] : leaves[index], trunk,
-                        leavesBottom[index], top);
-            } else if (hasLog) {
-                canopies[index] = new FakeTrees.Canopy(logs[index], logs[index], true, logTop[index] + 1, logTop[index] + 1);
+            if (placed.get(index) != null) {
+                canopies[index] = canopy(placed.get(index), trunks);
             }
         }
         return new TileTrees(canopies, tops, plantsOnGround);
+    }
+
+    /**
+     * The blocks trees placed over a column, as they stand: a branch stays a branch in the air, and a bush under a high
+     * crown stays apart from it.
+     *
+     * @param blocks the blocks by height above the ground
+     * @param trunks false for columns wider than a trunk: wood under the column's lowest crown block is left out, a
+     *               trunk would stand as wide as the column
+     * @return the canopy, or null when nothing of it is left
+     */
+    @Nullable
+    public static FakeTrees.Canopy canopy(Int2ObjectSortedMap<BlockState> blocks, boolean trunks) {
+        List<FakeTrees.Span> spans = new ArrayList<>(2);
+        boolean show = trunks;
+        BlockState run = null;
+        int from = 0;
+        int to = 0;
+        for (Int2ObjectMap.Entry<BlockState> entry : blocks.int2ObjectEntrySet()) {
+            int y = entry.getIntKey();
+            BlockState state = entry.getValue();
+            show |= !isWood(state);
+            if (!show) {
+                continue;
+            }
+            if (run != null && (y != to || state.getBlock() != run.getBlock())) {
+                spans.add(new FakeTrees.Span(run, from, to));
+                run = null;
+            }
+            if (run == null) {
+                run = state;
+                from = y;
+            }
+            to = y + 1;
+        }
+        if (run == null) {
+            return null;
+        }
+        spans.add(new FakeTrees.Span(run, from, to));
+        return new FakeTrees.Canopy(spans);
+    }
+
+    /** What holds a tree up: logs, the stems of huge mushrooms, mangrove roots. */
+    private static boolean isWood(BlockState state) {
+        return state.is(BlockTags.LOGS) || state.is(Blocks.MUSHROOM_STEM) || state.is(Blocks.MANGROVE_ROOTS);
     }
 
     /**
