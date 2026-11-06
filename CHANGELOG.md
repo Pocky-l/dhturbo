@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   95% of columns then matched the real world. It waits while the server is busy or you move fast. Config
   `exact_radius` (chunks, default 16, 0 = off); dedicated servers opt in with `exact_radius_server`. Chunks the world has
   saved are left as they are.
+- Distant End islands get their chorus and small islands, and the distant Nether its huge fungi, vines, basalt and glowstone:
+  the game's own features, with its own seeds, up to 4-block columns in the End and 2-block columns in the Nether.
 - The game's tree placement is replayed up to 4-block columns (before: full detail only): about 7 in 10 tree columns land
   on the real spot at full detail, over half at 4-block columns, jungles far fewer.
 - A line on the F3 screen shows what the generator is doing, the exact pass included.
@@ -45,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The accuracy figures are measured more fairly: real and generated columns go through the same check, and blocks are
   also compared one by one.
 ### Fixed
+- Structures in the Nether and the End no longer count as lit by a sky those worlds do not have.
 - On some starts the mod did nothing: Distant Horizons picked its own generator before this one was ready and kept it for
   the session, so the distance came out bare and slow with no message. In test runs on a fast PC this happened on one
   start in four, and more often the longer the world took to load. Distant Horizons now waits for the choice.

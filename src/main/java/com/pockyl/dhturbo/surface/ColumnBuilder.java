@@ -77,6 +77,9 @@ public final class ColumnBuilder {
     private final RealLakes realLakes;
     @Nullable
     private final RealStructures realStructures;
+    /** What grows on {@link #profile} terrain; null in height-field worlds or with trees switched off. */
+    @Nullable
+    private final ProfileFeatures profileFeatures;
     /** The world's surface rules; null when they cannot run (then {@link BiomeLook} and {@link SurfaceDetail}). */
     @Nullable
     private final VanillaSurface vanillaSurface;
@@ -123,6 +126,9 @@ public final class ColumnBuilder {
                 ? realStructures(generator, sampler, templates, seed, registries, dimensionType)
                 : null;
         this.vanillaSurface = Config.VANILLA_SURFACE.get() ? vanillaSurface(generator, sampler, registries, seed) : null;
+        this.profileFeatures = profile != null && Config.REAL_TREES.get()
+                ? new ProfileFeatures(generator, sampler, profile, vanillaSurface, seed, registries, dimensionType)
+                : null;
         this.defaultBlock = generator.generatorSettings().value().defaultBlock();
         this.seed = seed;
         this.fullResolution = Config.FULL_RESOLUTION.get();
@@ -210,7 +216,7 @@ public final class ColumnBuilder {
             return 0;
         }
         if (profile != null) {
-            return buildProfiles(minX, minZ, spacing, width, sink);
+            return buildProfiles(minX, minZ, spacing, width, preview, sink);
         }
         long lap = System.nanoTime();
         boolean replay = !preview && realTrees != null && spacing <= REAL_TREES_MAX_SPACING;
@@ -339,12 +345,20 @@ public final class ColumnBuilder {
      * rules over the whole column (netherrack, soul sand valleys, nylium, basalt deltas, bedrock floor and roof; end
      * stone), then structures.
      */
-    private long buildProfiles(int minX, int minZ, int spacing, int width, Sink sink) {
+    private long buildProfiles(int minX, int minZ, int spacing, int width, boolean preview, Sink sink) {
+        long lap = System.nanoTime();
         boolean[][] solids = profile.tile(minX, minZ, spacing, width);
-        List<RealStructures.Built> structures = realStructures != null && spacing <= RealStructures.MAX_SPACING
+        lap = BuildProfile.lap(Stage.LATTICE, lap);
+        List<RealStructures.Built> structures = !preview && realStructures != null && spacing <= RealStructures.MAX_SPACING
                 ? realStructures.around(minX, minZ, minX + width * spacing - 1, minZ + width * spacing - 1)
                 : List.of();
-        long failures = realStructures != null ? realStructures.takeFailures() : 0;
+        lap = BuildProfile.lap(Stage.STRUCTURES, lap);
+        RealStructures.Column[] features = !preview && profileFeatures != null && profileFeatures.reaches(spacing)
+                ? profileFeatures.plant(minX, minZ, spacing, width)
+                : null;
+        lap = BuildProfile.lap(Stage.TREES, lap);
+        long failures = (realStructures != null ? realStructures.takeFailures() : 0)
+                + (profileFeatures != null ? profileFeatures.takeFailures() : 0);
         @SuppressWarnings("unchecked")
         List<Layer>[] columns = (List<Layer>[]) new List[width * width];
         @SuppressWarnings("unchecked")
@@ -374,6 +388,9 @@ public final class ColumnBuilder {
                         RealStructures.Column structure = structures.isEmpty() ? null
                                 : RealStructures.columnFor(structures, x, z, spacing);
                         Holder<Biome> biome = levelBiome.apply(sampler.biome(x, Math.max(sampler.seaLevel(), minY), z));
+                        if (features != null && features[index] != null) {
+                            overlay(points, features[index], x, z, biome);
+                        }
                         if (structure != null) {
                             overlay(points, structure, x, z, biome);
                         }
@@ -667,7 +684,9 @@ public final class ColumnBuilder {
             int runTop = Math.clamp(structure.tops()[k] - minY, 0, top);
             if (runTop > bottom) {
                 BlockState state = structure.states()[k];
-                int light = state.liquid() || state.isAir() ? MAX_LIGHT : light(runTop - 1 + minY, waterTop);
+                // Worlds without a sky have no sky light to give, whatever the block.
+                int light = skyLight == 0 ? 0
+                        : state.liquid() || state.isAir() ? MAX_LIGHT : light(runTop - 1 + minY, waterTop);
                 runs.add(new Layer(state, light, bottom, runTop));
             }
         }

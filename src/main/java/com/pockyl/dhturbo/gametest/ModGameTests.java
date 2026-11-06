@@ -761,6 +761,43 @@ public final class ModGameTests {
         helper.succeed();
     }
 
+    /** The features of worlds without one surface run on the virtual level: chorus in the End, fungi in the Nether. */
+    @GameTest(template = "empty", timeoutTicks = 6000)
+    public static void profileWorldsGrowTheirPlants(GameTestHelper helper) {
+        RegistryAccess registries = helper.getLevel().registryAccess();
+        ColumnBuilder end = new ColumnBuilder(new NoiseBasedChunkGenerator(TheEndBiomeSource.create(registries.lookupOrThrow(Registries.BIOME)),
+                registries.registryOrThrow(Registries.NOISE_SETTINGS).getHolderOrThrow(NoiseGeneratorSettings.END)), registries,
+                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END), SEED, UnaryOperator.identity(), null);
+        ColumnBuilder nether = new ColumnBuilder(new NoiseBasedChunkGenerator(MultiNoiseBiomeSource.createFromPreset(registries
+                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST).getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)),
+                registries.registryOrThrow(Registries.NOISE_SETTINGS).getHolderOrThrow(NoiseGeneratorSettings.NETHER)), registries,
+                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER), SEED, UnaryOperator.identity(), null);
+        Set<Block> grown = new HashSet<>();
+        long failures = 0;
+        long endNanos = 0;
+        long netherNanos = 0;
+        for (int tile = 0; tile < 16; tile++) {
+            int x = 1024 + tile % 4 * 256;
+            int z = 1024 + tile / 4 * 256;
+            long start = System.nanoTime();
+            failures += end.build(x, z, 4, 64, (i, j, biome, layers) -> layers.forEach(layer -> grown.add(layer.state().getBlock())));
+            long middle = System.nanoTime();
+            failures += nether.build(x, z, 2, 64, (i, j, biome, layers) -> layers.forEach(layer -> grown.add(layer.state().getBlock())));
+            endNanos += middle - start;
+            netherNanos += System.nanoTime() - middle;
+        }
+        DhTurbo.LOGGER.info("Features in the End and the Nether: {} kinds of block, {} failed, {} ms per End tile, {} ms per Nether tile",
+                grown.size(), failures, endNanos / 16_000_000, netherNanos / 16_000_000);
+        if (failures > 0) {
+            helper.fail(failures + " features failed");
+        } else if (!grown.contains(Blocks.CHORUS_PLANT)) {
+            helper.fail("No chorus on distant End islands");
+        } else if (!grown.contains(Blocks.CRIMSON_STEM) && !grown.contains(Blocks.WARPED_STEM) && !grown.contains(Blocks.BASALT)) {
+            helper.fail("No fungi or basalt in the distant Nether: " + grown);
+        }
+        helper.succeed();
+    }
+
     /** End islands float: end stone with open space under it, not pillars down to the bottom of the world. */
     @GameTest(template = "empty", timeoutTicks = 6000)
     public static void endIslandsFloat(GameTestHelper helper) {

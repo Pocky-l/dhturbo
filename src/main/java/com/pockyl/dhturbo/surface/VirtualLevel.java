@@ -26,6 +26,8 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import com.pockyl.dhturbo.DhTurbo;
 
+import org.jetbrains.annotations.Nullable;
+
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -57,6 +59,12 @@ final class VirtualLevel implements InvocationHandler {
          * terrain, which is rock below {@link #ground} and open above.
          */
         default Boolean solid(int x, int y, int z) {
+            return null;
+        }
+
+        /** The block at this place when the terrain knows it exactly, or null to go by {@link #solid}. */
+        @Nullable
+        default BlockState block(int x, int y, int z) {
             return null;
         }
 
@@ -116,6 +124,10 @@ final class VirtualLevel implements InvocationHandler {
             return written;
         }
         int y = pos.getY();
+        BlockState exact = terrain.block(pos.getX(), y, pos.getZ());
+        if (exact != null) {
+            return exact;
+        }
         Boolean solid = terrain.solid(pos.getX(), y, pos.getZ());
         if (solid != null) {
             return solid ? terrain.rock() : y < seaLevel ? terrain.fluid() : Blocks.AIR.defaultBlockState();
