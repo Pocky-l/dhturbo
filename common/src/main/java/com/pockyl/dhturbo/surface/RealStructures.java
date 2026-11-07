@@ -48,6 +48,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.platform.Platform;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -332,8 +333,8 @@ public final class RealStructures {
             return null;
         }
         long begin = System.nanoTime();
-        StructureStart start = structure.generate(registries, generator, generator.getBiomeSource(), randomState,
-                templates, seed, chunk, 0, heightAccessor, structure.biomes()::contains);
+        StructureStart start = WorldgenApi.start(entry.structure(), registries, generator, randomState, templates, seed, chunk,
+                heightAccessor);
         LongAdder[] cost = startCosts.computeIfAbsent(name(structure),
                 key -> new LongAdder[]{new LongAdder(), new LongAdder(), new LongAdder()});
         cost[0].add(System.nanoTime() - begin);
@@ -831,7 +832,7 @@ public final class RealStructures {
                 for (StructurePiece piece : pieces) {
                     if (piece.getBoundingBox().intersects(area)) {
                         try {
-                            piece.postProcess(level.proxy, null, generator, random, area, chunk, pivot);
+                            piece.postProcess(level.view, null, generator, random, area, chunk, pivot);
                         } catch (VirtualLevel.NoEntities e) {
                             // Mobs come last; the piece's blocks are all there.
                         } catch (RuntimeException e) {
@@ -841,7 +842,7 @@ public final class RealStructures {
                     }
                 }
                 try {
-                    structure.afterPlace(level.proxy, null, generator, random, area, chunk, new PiecesContainer(pieces));
+                    structure.afterPlace(level.view, null, generator, random, area, chunk, new PiecesContainer(pieces));
                 } catch (VirtualLevel.NoEntities e) {
                     // As above.
                 } catch (RuntimeException e) {
@@ -903,7 +904,7 @@ public final class RealStructures {
                     low = Math.min(low, junction.getSourceGroundY());
                     high = Math.max(high, junction.getSourceGroundY());
                 }
-                Beardifier beard = new Beardifier(rigids.iterator(), junctions.iterator());
+                Beardifier beard = WorldgenApi.beardifier(rigids, junctions);
                 for (int x = Math.max(chunk.getMinBlockX(), groundMinX); x <= Math.min(chunk.getMaxBlockX(), groundMaxX); x++) {
                     for (int z = Math.max(chunk.getMinBlockZ(), groundMinZ); z <= Math.min(chunk.getMaxBlockZ(), groundMaxZ); z++) {
                         int index = (x - groundMinX) + (z - groundMinZ) * groundSize;

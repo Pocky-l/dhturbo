@@ -15,6 +15,6 @@ plugins {
 
 rootProject.name = 'dhturbo'
 
-// common: the code shared by the loaders, compiled against vanilla Minecraft; neoforge: the loader glue. Each loader
-// project compiles the common sources into its own jar.
-include 'common', 'neoforge'
+// common: the code shared by both loaders, compiled against vanilla Minecraft; neoforge / fabric: the loader glue. Each
+// loader project compiles the common sources into its own jar.
+include 'common', 'neoforge', 'fabric'

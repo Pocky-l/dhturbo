@@ -10,6 +10,7 @@ import com.pockyl.dhturbo.platform.Platform;
 import com.pockyl.dhturbo.world.LevelGenInfo;
 import com.pockyl.dhturbo.world.ReceivedWorldgen;
 import com.pockyl.dhturbo.world.TerrainSupport;
+import com.pockyl.dhturbo.world.version.PlayerApi;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,18 +46,18 @@ public final class WorldgenSharing {
             return;
         }
         // The singleplayer host generates through the integrated server itself; it has no use for the info.
-        if (player.server.isSingleplayerOwner(player.getGameProfile())) {
+        if (PlayerApi.isHost(player)) {
             return;
         }
         List<LevelGenInfo> levels = new ArrayList<>();
-        for (ServerLevel level : player.server.getAllLevels()) {
+        for (ServerLevel level : PlayerApi.server(player).getAllLevels()) {
             // Levels whose terrain a client cannot rebuild from the noise settings alone stay with Distant Horizons.
             if (TerrainSupport.clientProblem(level).isEmpty()) {
                 LevelGenInfo.of(level).ifPresent(levels::add);
             }
         }
         if (!levels.isEmpty()) {
-            Platform.INSTANCE.send(player, new WorldgenInfoPayload(player.server.overworld().getSeed(), levels));
+            Platform.INSTANCE.send(player, new WorldgenInfoPayload(PlayerApi.server(player).overworld().getSeed(), levels));
         }
     }
 }

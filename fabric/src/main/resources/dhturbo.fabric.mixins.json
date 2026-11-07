@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.pockyl.dhturbo.fabric.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "StructureTemplatePaletteMixin"
+  ],
+  "client": [
+    "DebugScreenOverlayMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

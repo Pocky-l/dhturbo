@@ -13,6 +13,7 @@ import org.jetbrains.annotations.Nullable;
 import java.lang.reflect.Method;
 import java.util.Locale;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Checks that this mod reads a level's terrain right before it draws it: the terrain it computes is compared with what
@@ -35,6 +36,8 @@ public final class TerrainCheck {
     /** Profiled worlds: every this many blocks of a column are compared. */
     private static final int PROFILE_STEP = 4;
     private static final int PROFILE_COLUMNS = 12;
+    /** {@code fillFromNoise}, also by the names the game runs with outside development: Forge 1.20.1's and Fabric's. */
+    private static final Set<String> FILL_METHODS = Set.of("fillFromNoise", "m_213974_", "method_12088");
 
     private TerrainCheck() {
     }
@@ -64,7 +67,7 @@ public final class TerrainCheck {
         }
         for (Class<?> type = generator.getClass(); type != NoiseBasedChunkGenerator.class; type = type.getSuperclass()) {
             for (Method method : type.getDeclaredMethods()) {
-                if (method.getName().equals("fillFromNoise")) {
+                if (FILL_METHODS.contains(method.getName())) {
                     return "its chunk generator fills chunks its own way (" + generator.getClass().getName() + ")";
                 }
             }

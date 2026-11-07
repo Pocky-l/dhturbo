@@ -7,6 +7,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.world.version.PlayerApi;
 
 /**
  * {@code /dhturbo regenerate}: finished tiles stay as they were drawn, so fixes in the generator reach only new ones.
@@ -24,8 +25,7 @@ final class RegenerateCommand {
 
     /** Operators, and the host of a singleplayer world, also without cheats. */
     private static boolean allowed(CommandSourceStack source) {
-        return source.hasPermission(Commands.LEVEL_GAMEMASTERS) || source.getPlayer() != null
-                && source.getServer().isSingleplayerOwner(source.getPlayer().getGameProfile());
+        return PlayerApi.isOperator(source) || source.getPlayer() != null && PlayerApi.isHost(source.getPlayer());
     }
 
     private static int run(CommandSourceStack source) {

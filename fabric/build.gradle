@@ -1,0 +1,130 @@
+plugins {
+    id 'multiloader-loader'
+    id 'fabric-loom'
+}
+
+// Distant Horizons runs in the dev client and servers as a real mod from their mods/ folders, as on NeoForge.
+configurations {
+    distantHorizons {
+        transitive = false
+    }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    mappings loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${parchment_minecraft_version}:${parchment_mappings_version}@zip")
+    }
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    // The config: NeoForge's ModConfigSpec, config files and config screen on Fabric, so both loaders share Config and
+    // its file.
+    modApi "fuzs.forgeconfigapiport:forgeconfigapiport-fabric:${forge_config_api_port_version}"
+    modCompileOnly "maven.modrinth:distanthorizons:${distanthorizons_version}"
+    distantHorizons "maven.modrinth:distanthorizons:${distanthorizons_version}"
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/${mod_id}.accesswidener")
+    runs {
+        client {
+            client()
+            configName = 'Fabric Client'
+            ideConfigGenerated(true)
+            runDir('run')
+            // -PclientWorld=<save name>: the dev client opens that world directly.
+            providers.gradleProperty('clientWorld').map { [it] }.getOrElse([]).each {
+                programArgs('--quickPlaySingleplayer', it)
+            }
+            // -PclientServer=<host:port>: the dev client joins that server directly.
+            providers.gradleProperty('clientServer').map { [it] }.getOrElse([]).each {
+                programArgs('--quickPlayMultiplayer', it)
+            }
+        }
+        server {
+            server()
+            configName = 'Fabric Server'
+            ideConfigGenerated(true)
+            runDir('run-server')
+        }
+        // Times Distant Horizons' own /dh pregen (compare/PregenBenchmark): a dedicated server with Distant Horizons in
+        // run/pregen/, report in run/pregen/dhturbo-pregen.txt, stops when done.
+        pregenServer {
+            server()
+            configName = 'Fabric Pregen Server'
+            ideConfigGenerated(false)
+            runDir('run/pregen')
+            vmArg "-Ddhturbo.pregen=${providers.gradleProperty('pregenRadius').getOrElse('64')}"
+            vmArg "-Ddhturbo.pregen.label=${providers.gradleProperty('pregenLabel').getOrElse('run')}"
+        }
+    }
+}
+
+var installDistantHorizonsClient = tasks.register('installDistantHorizonsClient', Copy) {
+    from configurations.distantHorizons
+    into 'run/mods'
+}
+// -PserverDh=false runs the dev server without Distant Horizons (tests client-side generation).
+var serverDh = providers.gradleProperty('serverDh').map { it != 'false' }.getOrElse(true)
+var installDistantHorizonsServer = serverDh
+        ? tasks.register('installDistantHorizonsServer', Copy) {
+            from configurations.distantHorizons
+            into 'run-server/mods'
+        }
+        : tasks.register('removeDistantHorizonsServer', Delete) {
+            // An empty copy would be skipped (NO-SOURCE) and leave the jar of an earlier run behind.
+            delete fileTree('run-server/mods') { include 'distanthorizons-*.jar' }
+        }
+var installDistantHorizonsPregen = tasks.register('installDistantHorizonsPregen', Copy) {
+    from configurations.distantHorizons
+    into 'run/pregen/mods'
+}
+// Dev servers need an accepted EULA; offline, so the dev client can join.
+var prepareServers = tasks.register('prepareServers') {
+    var dirs = [project.file('run/pregen'), project.file('run-server')]
+    outputs.files(dirs.collect { new File(it, 'eula.txt') })
+    doLast {
+        dirs.each { dir ->
+            dir.mkdirs()
+            new File(dir, 'eula.txt').text = 'eula=true' + System.lineSeparator()
+            var properties = new File(dir, 'server.properties')
+            if (!properties.exists()) {
+                properties.text = ['online-mode=false', 'max-tick-time=-1', 'spawn-protection=0']
+                        .join(System.lineSeparator()) + System.lineSeparator()
+            }
+        }
+    }
+}
+tasks.named('runClient') { dependsOn installDistantHorizonsClient }
+tasks.named('runServer') { dependsOn installDistantHorizonsServer, prepareServers }
+tasks.named('runPregenServer') { dependsOn installDistantHorizonsPregen, prepareServers }
+
+tasks.named('processResources', ProcessResources) {
+    var replaceProperties = [
+            minecraft_version    : minecraft_version,
+            fabric_loader_version: fabric_loader_min_version,
+            fabric_api_version   : fabric_api_min_version,
+            mod_id               : mod_id,
+            mod_name             : mod_name,
+            mod_license          : mod_license,
+            mod_version          : mod_version,
+            mod_authors          : mod_authors,
+            mod_description      : mod_description,
+            mod_url              : mod_url,
+    ]
+    inputs.properties replaceProperties
+    filesMatching('fabric.mod.json') {
+        expand replaceProperties
+    }
+}
+
+publishMods {
+    file = tasks.named('remapJar').flatMap { it.archiveFile }
+    displayName = "${mod_name} ${mod_version} (Fabric)"
+    modLoaders.add('fabric')
+
+    curseforge {
+        curseforge_requires_fabric.split(',')*.trim().findAll().each { requires(it) }
+    }
+}

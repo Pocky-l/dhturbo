@@ -10,6 +10,8 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
+import com.pockyl.dhturbo.world.version.WorldgenApi;
+
 /**
  * Blocks of a land column beyond the biome's default: snow by temperature and height, bare rock on steep mountain
  * slopes, terracotta bands in badlands, and the layers under the top block. Approximates vanilla surface rules from
@@ -63,9 +65,9 @@ public final class SurfaceDetail {
      *
      * @param y height of the layer (one above the block it lies on)
      */
-    public static boolean snowLayerOn(Holder<Biome> biome, BlockState below, int x, int y, int z) {
+    public static boolean snowLayerOn(Holder<Biome> biome, BlockState below, int x, int y, int z, int seaLevel) {
         return !below.liquid() && !below.is(BlockTags.SNOW_LAYER_CANNOT_SURVIVE_ON)
-                && biome.value().coldEnoughToSnow(new BlockPos(x, y, z));
+                && WorldgenApi.coldEnoughToSnow(biome.value(), new BlockPos(x, y, z), seaLevel);
     }
 
     /**

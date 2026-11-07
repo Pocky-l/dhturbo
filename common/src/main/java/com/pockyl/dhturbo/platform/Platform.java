@@ -6,6 +6,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.repository.PackRepository;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.minecraft.world.level.levelgen.structure.TerrainAdjustment;
@@ -41,7 +42,10 @@ public interface Platform {
     /** The registries data packs fill: vanilla's and those of the mods. */
     List<RegistryDataLoader.RegistryData<?>> worldgenRegistries();
 
-    /** Whether a pack of the vanilla repository holds the built-in data of the installed mods. */
+    /** A new repository of the game's and the installed mods' data packs, without any world's. */
+    PackRepository dataPacks();
+
+    /** Whether a pack of {@link #dataPacks} that is not required holds the built-in data of the installed mods. */
     boolean isModDataPack(String packId);
 
     /** What a piece says about the terrain under it, null when it leaves that to the game. */

@@ -123,7 +123,7 @@ public final class RealLakes {
         BlockPos origin = new BlockPos(blockX, sampler.minY(), blockZ);
         for (SurfaceLake lake : lakes) {
             random.setFeatureSeed(decorationSeed, lake.index, STEP);
-            PlacementContext context = new PlacementContext(level.proxy, generator, Optional.of(lake.placed));
+            PlacementContext context = new PlacementContext(level.view, generator, Optional.of(lake.placed));
             Stream<BlockPos> positions = Stream.of(origin);
             for (PlacementModifier modifier : lake.placed.placement()) {
                 positions = positions.flatMap(pos -> modifier.getPositions(context, random, pos));

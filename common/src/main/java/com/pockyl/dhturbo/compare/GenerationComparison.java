@@ -30,6 +30,7 @@ import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.RealStructures;
 import com.pockyl.dhturbo.surface.TerrainCheck;
 import com.pockyl.dhturbo.world.TerrainSupport;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -200,7 +201,7 @@ public final class GenerationComparison {
             }
             BlockPos at = new BlockPos(x, height, z);
             line.append(String.format(Locale.ROOT, " | biome %s, cold %b, block light %d, sky light %d",
-                    Stats.name(level.getBiome(at)), level.getBiome(at).value().coldEnoughToSnow(at),
+                    Stats.name(level.getBiome(at)), WorldgenApi.coldEnoughToSnow(level.getBiome(at).value(), at, level.getSeaLevel()),
                     level.getBrightness(net.minecraft.world.level.LightLayer.BLOCK, at),
                     level.getBrightness(net.minecraft.world.level.LightLayer.SKY, at)));
             stats[0].probes.add(line.toString());

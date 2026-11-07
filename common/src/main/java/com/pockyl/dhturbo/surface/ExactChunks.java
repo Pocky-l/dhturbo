@@ -12,7 +12,6 @@ import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
 import net.minecraft.util.StaticCache2D;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
@@ -21,21 +20,19 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
 import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.minecraft.world.level.chunk.ProtoChunk;
-import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.chunk.status.ChunkPyramid;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.chunk.status.ChunkStep;
-import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseSettings;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.blending.Blender;
-import net.minecraft.world.ticks.ProtoChunkTicks;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.surface.BuildProfile.Stage;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -104,7 +101,7 @@ public final class ExactChunks {
         this.generator = generator;
         this.random = level.getChunkSource().randomState();
         this.biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
-        this.noSections = new ProtoChunk(ChunkPos.ZERO, UpgradeData.EMPTY, level, biomes, null).getSections();
+        this.noSections = WorldgenApi.protoChunk(ChunkPos.ZERO, level, level.registryAccess()).getSections();
         this.structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
         this.seed = level.getSeed();
         this.minY = level.getMinBuildHeight();
@@ -218,8 +215,8 @@ public final class ExactChunks {
         BuildProfile.lap(Stage.EXACT_STARTS, begin);
         // Every chunk knows its starts first: references and biomes read their neighbours.
         for (int n = 0; n < grid.length; n++) {
-            ProtoChunk chunk = new ProtoChunk(new ChunkPos(chunks.originX + n % GRID, chunks.originZ + n / GRID),
-                    UpgradeData.EMPTY, level, biomes, null);
+            ProtoChunk chunk = WorldgenApi.protoChunk(new ChunkPos(chunks.originX + n % GRID, chunks.originZ + n / GRID),
+                    level, level.registryAccess());
             stub(chunk.getPos().x, chunk.getPos().z).getAllStarts().forEach(chunk::setStartForStructure);
             grid[n] = chunk;
         }
@@ -274,7 +271,7 @@ public final class ExactChunks {
                 region.getBiomeManager(), biomes, Blender.empty());
         chunk.setPersistedStatus(ChunkStatus.SURFACE);
         begin = BuildProfile.lap(Stage.EXACT_SURFACE, begin);
-        generator.applyCarvers(region, seed, random, level.getBiomeManager(), manager, chunk, GenerationStep.Carving.AIR);
+        WorldgenApi.carve(generator, region, seed, random, level.getBiomeManager(), manager, chunk);
         chunk.setPersistedStatus(ChunkStatus.CARVERS);
         BuildProfile.lap(Stage.EXACT_CARVERS, begin);
     }
@@ -293,7 +290,7 @@ public final class ExactChunks {
     public boolean writeForTest(BlockPos pos, BlockState state) {
         ChunkAccess[] grid = new ChunkAccess[GRID * GRID];
         Grid chunks = new Grid(pos.getX() >> 4, pos.getZ() >> 4, grid);
-        grid[0] = new ProtoChunk(new ChunkPos(pos), UpgradeData.EMPTY, level, biomes, null);
+        grid[0] = WorldgenApi.protoChunk(new ChunkPos(pos), level, level.registryAccess());
         return new Region(level, featureStep, grid[0], chunks).setBlock(pos, state, 2);
     }
 
@@ -301,11 +298,9 @@ public final class ExactChunks {
     private ProtoChunk stub(int x, int z) {
         try {
             return stubs.get(ChunkPos.asLong(x, z), () -> {
-                ProtoChunk stub = new ProtoChunk(new ChunkPos(x, z), UpgradeData.EMPTY, noSections,
-                        new ProtoChunkTicks<>(), new ProtoChunkTicks<>(), level, biomes, null);
+                ProtoChunk stub = WorldgenApi.protoChunk(new ChunkPos(x, z), noSections, level, level.registryAccess());
                 if (structures) {
-                    generator.createStructures(level.registryAccess(), level.getChunkSource().getGeneratorState(),
-                            level.structureManager(), stub, level.getStructureManager());
+                    WorldgenApi.createStarts(generator, level, stub);
                 }
                 return stub;
             });
@@ -365,7 +360,7 @@ public final class ExactChunks {
                     BlockState state = states[run];
                     layers[run] = new ColumnBuilder.Layer(state, sky, starts[run], starts[run + 1]);
                     int dims = lightBlock.computeIfAbsent(state,
-                            key -> key.getLightBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
+                            WorldgenApi::lightBlock);
                     sky = Math.max(0, sky - dims * (starts[run + 1] - starts[run]));
                 }
                 int index = batch.index(blockX + lx, blockZ + lz);
@@ -448,7 +443,7 @@ public final class ExactChunks {
                 return false;
             }
             ChunkAccess chunk = getChunk(pos);
-            BlockState old = chunk.setBlockState(pos, state, false);
+            BlockState old = WorldgenApi.setBlock(chunk, pos, state, flags);
             if (state.hasBlockEntity()) {
                 CompoundTag tag = new CompoundTag();
                 tag.putInt("x", pos.getX());
@@ -459,7 +454,7 @@ public final class ExactChunks {
             } else if (old != null && old.hasBlockEntity()) {
                 chunk.removeBlockEntity(pos);
             }
-            if (state.hasPostProcess(this, pos)) {
+            if (state.hasPostProcess(this, pos) && WorldgenApi.marksPostProcessing(flags)) {
                 chunk.markPosForPostprocessing(pos);
             }
             return true;

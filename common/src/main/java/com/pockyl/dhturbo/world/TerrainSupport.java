@@ -14,6 +14,7 @@ import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.ProfileTerrain;
 import com.pockyl.dhturbo.surface.SurfaceSampler;
 import com.pockyl.dhturbo.surface.TerrainCheck;
+import com.pockyl.dhturbo.world.version.PlayerApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -48,8 +49,7 @@ public final class TerrainSupport {
 
     /** Whoever runs the world hears why its distance looks different, without reading the log. */
     private static void tellHost(ServerPlayer player) {
-        if (!LEFT_TO_DH.isEmpty() && (player.hasPermissions(2)
-                || player.server.isSingleplayerOwner(player.getGameProfile()))) {
+        if (!LEFT_TO_DH.isEmpty() && (PlayerApi.isOperator(player) || PlayerApi.isHost(player))) {
             String dimensions = String.join(", ", leftToDistantHorizons());
             player.sendSystemMessage(Component.translatableWithFallback("dhturbo.left_to_dh",
                     "DH Turbo can't read the terrain of %s: Distant Horizons draws it there.", dimensions));

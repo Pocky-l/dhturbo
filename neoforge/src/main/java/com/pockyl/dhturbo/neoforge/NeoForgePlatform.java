@@ -6,6 +6,8 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.repository.PackRepository;
+import net.minecraft.server.packs.repository.ServerPacksSource;
 import net.minecraft.world.level.levelgen.structure.StructurePiece;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.world.PieceBeardifierModifier;
@@ -35,6 +37,11 @@ public final class NeoForgePlatform implements Platform {
     @Override
     public List<RegistryDataLoader.RegistryData<?>> worldgenRegistries() {
         return DataPackRegistriesHooks.getDataPackRegistries();
+    }
+
+    @Override
+    public PackRepository dataPacks() {
+        return ServerPacksSource.createVanillaTrustedRepository();
     }
 
     @Override

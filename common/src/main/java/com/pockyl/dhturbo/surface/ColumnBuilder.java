@@ -14,6 +14,7 @@ import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemp
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.surface.BuildProfile.Stage;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -486,7 +487,7 @@ public final class ColumnBuilder {
                 }
                 points.add(new Layer(floor, light, floorFrom, groundRel));
             }
-            boolean frozen = biome.value().coldEnoughToSnow(new BlockPos(x, seaLevel, z));
+            boolean frozen = WorldgenApi.coldEnoughToSnow(biome.value(), new BlockPos(x, seaLevel, z), seaLevel);
             if (frozen && depth >= 1) {
                 if (depth > 1) {
                     points.add(new Layer(Blocks.WATER.defaultBlockState(), MAX_LIGHT - 1, groundRel, seaRel - 1));
@@ -515,7 +516,7 @@ public final class ColumnBuilder {
                 && groundRel + 1 < top ? plants.plant() : null;
         // Vanilla's snow does not settle where a plant stands.
         boolean groundSnow = overworld && canopy == null && !covered && replayedPlant == null && groundRel + 1 < top
-                && SurfaceDetail.snowLayerOn(biome, surface, x, ground, z);
+                && SurfaceDetail.snowLayerOn(biome, surface, x, ground, z, sampler.seaLevel());
         if (groundSnow) {
             points.add(new Layer(SNOW_LAYER, MAX_LIGHT, groundRel, groundRel + 1));
             airFrom = groundRel + 1;
@@ -612,7 +613,7 @@ public final class ColumnBuilder {
         BlockState surfaceBlock = columnTop > column.bottom() ? column.at(columnTop - 1) : defaultBlock;
         boolean wet = surfaceBlock.liquid();
         // Vanilla's freeze_top_layer turns the top of cold water into ice.
-        boolean frozen = wet && biome.value().coldEnoughToSnow(new BlockPos(x, columnTop - 1, z));
+        boolean frozen = wet && WorldgenApi.coldEnoughToSnow(biome.value(), new BlockPos(x, columnTop - 1, z), sampler.seaLevel());
         if (!wet && treeTop != null) {
             surfaceBlock = treeTop;
         }
@@ -643,7 +644,7 @@ public final class ColumnBuilder {
                 ? plants.plant() : null;
         // Vanilla's snow does not settle where a plant stands.
         boolean groundSnow = canopy == null && !covered && replayedPlant == null && groundRel + 1 < top
-                && SurfaceDetail.snowLayerOn(biome, surfaceBlock, x, ground, z);
+                && SurfaceDetail.snowLayerOn(biome, surfaceBlock, x, ground, z, sampler.seaLevel());
         if (groundSnow) {
             points.add(new Layer(SNOW_LAYER, MAX_LIGHT, groundRel, groundRel + 1));
             airFrom = groundRel + 1;
@@ -716,7 +717,7 @@ public final class ColumnBuilder {
             for (int k = 1; k < result.size(); k++) {
                 Layer layer = result.get(k);
                 if (layer.bottom() == roof && layer.state().isAir()
-                        && SurfaceDetail.snowLayerOn(biome, result.get(k - 1).state(), x, structure.top(), z)) {
+                        && SurfaceDetail.snowLayerOn(biome, result.get(k - 1).state(), x, structure.top(), z, sampler.seaLevel())) {
                     result.set(k, new Layer(SNOW_LAYER, MAX_LIGHT, roof, roof + 1));
                     if (layer.top() > roof + 1) {
                         result.add(k + 1, new Layer(layer.state(), layer.skyLight(), roof + 1, layer.top()));
@@ -760,7 +761,7 @@ public final class ColumnBuilder {
             crown = span.block();
         }
         if (crown != null && airFrom + 1 < top
-                && SurfaceDetail.snowLayerOn(biome, crown, x, airFrom + sampler.minY(), z)) {
+                && SurfaceDetail.snowLayerOn(biome, crown, x, airFrom + sampler.minY(), z, sampler.seaLevel())) {
             points.add(new Layer(SNOW_LAYER, MAX_LIGHT, airFrom, airFrom + 1));
             airFrom++;
         }

@@ -17,6 +17,8 @@ import net.minecraft.world.level.levelgen.NoiseRouter;
 import net.minecraft.world.level.levelgen.NoiseSettings;
 import net.minecraft.world.level.levelgen.RandomState;
 
+import com.pockyl.dhturbo.world.version.WorldgenApi;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -112,12 +114,7 @@ public final class SurfaceSampler {
 
     @SuppressWarnings("deprecation") // disableMobGeneration has to be copied over to rebuild the settings record
     private static NoiseGeneratorSettings withFinalDensity(NoiseGeneratorSettings settings, DensityFunction finalDensity) {
-        NoiseRouter router = settings.noiseRouter();
-        NoiseRouter changed = new NoiseRouter(router.barrierNoise(), router.fluidLevelFloodednessNoise(),
-                router.fluidLevelSpreadNoise(), router.lavaNoise(), router.temperature(), router.vegetation(),
-                router.continents(), router.erosion(), router.depth(), router.ridges(),
-                router.initialDensityWithoutJaggedness(), finalDensity, router.veinToggle(), router.veinRidged(),
-                router.veinGap());
+        NoiseRouter changed = WorldgenApi.withFinalDensity(settings.noiseRouter(), finalDensity);
         return new NoiseGeneratorSettings(settings.noiseSettings(), settings.defaultBlock(), settings.defaultFluid(),
                 changed, settings.surfaceRule(), settings.spawnTarget(), settings.seaLevel(),
                 settings.disableMobGeneration(), settings.aquifersEnabled(), settings.oreVeinsEnabled(),

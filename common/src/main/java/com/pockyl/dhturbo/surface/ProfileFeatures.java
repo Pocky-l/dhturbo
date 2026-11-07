@@ -243,7 +243,7 @@ final class ProfileFeatures {
                 random.setFeatureSeed(decorationSeed, index, STEPS[s].ordinal());
                 PlacedFeature feature = stepFeatures.get(s).get(index);
                 try {
-                    feature.placeWithBiomeCheck(level.proxy, (ChunkGenerator) generator, random, origin);
+                    feature.placeWithBiomeCheck(level.view, (ChunkGenerator) generator, random, origin);
                 } catch (VirtualLevel.NoEntities e) {
                     // End crystals on the spikes: the blocks are placed by then.
                 } catch (RuntimeException e) {

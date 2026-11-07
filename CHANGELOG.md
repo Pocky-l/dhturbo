@@ -4,6 +4,13 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0-fabric] - 2026-11-07
+### Added
+- A [Fabric](https://fabricmc.net/) version for Minecraft 1.21.1, with the same generator, commands and config file as on
+  NeoForge. It needs [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons),
+  [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api) and
+  [Forge Config API Port](https://www.curseforge.com/minecraft/mc-mods/forge-config-api-port).
+
 ## [1.6.0] - 2026-11-06
 ### Added
 - Horizon first: in singleplayer, ground you have not seen shows at once. The whole view fills with coarse terrain within
