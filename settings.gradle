@@ -2,6 +2,10 @@ pluginManagement {
     repositories {
         gradlePluginPortal()
         maven { url = 'https://maven.neoforged.net/releases' }
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
     }
 }
 
@@ -10,3 +14,7 @@ plugins {
 }
 
 rootProject.name = 'dhturbo'
+
+// common: the code shared by the loaders, compiled against vanilla Minecraft; neoforge: the loader glue. Each loader
+// project compiles the common sources into its own jar.
+include 'common', 'neoforge'
