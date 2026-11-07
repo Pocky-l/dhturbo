@@ -10,8 +10,9 @@
 
 <p align="center">
   <a href="https://www.curseforge.com/minecraft/mc-mods/turbo-for-distant-horizons"><img alt="CurseForge downloads" src="https://img.shields.io/curseforge/dt/1734835?logo=curseforge&label=CurseForge&color=F16436"></a>
-  <a href="https://www.minecraft.net"><img alt="Minecraft 1.21.1 | 1.20.1" src="https://img.shields.io/badge/Minecraft-1.21.1%20%7C%201.20.1-62B47A"></a>
+  <a href="https://www.minecraft.net"><img alt="Minecraft 1.20.1 to 26.3" src="https://img.shields.io/badge/Minecraft-1.20.1%20to%2026.3-62B47A"></a>
   <a href="https://neoforged.net"><img alt="NeoForge" src="https://img.shields.io/badge/Loader-NeoForge-F16436"></a>
+  <a href="https://fabricmc.net"><img alt="Fabric" src="https://img.shields.io/badge/Loader-Fabric-DBD0B4"></a>
   <a href="https://files.minecraftforge.net"><img alt="Forge" src="https://img.shields.io/badge/Loader-Forge-DFA86A"></a>
   <a href="https://www.curseforge.com/minecraft/mc-mods/distant-horizons"><img alt="Requires Distant Horizons 3.3+" src="https://img.shields.io/badge/Requires-Distant%20Horizons%203.3%2B-3082D6"></a>
   <a href="LICENSE"><img alt="License MIT" src="https://img.shields.io/badge/License-MIT-blue"></a>
@@ -25,12 +26,16 @@
 
 | Minecraft | Loader | Source |
 |---|---|---|
-| 1.21.1 | [NeoForge](https://neoforged.net) | branch `main` |
-| 1.20.1 | [Forge](https://files.minecraftforge.net) | branch `1.20.1` |
+| 26.3 | [NeoForge](https://neoforged.net), [Fabric](https://fabricmc.net) | branch `26.3` |
+| 26.2 | NeoForge, Fabric | branch `26.2` |
+| 26.1.2 | NeoForge, Fabric | branch `26.1.2` |
+| 1.21.11 | NeoForge, Fabric | branch `1.21.11` |
+| 1.21.1 | NeoForge, Fabric | branch `main` |
+| 1.20.1 | [Forge](https://files.minecraftforge.net), Fabric | branch `1.20.1` |
 
-Both need [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 for their Minecraft
-version (3.3.3 or a later 3.3 on 1.21.1). The 1.20.1 version gets new features later: it is at 1.4.0, without exact
-terrain near you.
+Every version needs [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 for its Minecraft
+version (3.3.3 or a later 3.3). On Fabric it also needs [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api) and
+[Forge Config API Port](https://www.curseforge.com/minecraft/mc-mods/forge-config-api-port).
 
 ## Features
 
@@ -127,10 +132,10 @@ is not changed. Options that change how terrain is drawn take effect the next ti
 
 ## Installation
 
-1. Install [NeoForge](https://neoforged.net) for Minecraft 1.21.1, or [Forge](https://files.minecraftforge.net) for
-   Minecraft 1.20.1.
-2. Install [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 (3.3.3 or a later 3.3 on
-   Minecraft 1.21.1).
+1. Install [NeoForge](https://neoforged.net) or [Fabric](https://fabricmc.net), or [Forge](https://files.minecraftforge.net) on
+   Minecraft 1.20.1. On Fabric add [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api) and
+   [Forge Config API Port](https://www.curseforge.com/minecraft/mc-mods/forge-config-api-port).
+2. Install [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3 (3.3.3 or a later 3.3).
 3. Put the mod for your version into the `mods` folder: on the client for singleplayer; on the server and the clients for multiplayer.
    Distant Horizons is needed on the clients; on the server it is optional.
 
