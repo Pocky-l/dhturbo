@@ -57,9 +57,9 @@ public final class SurfaceBenchmark {
         this.vanilla = new NoiseBasedChunkGenerator(biomeSource, settings);
         this.heightAccessor = LevelHeightAccessor.create(value.noiseSettings().minY(), value.noiseSettings().height());
         this.realTrees = new RealTrees(vanilla, fast, seed, registries,
-                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD), false);
+                registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD).value(), false);
         this.realLakes = new RealLakes(vanilla, fast, seed, registries,
-                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD));
+                registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.OVERWORLD).value());
     }
 
     /** Result of planting the real trees of one tile. */

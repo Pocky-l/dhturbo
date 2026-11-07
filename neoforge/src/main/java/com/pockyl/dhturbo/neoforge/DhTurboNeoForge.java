@@ -9,6 +9,7 @@ import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.gametest.GameTests;
 import com.pockyl.dhturbo.network.WorldgenInfoPayload;
 import com.pockyl.dhturbo.network.WorldgenSharing;
 
@@ -16,6 +17,7 @@ import com.pockyl.dhturbo.network.WorldgenSharing;
 public final class DhTurboNeoForge {
     public DhTurboNeoForge(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        GameTests.register(modBus);
         modBus.addListener(DhTurboNeoForge::registerPayloads);
         modBus.addListener(ModConfigEvent.Reloading.class, event -> {
             if (event.getConfig().getSpec() == Config.SPEC) {

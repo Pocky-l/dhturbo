@@ -15,7 +15,7 @@ public final class NeoForgeLoaderInfo implements LoaderInfo {
 
     @Override
     public boolean isDevelopment() {
-        return !FMLEnvironment.production;
+        return !FMLEnvironment.isProduction();
     }
 
     @Override

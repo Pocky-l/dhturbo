@@ -1,7 +1,7 @@
 package com.pockyl.dhturbo.fabric;
 
-import fuzs.forgeconfigapiport.fabric.api.neoforge.v4.NeoForgeConfigRegistry;
-import fuzs.forgeconfigapiport.fabric.api.neoforge.v4.NeoForgeModConfigEvents;
+import fuzs.forgeconfigapiport.fabric.api.v5.ConfigRegistry;
+import fuzs.forgeconfigapiport.fabric.api.v5.ModConfigEvents;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.neoforged.fml.config.ModConfig;
@@ -14,8 +14,8 @@ import com.pockyl.dhturbo.network.WorldgenInfoPayload;
 public final class DhTurboFabric implements ModInitializer {
     @Override
     public void onInitialize() {
-        NeoForgeConfigRegistry.INSTANCE.register(DhTurbo.MOD_ID, ModConfig.Type.COMMON, Config.SPEC);
-        NeoForgeModConfigEvents.reloading(DhTurbo.MOD_ID).register(config -> {
+        ConfigRegistry.INSTANCE.register(DhTurbo.MOD_ID, ModConfig.Type.COMMON, Config.SPEC);
+        ModConfigEvents.reloading(DhTurbo.MOD_ID).register(config -> {
             if (config.getSpec() == Config.SPEC) {
                 DhTurbo.configReloaded();
             }

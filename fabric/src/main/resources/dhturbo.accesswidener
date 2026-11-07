@@ -18,7 +18,5 @@ extendable class net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator
 # the game's background executor.
 accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doCreateBiomes (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/chunk/ChunkAccess;)V
 accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doFill (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/chunk/ChunkAccess;II)Lnet/minecraft/world/level/chunk/ChunkAccess;
-# Saved chunks without the side effects of ChunkSerializer.read (surface/SavedChunks).
-accessible field net/minecraft/world/level/chunk/storage/ChunkSerializer BLOCK_STATE_CODEC Lcom/mojang/serialization/Codec;
-accessible method net/minecraft/world/level/chunk/storage/ChunkSerializer makeBiomeCodec (Lnet/minecraft/core/Registry;)Lcom/mojang/serialization/Codec;
+# Saved chunks in the current format (surface/SavedChunks).
 accessible method net/minecraft/server/level/ChunkMap upgradeChunkTag (Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;

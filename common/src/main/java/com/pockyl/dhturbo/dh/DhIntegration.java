@@ -249,6 +249,6 @@ public final class DhIntegration {
     private static void leaveToDistantHorizons(ServerLevel level, String reason) {
         TerrainSupport.leftToDistantHorizons(level.dimension(), reason);
         DhTurbo.LOGGER.warn("DH Turbo cannot draw the distant terrain of {}: {}. Distant Horizons generates it instead",
-                level.dimension().location(), reason);
+                level.dimension().identifier(), reason);
     }
 }

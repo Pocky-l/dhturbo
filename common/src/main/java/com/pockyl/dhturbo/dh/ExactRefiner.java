@@ -112,7 +112,7 @@ final class ExactRefiner implements AutoCloseable {
             } catch (ExecutionException | RuntimeException | LinkageError e) {
                 // Real generation is the world's own code: a mod that cannot run on our chunks stops this pass only.
                 DhTurbo.LOGGER.warn("Exact terrain near the player stopped for {}; the fast tiles stay",
-                        level.dimension().location(), e);
+                        level.dimension().identifier(), e);
                 TurboActivity.exactStatus("stopped, see the log");
                 return;
             }
@@ -238,7 +238,7 @@ final class ExactRefiner implements AutoCloseable {
         hand(found);
         TurboActivity.savedChunks(found.size());
         if (DhTurbo.DEBUG) {
-            DhTurbo.LOGGER.info("[saved {}] batch {} {}: {} chunks", level.dimension().location(), batchX, batchZ, found.size());
+            DhTurbo.LOGGER.info("[saved {}] batch {} {}: {} chunks", level.dimension().identifier(), batchX, batchZ, found.size());
         }
     }
 
@@ -258,7 +258,7 @@ final class ExactRefiner implements AutoCloseable {
         refined.add(generated.size());
         TurboActivity.exactChunks(generated.size());
         if (DhTurbo.DEBUG) {
-            DhTurbo.LOGGER.info("[exact {}] batch {} {} done, {} chunks so far", level.dimension().location(), batchX, batchZ,
+            DhTurbo.LOGGER.info("[exact {}] batch {} {} done, {} chunks so far", level.dimension().identifier(), batchX, batchZ,
                     refined.sum());
         }
     }

@@ -1,7 +1,7 @@
 package com.pockyl.dhturbo;
 
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
@@ -99,7 +99,7 @@ public final class Config {
                     "real chunks turn on real_chunks_nearby too. Applies to terrain generated from then on.")
             .translation("dhturbo.configuration.excluded_dimensions")
             .defineListAllowEmpty("excluded_dimensions", List.of(), () -> "minecraft:the_end",
-                    value -> value instanceof String id && ResourceLocation.tryParse(id) != null);
+                    value -> value instanceof String id && Identifier.tryParse(id) != null);
 
     public static final ModConfigSpec SPEC = BUILDER.build();
 
@@ -108,7 +108,7 @@ public final class Config {
 
     /** Whether DH Turbo generates the distant terrain of this dimension right now. */
     public static boolean generates(ResourceKey<Level> dimension) {
-        return ENABLED.get() && !EXCLUDED_DIMENSIONS.get().contains(dimension.location().toString());
+        return ENABLED.get() && !EXCLUDED_DIMENSIONS.get().contains(dimension.identifier().toString());
     }
 
     /** Chunks around players that get real terrain; the setting depends on who pays for the CPU. */

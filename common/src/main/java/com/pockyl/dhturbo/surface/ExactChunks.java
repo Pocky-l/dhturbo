@@ -100,11 +100,11 @@ public final class ExactChunks {
         this.level = level;
         this.generator = generator;
         this.random = level.getChunkSource().randomState();
-        this.biomes = level.registryAccess().registryOrThrow(Registries.BIOME);
+        this.biomes = level.registryAccess().lookupOrThrow(Registries.BIOME);
         this.noSections = WorldgenApi.protoChunk(ChunkPos.ZERO, level, level.registryAccess()).getSections();
         this.structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
         this.seed = level.getSeed();
-        this.minY = level.getMinBuildHeight();
+        this.minY = level.getMinY();
         this.levelTop = level.getHeight();
         NoiseSettings noise = generator.generatorSettings().value().noiseSettings().clampToHeightAccessor(level);
         this.minCellY = Mth.floorDiv(noise.minY(), noise.getCellHeight());

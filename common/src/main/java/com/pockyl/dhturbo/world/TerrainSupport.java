@@ -84,7 +84,7 @@ public final class TerrainSupport {
     /** Dimension ids this mod leaves to Distant Horizons, sorted. */
     public static Set<String> leftToDistantHorizons() {
         Set<String> ids = new TreeSet<>();
-        LEFT_TO_DH.keySet().forEach(key -> ids.add(key.location().toString()));
+        LEFT_TO_DH.keySet().forEach(key -> ids.add(key.identifier().toString()));
         return ids;
     }
 
@@ -102,7 +102,7 @@ public final class TerrainSupport {
         CLIENT_VERDICTS.put(level, verdict);
         verdict.ifPresent(reason -> DhTurbo.LOGGER.warn(
                 "Players with DH Turbo do not generate {} themselves: {}. Distant Horizons provides its distant terrain",
-                level.dimension().location(), reason));
+                level.dimension().identifier(), reason));
         return verdict;
     }
 
@@ -121,7 +121,7 @@ public final class TerrainSupport {
             return TerrainCheck.run(sampler, profile, generator, level.getChunkSource().randomState(), level,
                     level.getSeed()).reason();
         } catch (RuntimeException e) {
-            DhTurbo.LOGGER.warn("Could not check the terrain of {}", level.dimension().location(), e);
+            DhTurbo.LOGGER.warn("Could not check the terrain of {}", level.dimension().identifier(), e);
             return "its terrain could not be checked";
         }
     }

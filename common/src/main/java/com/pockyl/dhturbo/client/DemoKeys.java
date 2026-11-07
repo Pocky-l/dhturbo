@@ -1,11 +1,11 @@
 package com.pockyl.dhturbo.client;
 
 import net.minecraft.ChatFormatting;
-import net.minecraft.Util;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.util.Util;
 import org.lwjgl.glfw.GLFW;
 
 import com.pockyl.dhturbo.DhTurbo;
@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * generated LODs so the distant terrain builds up again in front of the camera.
  */
 public final class DemoKeys {
-    private static final String CATEGORY = "key.categories." + DhTurbo.MOD_ID;
+    private static final KeyMapping.Category CATEGORY = ClientPlatform.INSTANCE.keyCategory(DhTurbo.id("keys"));
     private static final KeyMapping TOGGLE = ClientPlatform.INSTANCE.inGameKey("key." + DhTurbo.MOD_ID + ".toggle",
             GLFW.GLFW_KEY_F7, CATEGORY);
     private static final KeyMapping CLEAR = ClientPlatform.INSTANCE.inGameKey("key." + DhTurbo.MOD_ID + ".clear_lods",
@@ -29,6 +29,11 @@ public final class DemoKeys {
     private static final AtomicBoolean CLEARING = new AtomicBoolean();
 
     private DemoKeys() {
+    }
+
+    /** For the loader to register. */
+    public static KeyMapping.Category category() {
+        return CATEGORY;
     }
 
     /** For the loader to register. */

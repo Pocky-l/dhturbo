@@ -86,11 +86,11 @@ public final class ClientGeneration {
                         + "distant terrain there comes from Distant Horizons only", info);
                 return Optional.empty();
             }
-            Registry<Biome> levelBiomes = clientLevel.registryAccess().registryOrThrow(Registries.BIOME);
+            Registry<Biome> levelBiomes = clientLevel.registryAccess().lookupOrThrow(Registries.BIOME);
             ResourceKey<Level> dimension = clientLevel.dimension();
             LodTileWriter writer = new LodTileWriter(level.levelWrapper, resolved.generator(), worldgen,
                     clientLevel.dimensionType(), seed,
-                    biome -> biome.unwrapKey().flatMap(levelBiomes::getHolder).<Holder<Biome>>map(holder -> holder).orElse(biome),
+                    biome -> biome.unwrapKey().flatMap(levelBiomes::get).<Holder<Biome>>map(holder -> holder).orElse(biome),
                     WorldgenLoader.templates(), null, () -> playerIn(dimension), NoiseBinder.NONE);
             DhTurbo.LOGGER.info("Generating distant terrain of {} on this client", info);
             return Optional.of(writer);

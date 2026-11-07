@@ -63,7 +63,7 @@ public record LevelGenInfo(ResourceKey<Level> dimension, ResourceKey<NoiseGenera
     @Nullable
     public Resolved resolve(RegistryAccess registries) {
         Optional<Holder.Reference<NoiseGeneratorSettings>> settingsHolder =
-                registries.registryOrThrow(Registries.NOISE_SETTINGS).getHolder(settings);
+                registries.lookupOrThrow(Registries.NOISE_SETTINGS).get(settings);
         if (settingsHolder.isEmpty()) {
             return null;
         }
@@ -93,6 +93,6 @@ public record LevelGenInfo(ResourceKey<Level> dimension, ResourceKey<NoiseGenera
 
     @Override
     public String toString() {
-        return dimension.location() + " (" + settings.location() + ")";
+        return dimension.identifier() + " (" + settings.identifier() + ")";
     }
 }

@@ -18,7 +18,7 @@
   "dhturbo.configuration.fake_trees.tooltip": "Add approximate tree canopies to forests, so they are not bald until real chunks load.",
   "dhturbo.configuration.real_trees": "Real Trees",
   "dhturbo.configuration.real_trees.tooltip": "On detailed LODs near the player, replay the game's tree placement: most trees stand where and as they will in the real world. Needs Fake Trees.",
-  "key.categories.dhturbo": "Turbo for Distant Horizons (developer)",
+  "key.category.dhturbo.keys": "Turbo for Distant Horizons (developer)",
   "key.dhturbo.toggle": "Switch Generator (DH Turbo / Distant Horizons)",
   "key.dhturbo.clear_lods": "Clear Distant Terrain",
   "dhturbo.message.enabled": "on, distant terrain from the terrain noise",

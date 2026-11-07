@@ -6,7 +6,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
@@ -32,8 +31,6 @@ import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.flat.FlatLevelGeneratorSettings;
-import net.neoforged.neoforge.gametest.GameTestHolder;
-import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import com.pockyl.dhturbo.Config;
 import com.pockyl.dhturbo.DhTurbo;
@@ -79,8 +76,6 @@ import java.util.function.UnaryOperator;
  * Tests use the 1x1x1 {@code empty} structure unless they need a prepared one.
  * Set the environment variable {@code DHTURBO_BENCH=1} to also run the full surface benchmark.
  */
-@GameTestHolder(DhTurbo.MOD_ID)
-@PrefixGameTestTemplate(false)
 public final class ModGameTests {
     private static final long SEED = 20261009L;
 
@@ -152,11 +147,11 @@ public final class ModGameTests {
     }
 
     private static NoiseBasedChunkGenerator overworldGenerator(RegistryAccess registries) {
-        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
         return new NoiseBasedChunkGenerator(MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)), settings);
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)), settings);
     }
 
     /** Top of the highest run of solid, non-plant ground in a column. */
@@ -299,13 +294,13 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void unreadableTerrainIsLeftToDistantHorizons(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        Holder<NoiseGeneratorSettings> overworld = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
-        Holder<NoiseGeneratorSettings> amplified = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.AMPLIFIED);
+        Holder<NoiseGeneratorSettings> overworld = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> amplified = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.AMPLIFIED);
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         NoiseBasedChunkGenerator real = new NoiseBasedChunkGenerator(biomes, overworld);
         RandomState realState = RandomState.create(overworld.value(), registries.lookupOrThrow(Registries.NOISE), SEED);
         LevelHeightAccessor heights = LevelHeightAccessor.create(-64, 384);
@@ -321,11 +316,11 @@ public final class ModGameTests {
         helper.assertFalse(other.passed(), "terrain the sampler does not read right is detected: " + other);
         helper.assertTrue(other.reason() != null && other.reason().contains("agree on"), "the reason gives the numbers");
 
-        Holder<NoiseGeneratorSettings> netherSettings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.NETHER);
+        Holder<NoiseGeneratorSettings> netherSettings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.NETHER);
         MultiNoiseBiomeSource netherBiomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
         SurfaceSampler netherSampler = new SurfaceSampler(registries, netherSettings.value(), netherBiomes, SEED);
         TerrainCheck.Result nether = TerrainCheck.run(netherSampler, new ProfileTerrain(netherSampler),
                 new NoiseBasedChunkGenerator(netherBiomes, netherSettings),
@@ -452,8 +447,8 @@ public final class ModGameTests {
                 "Wide columns show no wood under the crown: " + RealTrees.canopy(branch, false));
         helper.assertTrue(RealTrees.canopy(trunk, false) == null, "A wide column must not be a trunk");
 
-        Holder<Biome> forest = helper.getLevel().registryAccess().registryOrThrow(Registries.BIOME)
-                .getHolderOrThrow(Biomes.FOREST);
+        Holder<Biome> forest = helper.getLevel().registryAccess().lookupOrThrow(Registries.BIOME)
+                .getOrThrow(Biomes.FOREST);
         int crowns = 0;
         for (int spacing : new int[] {4, 8, 16}) {
             for (int n = 0; n < 4096; n++) {
@@ -531,11 +526,11 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 6000)
     public static void structuresStandOnDistantTerrain(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomes, settings);
         SurfaceSampler sampler = new SurfaceSampler(registries, settings.value(), biomes, SEED);
         RealStructures structures = new RealStructures(generator, sampler, helper.getLevel().getStructureManager(), SEED,
@@ -622,11 +617,11 @@ public final class ModGameTests {
 
     private static RealStructures overworldStructures(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         return new RealStructures(new NoiseBasedChunkGenerator(biomes, settings),
                 new SurfaceSampler(registries, settings.value(), biomes, SEED), helper.getLevel().getStructureManager(),
                 SEED, registries, helper.getLevel().dimensionType());
@@ -714,12 +709,12 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 6000)
     public static void netherHasCavernsAndFortresses(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.NETHER);
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.NETHER);
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
-        DimensionType nether = registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER);
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
+        DimensionType nether = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER).value();
         ColumnBuilder builder = new ColumnBuilder(new NoiseBasedChunkGenerator(biomes, settings), registries, nether, SEED,
                 UnaryOperator.identity(), helper.getLevel().getStructureManager());
         Set<Block> blocks = new HashSet<>();
@@ -766,12 +761,12 @@ public final class ModGameTests {
     public static void profileWorldsGrowTheirPlants(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         ColumnBuilder end = new ColumnBuilder(new NoiseBasedChunkGenerator(TheEndBiomeSource.create(registries.lookupOrThrow(Registries.BIOME)),
-                registries.registryOrThrow(Registries.NOISE_SETTINGS).getHolderOrThrow(NoiseGeneratorSettings.END)), registries,
-                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END), SEED, UnaryOperator.identity(), null);
+                registries.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.END)), registries,
+                registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END).value(), SEED, UnaryOperator.identity(), null);
         ColumnBuilder nether = new ColumnBuilder(new NoiseBasedChunkGenerator(MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST).getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)),
-                registries.registryOrThrow(Registries.NOISE_SETTINGS).getHolderOrThrow(NoiseGeneratorSettings.NETHER)), registries,
-                registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER), SEED, UnaryOperator.identity(), null);
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST).getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)),
+                registries.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.NETHER)), registries,
+                registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER).value(), SEED, UnaryOperator.identity(), null);
         Set<Block> grown = new HashSet<>();
         long failures = 0;
         long endNanos = 0;
@@ -802,10 +797,10 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 6000)
     public static void endIslandsFloat(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        Holder<NoiseGeneratorSettings> settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.END);
+        Holder<NoiseGeneratorSettings> settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.END);
         TheEndBiomeSource biomes = TheEndBiomeSource.create(registries.lookupOrThrow(Registries.BIOME));
-        DimensionType end = registries.registryOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END);
+        DimensionType end = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END).value();
         ColumnBuilder builder = new ColumnBuilder(new NoiseBasedChunkGenerator(biomes, settings), registries, end, SEED,
                 UnaryOperator.identity(), helper.getLevel().getStructureManager());
         int[] counts = new int[2];
@@ -839,9 +834,9 @@ public final class ModGameTests {
     /** Vanilla keeps grass on steep slopes outside snowy mountains; the walls show the layers under it. */
     @GameTest(template = "empty")
     public static void steepSlopesKeepTheirTop(GameTestHelper helper) {
-        var biomes = helper.getLevel().registryAccess().registryOrThrow(Registries.BIOME);
-        Holder<Biome> plains = biomes.getHolderOrThrow(Biomes.PLAINS);
-        Holder<Biome> slopes = biomes.getHolderOrThrow(Biomes.SNOWY_SLOPES);
+        var biomes = helper.getLevel().registryAccess().lookupOrThrow(Registries.BIOME);
+        Holder<Biome> plains = biomes.getOrThrow(Biomes.PLAINS);
+        Holder<Biome> slopes = biomes.getOrThrow(Biomes.SNOWY_SLOPES);
         BlockState plainsTop = SurfaceDetail.top(plains, BiomeLook.of(plains), SEED, 0, 90, 0, true);
         BlockState slopesTop = SurfaceDetail.top(slopes, BiomeLook.of(slopes), SEED, 0, 150, 0, true);
         BlockState under = SurfaceDetail.subsurface(plainsTop, BiomeLook.of(plains), Blocks.STONE.defaultBlockState());
@@ -857,10 +852,10 @@ public final class ModGameTests {
     @GameTest(template = "empty")
     public static void groundCoverFollowsBiomes(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        var biomes = registries.registryOrThrow(Registries.BIOME);
-        Cover flowerForest = cover(biomes.getHolderOrThrow(Biomes.FLOWER_FOREST), Blocks.GRASS_BLOCK);
-        Cover plains = cover(biomes.getHolderOrThrow(Biomes.PLAINS), Blocks.GRASS_BLOCK);
-        Cover desert = cover(biomes.getHolderOrThrow(Biomes.DESERT), Blocks.SAND);
+        var biomes = registries.lookupOrThrow(Registries.BIOME);
+        Cover flowerForest = cover(biomes.getOrThrow(Biomes.FLOWER_FOREST), Blocks.GRASS_BLOCK);
+        Cover plains = cover(biomes.getOrThrow(Biomes.PLAINS), Blocks.GRASS_BLOCK);
+        Cover desert = cover(biomes.getOrThrow(Biomes.DESERT), Blocks.SAND);
         DhTurbo.LOGGER.info("Ground cover: flower forest {}, plains {}, desert {}", flowerForest, plains, desert);
         if (flowerForest.flowers() < 0.2 || flowerForest.species() < 4) {
             helper.fail("Flower forest has too few flowers: " + flowerForest);
@@ -908,11 +903,11 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void worldgenRebuiltFromOwnDataPacks(GameTestHelper helper) {
         RegistryAccess server = helper.getLevel().registryAccess();
-        Holder<NoiseGeneratorSettings> settings = server.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        Holder<NoiseGeneratorSettings> settings = server.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(server
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         LevelGenInfo info = LevelGenInfo.describe(Level.OVERWORLD, settings, biomes, server).orElseThrow();
         RegistryAccess loaded = WorldgenLoader.get();
         LevelGenInfo.Resolved resolved = info.resolve(loaded);
@@ -961,11 +956,11 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void sharedColumnCachesKeepTheBiomes(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        NoiseGeneratorSettings settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        NoiseGeneratorSettings settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD).value();
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         SurfaceSampler sampler = new SurfaceSampler(registries, settings, biomes, SEED);
         Random random = new Random(7);
         for (int i = 0; i < 4000; i++) {
@@ -989,11 +984,11 @@ public final class ModGameTests {
     @GameTest(template = "empty", timeoutTicks = 2400)
     public static void wideColumnsKeepTheirOwnHeight(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
-        NoiseGeneratorSettings settings = registries.registryOrThrow(Registries.NOISE_SETTINGS)
-                .getOrThrow(NoiseGeneratorSettings.OVERWORLD);
+        NoiseGeneratorSettings settings = registries.lookupOrThrow(Registries.NOISE_SETTINGS)
+                .getOrThrow(NoiseGeneratorSettings.OVERWORLD).value();
         MultiNoiseBiomeSource biomes = MultiNoiseBiomeSource.createFromPreset(registries
-                .registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         SurfaceSampler sampler = new SurfaceSampler(registries, settings, biomes, SEED);
         SurfaceTile tile = SurfaceTile.generate(sampler, 4096, -8192, 8, 32, 1, false);
         for (int j = 0; j < tile.width; j++) {
@@ -1021,9 +1016,9 @@ public final class ModGameTests {
 
     private static SurfaceBenchmark overworldBenchmark(RegistryAccess registries) {
         return new SurfaceBenchmark(registries,
-                registries.registryOrThrow(Registries.NOISE_SETTINGS).getHolderOrThrow(NoiseGeneratorSettings.OVERWORLD),
-                MultiNoiseBiomeSource.createFromPreset(registries.registryOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
-                        .getHolderOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)),
+                registries.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.OVERWORLD),
+                MultiNoiseBiomeSource.createFromPreset(registries.lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                        .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD)),
                 SEED);
     }
 }

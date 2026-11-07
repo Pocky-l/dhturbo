@@ -38,7 +38,7 @@ final class CaveStripper implements DensityFunction.Visitor {
         for (int pass = 0; pass < MAX_PASSES; pass++) {
             Set<DensityFunction> next = new HashSet<>();
             for (Map.Entry<ResourceKey<DensityFunction>, DensityFunction> entry : registry.entrySet()) {
-                if (entry.getKey().location().getPath().contains("caves/")) {
+                if (entry.getKey().identifier().getPath().contains("caves/")) {
                     next.add(new DensityFunctions.HolderHolder(Holder.direct(entry.getValue().mapAll(stripper))));
                 }
             }

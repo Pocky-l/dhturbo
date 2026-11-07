@@ -17,6 +17,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.DifficultyInstance;
+import net.minecraft.world.attribute.EnvironmentAttributeReader;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.flag.FeatureFlagSet;
@@ -317,7 +318,7 @@ final class VirtualLevel {
         }
 
         @Override
-        public int getMinBuildHeight() {
+        public int getMinY() {
             return minY;
         }
 
@@ -471,6 +472,12 @@ final class VirtualLevel {
             return List.of();
         }
 
+        /** Only asked for what follows a placed block: tick delays of fluids, which are not simulated here. */
+        @Override
+        public EnvironmentAttributeReader environmentAttributes() {
+            return EnvironmentAttributeReader.EMPTY;
+        }
+
         // Ticks, sounds, particles and events: nothing to do.
 
         @Override
@@ -490,7 +497,7 @@ final class VirtualLevel {
         }
 
         @Override
-        public void blockUpdated(BlockPos pos, Block block) {
+        public void updateNeighborsAt(BlockPos pos, Block block) {
         }
 
         @Override
@@ -514,16 +521,16 @@ final class VirtualLevel {
         }
 
         @Override
-        public void playSound(@Nullable Player player, BlockPos pos, SoundEvent sound, SoundSource source, float volume,
+        public void playSound(@Nullable Entity entity, BlockPos pos, SoundEvent sound, SoundSource source, float volume,
                               float pitch) {
         }
 
         @Override
-        public void playSound(@Nullable Player player, BlockPos pos, SoundEvent sound, SoundSource source) {
+        public void playSound(@Nullable Entity entity, BlockPos pos, SoundEvent sound, SoundSource source) {
         }
 
         @Override
-        public void levelEvent(@Nullable Player player, int type, BlockPos pos, int data) {
+        public void levelEvent(@Nullable Entity entity, int type, BlockPos pos, int data) {
         }
 
         @Override

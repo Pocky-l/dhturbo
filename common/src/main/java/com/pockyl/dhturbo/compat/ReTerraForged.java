@@ -60,7 +60,7 @@ public final class ReTerraForged {
             HOOKS.initialize().invoke(state, level);
         } catch (IllegalAccessException | InvocationTargetException | RuntimeException e) {
             if (WARNED.compareAndSet(false, true)) {
-                DhTurbo.LOGGER.warn("Could not read ReTerraForged's terrain for {}", level.dimension().location(), e);
+                DhTurbo.LOGGER.warn("Could not read ReTerraForged's terrain for {}", level.dimension().identifier(), e);
             }
         }
     }

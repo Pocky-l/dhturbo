@@ -7,7 +7,7 @@
     "StructureTemplatePaletteMixin"
   ],
   "client": [
-    "DebugScreenOverlayMixin"
+    "DebugScreenEntriesMixin"
   ],
   "injectors": {
     "defaultRequire": 1

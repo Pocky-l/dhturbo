@@ -164,7 +164,7 @@ public final class RealStructures {
                 .toList();
         // Same grouping as ChunkGenerator.applyBiomeDecoration: registry order within each step.
         Map<Integer, Integer> counts = new java.util.HashMap<>();
-        registries.registryOrThrow(Registries.STRUCTURE).stream().forEach(structure -> {
+        registries.lookupOrThrow(Registries.STRUCTURE).stream().forEach(structure -> {
             int step = structure.step().ordinal();
             int index = counts.merge(step, 1, Integer::sum) - 1;
             stepIndex.put(structure, index);
@@ -854,7 +854,7 @@ public final class RealStructures {
     }
 
     private String name(Structure structure) {
-        return String.valueOf(registries.registryOrThrow(Registries.STRUCTURE).getKey(structure));
+        return String.valueOf(registries.lookupOrThrow(Registries.STRUCTURE).getKey(structure));
     }
 
     /** StructureStart.placeInChunk: the first piece's center at its floor. */

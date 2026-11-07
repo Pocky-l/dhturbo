@@ -69,7 +69,7 @@ public final class PregenBenchmark {
             long cpuBefore = processCpuNanos();
             long tilesBefore = tiles();
             long start = System.nanoTime();
-            command(server, "dh pregen start minecraft:overworld 0 0 " + radius);
+            DhTurbo.LOGGER.info("[pregen] start: {}", command(server, "dh pregen start minecraft:overworld 0 0 " + radius));
             boolean done = false;
             while (System.nanoTime() - start < TimeUnit.MILLISECONDS.toNanos(TIMEOUT_MILLIS)) {
                 Thread.sleep(POLL_MILLIS);
@@ -176,7 +176,7 @@ public final class PregenBenchmark {
 
     private static boolean sameTop(DhApiTerrainDataPoint top, BlockPos surface, BlockState real, ServerLevel level) {
         boolean height = top.topYBlockPos == surface.getY() + 1
-                || top.topYBlockPos == surface.getY() + 1 - level.getMinBuildHeight();
+                || top.topYBlockPos == surface.getY() + 1 - level.getMinY();
         return height && top.blockStateWrapper.getWrappedMcObject() == real;
     }
 

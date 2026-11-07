@@ -5,7 +5,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BlockTags;
@@ -116,7 +116,7 @@ public final class GenerationComparison {
         if (exactSpacing > 0) {
             builder.useExact(new ExactChunks(level, generator), exactSpacing);
         }
-        int minY = level.getMinBuildHeight();
+        int minY = level.getMinY();
         int[] spacings = java.util.Arrays.stream(System.getProperty(DhTurbo.MOD_ID + ".compare.spacings", "1,4").split(","))
                 .mapToInt(value -> Integer.parseInt(value.trim())).toArray();
         Stats[] stats = new Stats[spacings.length];
@@ -288,7 +288,7 @@ public final class GenerationComparison {
                 picked.add(built);
             }
         }
-        Registry<Structure> registry = level.registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Registry<Structure> registry = level.registryAccess().lookupOrThrow(Registries.STRUCTURE);
         Set<String> ourStarts = new HashSet<>();
         for (RealStructures.Built built : found) {
             ourStarts.add(built.name() + " " + built.startChunk());
@@ -329,7 +329,7 @@ public final class GenerationComparison {
                     }
                 }
             }
-            Structure structure = registry.get(ResourceLocation.parse(built.name()));
+            Structure structure = registry.getValue(Identifier.parse(built.name()));
             StructureStart real = structure == null ? null
                     : level.getChunk(built.startChunk().x, built.startChunk().z).getStartForStructure(structure);
             boolean startMatches = real != null && real.isValid();
@@ -389,7 +389,7 @@ public final class GenerationComparison {
                     ChunkAccess chunk = level.getChunk(x >> 4, z >> 4);
                     int realTop = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15) + 1;
                     BlockState realBlock = chunk.getBlockState(new BlockPos(x, realTop - 1, z));
-                    while (realTop > level.getMinBuildHeight()
+                    while (realTop > level.getMinY()
                             && (realBlock.isAir() || realBlock.liquid() || realBlock.is(Blocks.SNOW))) {
                         realTop--;
                         realBlock = chunk.getBlockState(new BlockPos(x, realTop - 1, z));
@@ -446,7 +446,7 @@ public final class GenerationComparison {
                         ChunkAccess chunk = level.getChunk(x >> 4, z >> 4);
                         int realTop = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15) + 1;
                         BlockState realBlock = chunk.getBlockState(new BlockPos(x, realTop - 1, z));
-                        while (realTop > level.getMinBuildHeight()
+                        while (realTop > level.getMinY()
                                 && (realBlock.isAir() || realBlock.liquid() || realBlock.is(Blocks.SNOW))) {
                             realTop--;
                             realBlock = chunk.getBlockState(new BlockPos(x, realTop - 1, z));
@@ -513,7 +513,7 @@ public final class GenerationComparison {
         }
         ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
                 level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
-        int minY = level.getMinBuildHeight();
+        int minY = level.getMinY();
         int height = level.getHeight();
         Random random = new Random(level.getSeed() ^ 0xBEEF);
         long blocks = 0;
@@ -584,7 +584,7 @@ public final class GenerationComparison {
         }
         List<String> lines = new ArrayList<>();
         lines.add("");
-        lines.add(String.format(Locale.ROOT, "===== %s: %d areas of 2x2 chunks, %.1f s =====", level.dimension().location(),
+        lines.add(String.format(Locale.ROOT, "===== %s: %d areas of 2x2 chunks, %.1f s =====", level.dimension().identifier(),
                 areas, (System.nanoTime() - begin) / 1e9));
         lines.add(String.format(Locale.ROOT,
                 "Blocks solid/open as in the real world: %.1f%% of %d; floors solid on our side %.1f%%, same block %.1f%% of %d",
@@ -977,11 +977,11 @@ public final class GenerationComparison {
         }
 
         private static String id(Block block) {
-            return block.builtInRegistryHolder().key().location().getPath();
+            return block.builtInRegistryHolder().key().identifier().getPath();
         }
 
         private static String name(Holder<Biome> biome) {
-            return biome.unwrapKey().map(key -> key.location().getPath()).orElse("?");
+            return biome.unwrapKey().map(key -> key.identifier().getPath()).orElse("?");
         }
     }
 }

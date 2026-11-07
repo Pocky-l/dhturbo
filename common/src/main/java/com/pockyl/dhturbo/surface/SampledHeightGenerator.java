@@ -147,12 +147,12 @@ final class SampledHeightGenerator extends NoiseBasedChunkGenerator {
         if (ground < seaLevel && type.isOpaque().test(defaultFluid)) {
             return seaLevel;
         }
-        return Math.max(ground, level.getMinBuildHeight());
+        return Math.max(ground, level.getMinY());
     }
 
     @Override
     public NoiseColumn getBaseColumn(int x, int z, LevelHeightAccessor height, RandomState random) {
-        int minY = height.getMinBuildHeight();
+        int minY = height.getMinY();
         BlockState[] states = new BlockState[height.getHeight()];
         Arrays.fill(states, Blocks.AIR.defaultBlockState());
         if (profile != null) {

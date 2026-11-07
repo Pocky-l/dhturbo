@@ -152,11 +152,12 @@ public final class ColumnBuilder {
     }
 
     /**
-     * Worlds whose terrain is not one surface over solid rock: no sky (the Nether, the End) or a ceiling. Their columns
-     * have caverns, islands and overhangs, so they are built from the full vertical profile.
+     * Worlds whose terrain is not one surface over solid rock: no sky, a ceiling (the Nether) or the End's sky, which has
+     * sky light on this version. Their columns have caverns, islands and overhangs, so they are built from the full vertical
+     * profile.
      */
     public static boolean profiled(DimensionType dimensionType) {
-        return !dimensionType.hasSkyLight() || dimensionType.hasCeiling();
+        return !dimensionType.hasSkyLight() || dimensionType.hasCeiling() || dimensionType.skybox() == DimensionType.Skybox.END;
     }
 
     @Nullable

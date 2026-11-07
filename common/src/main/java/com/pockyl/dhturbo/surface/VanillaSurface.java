@@ -14,6 +14,7 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.BlockColumn;
+import net.minecraft.world.level.chunk.PalettedContainerFactory;
 import net.minecraft.world.level.chunk.ProtoChunk;
 import net.minecraft.world.level.chunk.UpgradeData;
 import net.minecraft.world.level.levelgen.Aquifer;
@@ -58,6 +59,7 @@ public final class VanillaSurface {
     private final NoiseGeneratorSettings settings;
     private final SurfaceSystem system;
     private final Registry<Biome> biomes;
+    private final PalettedContainerFactory containers;
     private final WorldGenerationContext context;
     private final LevelHeightAccessor heightAccessor;
     private final BlockState defaultBlock;
@@ -69,7 +71,8 @@ public final class VanillaSurface {
         this.settings = generator.generatorSettings().value();
         this.rules = settings.surfaceRule();
         this.system = sampler.randomState().surfaceSystem();
-        this.biomes = registries.registryOrThrow(Registries.BIOME);
+        this.biomes = registries.lookupOrThrow(Registries.BIOME);
+        this.containers = PalettedContainerFactory.create(registries);
         this.heightAccessor = LevelHeightAccessor.create(sampler.minY(), sampler.maxY() - sampler.minY());
         this.context = new WorldGenerationContext(generator, heightAccessor);
         this.defaultBlock = settings.defaultBlock();
@@ -174,7 +177,7 @@ public final class VanillaSurface {
             this.biomeManager = new BiomeManager((qx, qy, qz) -> quarts.computeIfAbsent(BlockPos.asLong(qx, qy, qz),
                     key -> sampler.noiseBiome(qx, qy, qz)), zoomSeed);
             // The chunk only answers the steep rule's heightmap questions, in local coordinates of the column's chunk.
-            ProtoChunk chunk = new ProtoChunk(new ChunkPos(0, 0), UpgradeData.EMPTY, heightAccessor, biomes, null) {
+            ProtoChunk chunk = new ProtoChunk(new ChunkPos(0, 0), UpgradeData.EMPTY, heightAccessor, containers, null) {
                 @Override
                 public int getHeight(Heightmap.Types type, int x, int z) {
                     return heights.at((columnX & ~15) | x, (columnZ & ~15) | z) - 1;

@@ -101,7 +101,7 @@ public final class SavedChunks {
         } catch (ExecutionException | TimeoutException | RuntimeException e) {
             if (reported.compareAndSet(false, true)) {
                 DhTurbo.LOGGER.warn("Could not read saved chunk {} of {}; distant terrain stays generated there, "
-                        + "further chunks are not reported", pos, level.dimension().location(), e);
+                        + "further chunks are not reported", pos, level.dimension().identifier(), e);
             }
             return Optional.empty();
         }

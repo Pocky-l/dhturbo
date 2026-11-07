@@ -18,7 +18,7 @@
   "dhturbo.configuration.fake_trees.tooltip": "Добавлять в леса примерные кроны, чтобы они не были лысыми до загрузки настоящих чанков.",
   "dhturbo.configuration.real_trees": "Настоящие деревья",
   "dhturbo.configuration.real_trees.tooltip": "На подробных LOD рядом с игроком повторять ванильную расстановку деревьев: большинство деревьев стоят там и такие, какими будут в настоящем мире. Нужны «Фейковые деревья».",
-  "key.categories.dhturbo": "Turbo for Distant Horizons (разработчик)",
+  "key.category.dhturbo.keys": "Turbo for Distant Horizons (разработчик)",
   "key.dhturbo.toggle": "Переключить генератор (DH Turbo / Distant Horizons)",
   "key.dhturbo.clear_lods": "Очистить дальний ландшафт",
   "dhturbo.message.enabled": "включено, дальний ландшафт из шума мира",

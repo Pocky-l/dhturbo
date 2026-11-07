@@ -1,7 +1,7 @@
 package com.pockyl.dhturbo.surface;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.biome.Biome;
 
@@ -17,6 +17,6 @@ final class ConventionTags {
     }
 
     private static TagKey<Biome> biome(String path) {
-        return TagKey.create(Registries.BIOME, ResourceLocation.fromNamespaceAndPath("c", path));
+        return TagKey.create(Registries.BIOME, Identifier.fromNamespaceAndPath("c", path));
     }
 }

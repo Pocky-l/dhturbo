@@ -73,7 +73,7 @@ public final class SurfaceSampler {
                           NoiseBinder binder) {
         this.binder = binder;
         NoiseRouter router = settings.noiseRouter();
-        Registry<DensityFunction> functions = registries.registryOrThrow(Registries.DENSITY_FUNCTION);
+        Registry<DensityFunction> functions = registries.lookupOrThrow(Registries.DENSITY_FUNCTION);
         DensityFunction surfaceDensity = CaveStripper.strip(functions, router.finalDensity());
         // Same seed and settings apart from the final density: noises are wired identically to the real world.
         this.randomState = RandomState.create(withFinalDensity(settings, surfaceDensity),
