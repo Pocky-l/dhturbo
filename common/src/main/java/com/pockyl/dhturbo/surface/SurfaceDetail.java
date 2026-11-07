@@ -28,9 +28,9 @@ public final class SurfaceDetail {
     /** Badlands keep red sand on low flat ground and show their bands above. */
     private static final int BADLANDS_BANDS_FROM_Y = 80;
     private static final Block[] BANDS = {
-            Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.orange(), Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.yellow(),
-            Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.brown(), Blocks.DYED_TERRACOTTA.orange(), Blocks.DYED_TERRACOTTA.red(),
-            Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.white(), Blocks.DYED_TERRACOTTA.lightGray(), Blocks.DYED_TERRACOTTA.orange()
+            Blocks.TERRACOTTA, Blocks.ORANGE_TERRACOTTA, Blocks.TERRACOTTA, Blocks.YELLOW_TERRACOTTA,
+            Blocks.TERRACOTTA, Blocks.BROWN_TERRACOTTA, Blocks.ORANGE_TERRACOTTA, Blocks.RED_TERRACOTTA,
+            Blocks.TERRACOTTA, Blocks.WHITE_TERRACOTTA, Blocks.LIGHT_GRAY_TERRACOTTA, Blocks.ORANGE_TERRACOTTA
     };
 
     private SurfaceDetail() {

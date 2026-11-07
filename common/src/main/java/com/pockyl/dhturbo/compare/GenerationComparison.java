@@ -8,7 +8,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.tags.BlockItemTags;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
@@ -736,7 +735,7 @@ public final class GenerationComparison {
             return "dirt";
         }
         if (state.is(BlockTags.BASE_STONE_OVERWORLD) || block == Blocks.CALCITE || block == Blocks.STONE
-                || block == Blocks.COBBLESTONE || block == Blocks.MOSSY_COBBLESTONE || state.is(BlockItemTags.COAL_ORES.block())
+                || block == Blocks.COBBLESTONE || block == Blocks.MOSSY_COBBLESTONE || state.is(BlockTags.COAL_ORES)
                 || state.is(BlockTags.IRON_ORES) || state.is(BlockTags.COPPER_ORES)) {
             return "stone";
         }

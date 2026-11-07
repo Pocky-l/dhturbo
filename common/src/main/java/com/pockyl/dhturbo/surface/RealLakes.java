@@ -175,9 +175,6 @@ public final class RealLakes {
                         if (y < 4 && !state.isSolid() && state != fluid) {
                             return;
                         }
-                        if (!config.canPlaceFeature().test(level.view, pos)) {
-                            return;
-                        }
                     }
                 }
             }

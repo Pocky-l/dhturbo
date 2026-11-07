@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.objects.ObjectList;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.RandomSource;
@@ -121,10 +122,11 @@ public final class WorldgenApi {
         return level.getServer().getWorldGenSettings().options().generateStructures();
     }
 
-    /** The surface step of a chunk. No list of possible biomes: it only lets biome conditions answer early. */
+    /** The surface step of a chunk. */
     public static void buildSurface(NoiseBasedChunkGenerator generator, ChunkAccess chunk, WorldGenerationContext context,
                                     RandomState random, StructureManager manager, BiomeManager biomes, Blender blender) {
-        generator.buildSurface(chunk, context, random, manager, biomes, blender, null);
+        generator.buildSurface(chunk, context, random, manager, biomes,
+                manager.registryAccess().lookupOrThrow(Registries.BIOME), blender);
     }
 
     /** The block providers of a biome's flowers, the plain block features bone meal can grow. */
@@ -151,7 +153,7 @@ public final class WorldgenApi {
         if ((flags & Block.UPDATE_KNOWN_SHAPE) == 0) {
             BlockPos target = state.getPostProcessPos(region, pos);
             if (target != null) {
-                region.getChunk(target).markPosForPostProcessing(target);
+                region.getChunk(target).markPosForPostprocessing(target);
             }
         }
     }
