@@ -143,7 +143,7 @@ public final class ProfileTerrain {
         private final Long2ObjectOpenHashMap<boolean[]> columns = new Long2ObjectOpenHashMap<>();
 
         public boolean[] at(int x, int z) {
-            return columns.computeIfAbsent(ChunkPos.asLong(x, z), key -> {
+            return columns.computeIfAbsent(ChunkPos.pack(x, z), key -> {
                 int x0 = Math.floorDiv(x, cellWidth) * cellWidth;
                 int z0 = Math.floorDiv(z, cellWidth) * cellWidth;
                 double fx = (double) (x - x0) / cellWidth;
@@ -154,7 +154,7 @@ public final class ProfileTerrain {
         }
 
         private double[] cornerAt(int x, int z) {
-            return corners.computeIfAbsent(ChunkPos.asLong(x, z), key -> corner(x, z));
+            return corners.computeIfAbsent(ChunkPos.pack(x, z), key -> corner(x, z));
         }
 
         /** First open Y above the highest solid block of the column, or the bottom of the world. */

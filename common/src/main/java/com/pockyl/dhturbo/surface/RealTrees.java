@@ -389,6 +389,7 @@ public final class RealTrees {
     /** Trees and huge mushrooms, also inside random selectors (most tree features are selectors). */
     private static boolean growsTrees(PlacedFeature feature) {
         return feature.getFeatures().anyMatch(configured ->
-                configured.feature() instanceof TreeFeature || configured.feature() instanceof AbstractHugeMushroomFeature);
+                configured.value().feature() instanceof TreeFeature
+                        || configured.value().feature() instanceof AbstractHugeMushroomFeature);
     }
 }

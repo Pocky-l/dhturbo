@@ -28,9 +28,9 @@ public final class SurfaceDetail {
     /** Badlands keep red sand on low flat ground and show their bands above. */
     private static final int BADLANDS_BANDS_FROM_Y = 80;
     private static final Block[] BANDS = {
-            Blocks.TERRACOTTA, Blocks.ORANGE_TERRACOTTA, Blocks.TERRACOTTA, Blocks.YELLOW_TERRACOTTA,
-            Blocks.TERRACOTTA, Blocks.BROWN_TERRACOTTA, Blocks.ORANGE_TERRACOTTA, Blocks.RED_TERRACOTTA,
-            Blocks.TERRACOTTA, Blocks.WHITE_TERRACOTTA, Blocks.LIGHT_GRAY_TERRACOTTA, Blocks.ORANGE_TERRACOTTA
+            Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.orange(), Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.yellow(),
+            Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.brown(), Blocks.DYED_TERRACOTTA.orange(), Blocks.DYED_TERRACOTTA.red(),
+            Blocks.TERRACOTTA, Blocks.DYED_TERRACOTTA.white(), Blocks.DYED_TERRACOTTA.lightGray(), Blocks.DYED_TERRACOTTA.orange()
     };
 
     private SurfaceDetail() {
@@ -66,7 +66,7 @@ public final class SurfaceDetail {
      * @param y height of the layer (one above the block it lies on)
      */
     public static boolean snowLayerOn(Holder<Biome> biome, BlockState below, int x, int y, int z, int seaLevel) {
-        return !below.liquid() && !below.is(BlockTags.SNOW_LAYER_CANNOT_SURVIVE_ON)
+        return !below.liquid() && !below.is(BlockTags.CANNOT_SUPPORT_SNOW_LAYER)
                 && WorldgenApi.coldEnoughToSnow(biome.value(), new BlockPos(x, y, z), seaLevel);
     }
 

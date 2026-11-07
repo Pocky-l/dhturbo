@@ -182,7 +182,7 @@ final class ExactRefiner implements AutoCloseable {
             for (int dz = -reach; dz <= reach; dz++) {
                 for (int dx = -reach; dx <= reach; dx++) {
                     long distance = (long) dx * dx + (long) dz * dz;
-                    long key = ChunkPos.asLong(centerX + dx, centerZ + dz);
+                    long key = ChunkPos.pack(centerX + dx, centerZ + dz);
                     if (distance >= bestDistance || done.contains(key)
                             || !ExactGate.reaches(chunkX, chunkZ, centerX + dx, centerZ + dz, BATCH_CHUNKS, radius)) {
                         continue;
@@ -224,7 +224,7 @@ final class ExactRefiner implements AutoCloseable {
 
     /** Hands the saved chunks of a batch to Distant Horizons as they are. */
     private void readSaved(int batchX, int batchZ) throws InterruptedException {
-        savedRead.add(ChunkPos.asLong(batchX, batchZ));
+        savedRead.add(ChunkPos.pack(batchX, batchZ));
         List<ChunkAccess> found = new ArrayList<>();
         for (int z = 0; z < BATCH_CHUNKS; z++) {
             for (int x = 0; x < BATCH_CHUNKS; x++) {
@@ -250,10 +250,10 @@ final class ExactRefiner implements AutoCloseable {
                 generated.add(chunk);
             }
         })).get();
-        finished.add(ChunkPos.asLong(batchX, batchZ));
+        finished.add(ChunkPos.pack(batchX, batchZ));
         // What the world saved is what it looks like, whatever the generator says.
-        generated.removeIf(chunk -> realData.test(chunk.getPos().x, chunk.getPos().z)
-                || saved.exists(chunk.getPos().x, chunk.getPos().z));
+        generated.removeIf(chunk -> realData.test(chunk.getPos().x(), chunk.getPos().z())
+                || saved.exists(chunk.getPos().x(), chunk.getPos().z()));
         hand(generated);
         refined.add(generated.size());
         TurboActivity.exactChunks(generated.size());
@@ -279,7 +279,7 @@ final class ExactRefiner implements AutoCloseable {
 
     private void awaitUpdate(ChunkPos pos) throws InterruptedException {
         long start = System.nanoTime();
-        while (SharedApi.isChunkAtChunkPosAlreadyUpdating((ILevelWrapper) wrapper, pos.x, pos.z)
+        while (SharedApi.isChunkAtChunkPosAlreadyUpdating((ILevelWrapper) wrapper, pos.x(), pos.z())
                 && System.nanoTime() - start < UPDATE_TIMEOUT_NANOS) {
             Thread.sleep(20);
         }

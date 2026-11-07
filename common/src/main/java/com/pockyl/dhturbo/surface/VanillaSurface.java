@@ -3,9 +3,7 @@ package com.pockyl.dhturbo.surface;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
@@ -58,7 +56,6 @@ public final class VanillaSurface {
     private final SurfaceRules.RuleSource rules;
     private final NoiseGeneratorSettings settings;
     private final SurfaceSystem system;
-    private final Registry<Biome> biomes;
     private final PalettedContainerFactory containers;
     private final WorldGenerationContext context;
     private final LevelHeightAccessor heightAccessor;
@@ -71,7 +68,6 @@ public final class VanillaSurface {
         this.settings = generator.generatorSettings().value();
         this.rules = settings.surfaceRule();
         this.system = sampler.randomState().surfaceSystem();
-        this.biomes = registries.lookupOrThrow(Registries.BIOME);
         this.containers = PalettedContainerFactory.create(registries);
         this.heightAccessor = LevelHeightAccessor.create(sampler.minY(), sampler.maxY() - sampler.minY());
         this.context = new WorldGenerationContext(generator, heightAccessor);
@@ -188,7 +184,7 @@ public final class VanillaSurface {
                     DensityFunctions.BeardifierMarker.INSTANCE, settings,
                     (x, y, z) -> new Aquifer.FluidStatus(settings.seaLevel(), settings.defaultFluid()), Blender.empty());
             this.rulesContext = new SurfaceRules.Context(system, sampler.randomState(), chunk, noiseChunk,
-                    pos -> exactBiomes ? biomeManager.getBiome(pos) : columnBiome, biomes, context);
+                    pos -> exactBiomes ? biomeManager.getBiome(pos) : columnBiome, context, null);
             this.rule = rules.apply(rulesContext);
         }
 
@@ -238,7 +234,7 @@ public final class VanillaSurface {
                 } else {
                     stoneDepthAbove++;
                     // Without caves the rock reaches the bottom of the world.
-                    rulesContext.updateY(stoneDepthAbove, y - minY + 1, waterHeight, x, y, z);
+                    rulesContext.updateY(stoneDepthAbove, y - minY + 1, waterHeight, y);
                     if (state == defaultBlock) {
                         BlockState replaced = rule.tryApply(x, y, z);
                         if (replaced != null) {
@@ -305,7 +301,7 @@ public final class VanillaSurface {
                         }
                     }
                     stoneDepthAbove++;
-                    rulesContext.updateY(stoneDepthAbove, y - stoneBottom + 1, waterHeight, x, y, z);
+                    rulesContext.updateY(stoneDepthAbove, y - stoneBottom + 1, waterHeight, y);
                     if (state == defaultBlock) {
                         BlockState replaced = rule.tryApply(x, y, z);
                         if (replaced != null) {

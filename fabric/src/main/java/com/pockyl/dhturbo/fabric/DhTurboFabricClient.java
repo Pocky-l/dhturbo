@@ -3,7 +3,7 @@ package com.pockyl.dhturbo.fabric;
 import fuzs.forgeconfigapiport.fabric.api.v5.client.ConfigScreenFactoryRegistry;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
@@ -26,7 +26,7 @@ public final class DhTurboFabricClient implements ClientModInitializer {
             ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> ClientGeneration.reset());
         }
         if (DhTurbo.DEBUG) {
-            DemoKeys.keys().forEach(KeyBindingHelper::registerKeyBinding);
+            DemoKeys.keys().forEach(KeyMappingHelper::registerKeyMapping);
             ClientTickEvents.END_CLIENT_TICK.register(client -> DemoKeys.tick());
         }
     }

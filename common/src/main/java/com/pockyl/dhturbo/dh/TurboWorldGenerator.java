@@ -28,6 +28,7 @@ import com.pockyl.dhturbo.platform.Platform;
 import com.pockyl.dhturbo.surface.ColumnBuilder;
 import com.pockyl.dhturbo.surface.NoiseBinder;
 import com.pockyl.dhturbo.surface.SavedChunks;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import java.util.Map;
 import java.util.Set;
@@ -72,7 +73,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         this.dedicatedServer = level.getServer().isDedicatedServer();
         this.stats = DhTurbo.DEBUG ? new GeneratorStats(level, levelWrapper.getDimensionName()) : null;
         // A world created without structures gets none in the distance either.
-        boolean structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
+        boolean structures = WorldgenApi.generateStructures(level);
         this.writer = new LodTileWriter(levelWrapper, generator, level.registryAccess(), level.dimensionType(),
                 level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats,
                 () -> Players.positions(level), NoiseBinder.of(level));

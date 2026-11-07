@@ -4,8 +4,6 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
@@ -72,7 +70,6 @@ public final class ExactChunks {
     private final ServerLevel level;
     private final NoiseBasedChunkGenerator generator;
     private final RandomState random;
-    private final Registry<Biome> biomes;
     private final LevelChunkSection[] noSections;
     private final boolean structures;
     private final long seed;
@@ -100,9 +97,8 @@ public final class ExactChunks {
         this.level = level;
         this.generator = generator;
         this.random = level.getChunkSource().randomState();
-        this.biomes = level.registryAccess().lookupOrThrow(Registries.BIOME);
         this.noSections = WorldgenApi.protoChunk(ChunkPos.ZERO, level, level.registryAccess()).getSections();
-        this.structures = level.getServer().getWorldData().worldGenOptions().generateStructures();
+        this.structures = WorldgenApi.generateStructures(level);
         this.seed = level.getSeed();
         this.minY = level.getMinY();
         this.levelTop = level.getHeight();
@@ -151,12 +147,12 @@ public final class ExactChunks {
 
     private Batch batch(int batchX, int batchZ) throws ExecutionException {
         CompletableFuture<Batch> mine = new CompletableFuture<>();
-        CompletableFuture<Batch> shared = batches.get(ChunkPos.asLong(batchX, batchZ), () -> mine);
+        CompletableFuture<Batch> shared = batches.get(ChunkPos.pack(batchX, batchZ), () -> mine);
         if (shared == mine) {
             try {
                 mine.complete(generate(batchX * BATCH, batchZ * BATCH));
             } catch (RuntimeException | Error e) {
-                batches.invalidate(ChunkPos.asLong(batchX, batchZ));
+                batches.invalidate(ChunkPos.pack(batchX, batchZ));
                 mine.completeExceptionally(e);
                 throw e;
             }
@@ -217,7 +213,7 @@ public final class ExactChunks {
         for (int n = 0; n < grid.length; n++) {
             ProtoChunk chunk = WorldgenApi.protoChunk(new ChunkPos(chunks.originX + n % GRID, chunks.originZ + n / GRID),
                     level, level.registryAccess());
-            stub(chunk.getPos().x, chunk.getPos().z).getAllStarts().forEach(chunk::setStartForStructure);
+            stub(chunk.getPos().x(), chunk.getPos().z()).getAllStarts().forEach(chunk::setStartForStructure);
             grid[n] = chunk;
         }
         List<Runnable> biomeTasks = new ArrayList<>();
@@ -267,8 +263,8 @@ public final class ExactChunks {
         generator.doFill(Blender.empty(), manager, random, chunk, minCellY, cellCountY);
         chunk.setPersistedStatus(ChunkStatus.NOISE);
         begin = BuildProfile.lap(Stage.EXACT_NOISE, begin);
-        generator.buildSurface(chunk, new WorldGenerationContext(generator, region), random, manager,
-                region.getBiomeManager(), biomes, Blender.empty());
+        WorldgenApi.buildSurface(generator, chunk, new WorldGenerationContext(generator, region), random, manager,
+                region.getBiomeManager(), Blender.empty());
         chunk.setPersistedStatus(ChunkStatus.SURFACE);
         begin = BuildProfile.lap(Stage.EXACT_SURFACE, begin);
         WorldgenApi.carve(generator, region, seed, random, level.getBiomeManager(), manager, chunk);
@@ -290,14 +286,14 @@ public final class ExactChunks {
     public boolean writeForTest(BlockPos pos, BlockState state) {
         ChunkAccess[] grid = new ChunkAccess[GRID * GRID];
         Grid chunks = new Grid(pos.getX() >> 4, pos.getZ() >> 4, grid);
-        grid[0] = WorldgenApi.protoChunk(new ChunkPos(pos), level, level.registryAccess());
+        grid[0] = WorldgenApi.protoChunk(ChunkPos.containing(pos), level, level.registryAccess());
         return new Region(level, featureStep, grid[0], chunks).setBlock(pos, state, 2);
     }
 
     /** A chunk holding nothing but its structure starts. */
     private ProtoChunk stub(int x, int z) {
         try {
-            return stubs.get(ChunkPos.asLong(x, z), () -> {
+            return stubs.get(ChunkPos.pack(x, z), () -> {
                 ProtoChunk stub = WorldgenApi.protoChunk(new ChunkPos(x, z), noSections, level, level.registryAccess());
                 if (structures) {
                     WorldgenApi.createStarts(generator, level, stub);
@@ -415,7 +411,7 @@ public final class ExactChunks {
         private final Grid chunks;
 
         Region(ServerLevel level, ChunkStep step, ChunkAccess center, Grid chunks) {
-            super(level, StaticCache2D.create(center.getPos().x, center.getPos().z, 0, (x, z) -> null), step, center);
+            super(level, StaticCache2D.create(center.getPos().x(), center.getPos().z(), 0, (x, z) -> null), step, center);
             this.chunks = chunks;
         }
 
@@ -454,9 +450,7 @@ public final class ExactChunks {
             } else if (old != null && old.hasBlockEntity()) {
                 chunk.removeBlockEntity(pos);
             }
-            if (state.hasPostProcess(this, pos) && WorldgenApi.marksPostProcessing(flags)) {
-                chunk.markPosForPostprocessing(pos);
-            }
+            WorldgenApi.markPostProcessing(this, state, pos, flags);
             return true;
         }
     }

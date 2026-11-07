@@ -113,7 +113,7 @@ public final class StructurePrefetch implements AutoCloseable {
         synchronized (claimed) {
             for (int x = fromX; x <= toX; x++) {
                 for (int z = fromZ; z <= toZ; z++) {
-                    claimed.add(ChunkPos.asLong(x, z));
+                    claimed.add(ChunkPos.pack(x, z));
                 }
             }
         }
@@ -204,7 +204,7 @@ public final class StructurePrefetch implements AutoCloseable {
 
     private long claim(int... coordinates) {
         for (int i = 0; i < coordinates.length; i += 2) {
-            long area = ChunkPos.asLong(coordinates[i], coordinates[i + 1]);
+            long area = ChunkPos.pack(coordinates[i], coordinates[i + 1]);
             if (claimed.add(area)) {
                 return area;
             }

@@ -75,8 +75,8 @@ final class ColumnCachingVisitor implements DensityFunction.Visitor {
         }
 
         @Override
-        public DensityFunction mapAll(Visitor visitor) {
-            return visitor.apply(new ColumnCache(wrapped.mapAll(visitor)));
+        public DensityFunction mapChildren(Visitor visitor) {
+            return new ColumnCache(visitor.apply(wrapped));
         }
 
         @Override
@@ -127,8 +127,8 @@ final class ColumnCachingVisitor implements DensityFunction.Visitor {
         }
 
         @Override
-        public DensityFunction mapAll(Visitor visitor) {
-            return visitor.apply(new FlatColumnCache(wrapped.mapAll(visitor)));
+        public DensityFunction mapChildren(Visitor visitor) {
+            return new FlatColumnCache(visitor.apply(wrapped));
         }
 
         @Override

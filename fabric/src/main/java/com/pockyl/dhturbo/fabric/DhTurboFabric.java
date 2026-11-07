@@ -20,7 +20,7 @@ public final class DhTurboFabric implements ModInitializer {
                 DhTurbo.configReloaded();
             }
         });
-        PayloadTypeRegistry.playS2C().register(WorldgenInfoPayload.TYPE, WorldgenInfoPayload.STREAM_CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(WorldgenInfoPayload.TYPE, WorldgenInfoPayload.STREAM_CODEC);
         DhTurbo.init();
     }
 }

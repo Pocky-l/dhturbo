@@ -46,12 +46,12 @@ public final class GameTests {
         }
         FUNCTIONS.register(modBus);
         modBus.addListener((RegisterGameTestsEvent event) -> {
-            Holder<TestEnvironmentDefinition> environment = event.registerEnvironment(DhTurbo.id("default"),
+            Holder<TestEnvironmentDefinition<?>> environment = event.registerEnvironment(DhTurbo.id("default"),
                     new TestEnvironmentDefinition.AllOf(List.of()));
             for (Test test : tests) {
                 Identifier id = DhTurbo.id(test.name());
-                TestData<Holder<TestEnvironmentDefinition>> data = new TestData<>(environment, DhTurbo.id(test.settings().template()),
-                        test.settings().timeoutTicks(), 0, true, Rotation.NONE, false, 1, 1, false);
+                TestData<Holder<TestEnvironmentDefinition<?>>> data = new TestData<>(environment, DhTurbo.id(test.settings().template()),
+                        test.settings().timeoutTicks(), 0, true, Rotation.NONE, false, 1, 1, false, 0);
                 event.registerTest(id, new FunctionGameTestInstance(ResourceKey.create(Registries.TEST_FUNCTION, id), data));
             }
         });

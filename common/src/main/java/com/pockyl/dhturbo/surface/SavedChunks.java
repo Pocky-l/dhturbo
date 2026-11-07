@@ -63,7 +63,7 @@ public final class SavedChunks {
     public boolean exists(int chunkX, int chunkZ) {
         int regionX = chunkX >> REGION_SHIFT;
         int regionZ = chunkZ >> REGION_SHIFT;
-        BitSet chunks = present.computeIfAbsent(ChunkPos.asLong(regionX, regionZ),
+        BitSet chunks = present.computeIfAbsent(ChunkPos.pack(regionX, regionZ),
                 key -> header(regions.resolve("r." + regionX + "." + regionZ + ".mca")));
         return chunks.get((chunkX & REGION_MASK) + (chunkZ & REGION_MASK) * (REGION_MASK + 1));
     }

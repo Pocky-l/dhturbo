@@ -118,7 +118,7 @@ final class ProfileFeatures {
     }
 
     private static boolean visible(PlacedFeature feature) {
-        return feature.getFeatures().noneMatch(configured -> HIDDEN.contains(configured.feature()));
+        return feature.getFeatures().noneMatch(configured -> HIDDEN.contains(configured.value().feature()));
     }
 
     /** Whether tiles with columns this wide get the features. */
@@ -301,7 +301,7 @@ final class ProfileFeatures {
             if (surface == null || y < minY || y >= minY + height) {
                 return null;
             }
-            VanillaSurface.Column column = ruled.computeIfAbsent(ChunkPos.asLong(x, z), key -> surface
+            VanillaSurface.Column column = ruled.computeIfAbsent(ChunkPos.pack(x, z), key -> surface
                     .pass(x, z, (a, b) -> sampler.maxY(), false).profileColumn(x, z, columns.at(x, z)).copy());
             return y >= column.bottom() && y < column.top() ? column.at(y) : Blocks.AIR.defaultBlockState();
         }

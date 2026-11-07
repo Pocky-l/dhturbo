@@ -10,6 +10,7 @@ import net.minecraft.resources.RegistryDataLoader;
 import net.minecraft.server.RegistryLayer;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.tags.TagLoader;
+import net.minecraft.util.Util;
 import net.minecraft.world.level.block.Block;
 
 import com.pockyl.dhturbo.platform.Platform;
@@ -27,7 +28,7 @@ final class WorldgenRegistries {
         List<Registry.PendingTags<?>> staticTags = TagLoader.loadTagsForExistingRegistries(packs, layers.getLayer(RegistryLayer.STATIC));
         List<HolderLookup.RegistryLookup<?>> lookups =
                 TagLoader.buildUpdatedLookups(layers.getAccessForLoading(RegistryLayer.WORLDGEN), staticTags);
-        return RegistryDataLoader.load(packs, lookups, Platform.INSTANCE.worldgenRegistries());
+        return RegistryDataLoader.load(packs, lookups, Platform.INSTANCE.worldgenRegistries(), Util.backgroundExecutor()).join();
     }
 
     static HolderGetter<Block> blocks() {

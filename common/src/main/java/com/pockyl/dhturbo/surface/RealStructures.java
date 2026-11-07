@@ -241,9 +241,9 @@ public final class RealStructures {
                 for (int regionX = Math.floorDiv(fromX, spacing); regionX <= Math.floorDiv(toX, spacing); regionX++) {
                     for (int regionZ = Math.floorDiv(fromZ, spacing); regionZ <= Math.floorDiv(toZ, spacing); regionZ++) {
                         ChunkPos chunk = spread.getPotentialStructureChunk(seed, regionX * spacing, regionZ * spacing);
-                        if (chunk.x >= fromX && chunk.x <= toX && chunk.z >= fromZ && chunk.z <= toZ
-                                && seen.add(chunk.toLong())) {
-                            chunks.add(chunk.toLong());
+                        if (chunk.x() >= fromX && chunk.x() <= toX && chunk.z() >= fromZ && chunk.z() <= toZ
+                                && seen.add(chunk.pack())) {
+                            chunks.add(chunk.pack());
                         }
                     }
                 }
@@ -251,8 +251,8 @@ public final class RealStructures {
                 // Unknown placement types (mods): every chunk.
                 for (int x = fromX; x <= toX; x++) {
                     for (int z = fromZ; z <= toZ; z++) {
-                        if (seen.add(ChunkPos.asLong(x, z))) {
-                            chunks.add(ChunkPos.asLong(x, z));
+                        if (seen.add(ChunkPos.pack(x, z))) {
+                            chunks.add(ChunkPos.pack(x, z));
                         }
                     }
                 }
@@ -264,7 +264,7 @@ public final class RealStructures {
     /** The visible structures starting in a chunk, as {@code ChunkGenerator.createStructures} picks them. */
     List<StructureStart> startsAt(int chunkX, int chunkZ) {
         try {
-            return starts.get(ChunkPos.asLong(chunkX, chunkZ), () -> findStarts(chunkX, chunkZ));
+            return starts.get(ChunkPos.pack(chunkX, chunkZ), () -> findStarts(chunkX, chunkZ));
         } catch (ExecutionException | RuntimeException e) {
             report("structure starts", e);
             return List.of();

@@ -8,6 +8,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.BlockItemTags;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
@@ -274,8 +275,8 @@ public final class GenerationComparison {
         List<RealStructures.Built> found = new ArrayList<>(structures.around(-range, -range, range, range));
         long ourMillis = (System.nanoTime() - begin) / 1_000_000;
         // Every kind once, nearest first, then more of them up to the limit.
-        found.sort(Comparator.comparingLong(built -> Math.abs((long) built.startChunk().x)
-                + Math.abs((long) built.startChunk().z)));
+        found.sort(Comparator.comparingLong(built -> Math.abs((long) built.startChunk().x())
+                + Math.abs((long) built.startChunk().z())));
         List<RealStructures.Built> picked = new ArrayList<>();
         Set<String> kinds = new HashSet<>();
         for (RealStructures.Built built : found) {
@@ -321,8 +322,8 @@ public final class GenerationComparison {
                         String name = String.valueOf(registry.getKey(entry.getKey()));
                         if (start.isValid() && (ColumnBuilder.profiled(level.dimensionType())
                                 || entry.getKey().step() == GenerationStep.Decoration.SURFACE_STRUCTURES)
-                                && Math.abs(start.getChunkPos().x << 4) <= range
-                                && Math.abs(start.getChunkPos().z << 4) <= range
+                                && Math.abs(start.getChunkPos().x() << 4) <= range
+                                && Math.abs(start.getChunkPos().z() << 4) <= range
                                 && !ourStarts.contains(name + " " + start.getChunkPos())) {
                             missing.add(name + " " + start.getChunkPos());
                         }
@@ -331,7 +332,7 @@ public final class GenerationComparison {
             }
             Structure structure = registry.getValue(Identifier.parse(built.name()));
             StructureStart real = structure == null ? null
-                    : level.getChunk(built.startChunk().x, built.startChunk().z).getStartForStructure(structure);
+                    : level.getChunk(built.startChunk().x(), built.startChunk().z()).getStartForStructure(structure);
             boolean startMatches = real != null && real.isValid();
             // Pieces settle on the ground while they are placed, so only the horizontal extent is compared.
             boolean boxMatches = startMatches && real.getBoundingBox().minX() == box.minX()
@@ -735,7 +736,7 @@ public final class GenerationComparison {
             return "dirt";
         }
         if (state.is(BlockTags.BASE_STONE_OVERWORLD) || block == Blocks.CALCITE || block == Blocks.STONE
-                || block == Blocks.COBBLESTONE || block == Blocks.MOSSY_COBBLESTONE || state.is(BlockTags.COAL_ORES)
+                || block == Blocks.COBBLESTONE || block == Blocks.MOSSY_COBBLESTONE || state.is(BlockItemTags.COAL_ORES.block())
                 || state.is(BlockTags.IRON_ORES) || state.is(BlockTags.COPPER_ORES)) {
             return "stone";
         }

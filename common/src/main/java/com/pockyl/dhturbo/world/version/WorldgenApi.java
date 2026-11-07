@@ -6,6 +6,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelHeightAccessor;
@@ -25,6 +26,11 @@ import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.NoiseRouter;
 import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.levelgen.WorldGenerationContext;
+import net.minecraft.world.level.levelgen.blending.Blender;
+import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
+import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
+import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.Structure;
 import net.minecraft.world.level.levelgen.structure.StructureStart;
@@ -108,7 +114,31 @@ public final class WorldgenApi {
     }
 
     public static int lightBlock(BlockState state) {
-        return state.getLightBlock();
+        return state.getLightDampening();
+    }
+
+    public static boolean generateStructures(ServerLevel level) {
+        return level.getServer().getWorldGenSettings().options().generateStructures();
+    }
+
+    /** The surface step of a chunk. No list of possible biomes: it only lets biome conditions answer early. */
+    public static void buildSurface(NoiseBasedChunkGenerator generator, ChunkAccess chunk, WorldGenerationContext context,
+                                    RandomState random, StructureManager manager, BiomeManager biomes, Blender blender) {
+        generator.buildSurface(chunk, context, random, manager, biomes, blender, null);
+    }
+
+    /** The block providers of a biome's flowers, the plain block features bone meal can grow. */
+    public static List<BlockStateProvider> flowerProviders(Biome biome) {
+        return biome.getGenerationSettings().getBoneMealFeatures().stream()
+                .map(ConfiguredFeature::config)
+                .filter(SimpleBlockConfiguration.class::isInstance)
+                .map(config -> ((SimpleBlockConfiguration) config).toPlace())
+                .toList();
+    }
+
+    /** A provider's block without a level; the rule based ones read the level, so they throw here. */
+    public static BlockState state(BlockStateProvider provider, RandomSource random, BlockPos pos) {
+        return provider.getState(null, random, pos);
     }
 
     /** Sets a block as a world generation region does; {@code flags} are the ones its {@code setBlock} got. */
@@ -116,8 +146,13 @@ public final class WorldgenApi {
         return chunk.setBlockState(pos, state, flags);
     }
 
-    /** Whether a block set with these flags goes on the chunk's post processing list when it asks for that. */
-    public static boolean marksPostProcessing(int flags) {
-        return (flags & Block.UPDATE_KNOWN_SHAPE) == 0;
+    /** As {@code WorldGenRegion.setBlock}: the position the block asks to post process, which can be another one. */
+    public static void markPostProcessing(WorldGenRegion region, BlockState state, BlockPos pos, int flags) {
+        if ((flags & Block.UPDATE_KNOWN_SHAPE) == 0) {
+            BlockPos target = state.getPostProcessPos(region, pos);
+            if (target != null) {
+                region.getChunk(target).markPosForPostProcessing(target);
+            }
+        }
     }
 }

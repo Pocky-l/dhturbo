@@ -10,10 +10,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
-import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
-import net.minecraft.world.level.levelgen.feature.configurations.RandomPatchConfiguration;
-import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
 import net.minecraft.world.level.levelgen.feature.stateproviders.BlockStateProvider;
+
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -87,7 +86,7 @@ public final class GroundCover {
         List<BlockStateProvider> providers = cover.flowerProviders;
         BlockStateProvider provider = providers.get((int) Math.floorMod(hash >>> 16, (long) providers.size()));
         try {
-            return provider.getState(new XoroshiroRandomSource(hash), new BlockPos(x, y, z));
+            return WorldgenApi.state(provider, new XoroshiroRandomSource(hash), new BlockPos(x, y, z));
         } catch (RuntimeException e) {
             // Providers needing a level (rule based) cannot run here; plain grass instead.
             return SHORT_GRASS;
@@ -95,16 +94,7 @@ public final class GroundCover {
     }
 
     private static Cover create(Holder<Biome> biome, Holder<Biome> levelBiome) {
-        List<BlockStateProvider> flowers = biome.value().getGenerationSettings().getFlowerFeatures().stream()
-                // A flower feature is a random patch whose placed feature holds the block provider; patches do not
-                // list their inner features in getFeatures, so step in explicitly.
-                .map(ConfiguredFeature::config)
-                .filter(RandomPatchConfiguration.class::isInstance)
-                .flatMap(config -> ((RandomPatchConfiguration) config).feature().value().getFeatures())
-                .map(ConfiguredFeature::config)
-                .filter(SimpleBlockConfiguration.class::isInstance)
-                .map(config -> ((SimpleBlockConfiguration) config).toPlace())
-                .toList();
+        List<BlockStateProvider> flowers = WorldgenApi.flowerProviders(biome.value());
         // Densities eyeballed from the vanilla patch features (tries and counts per chunk).
         if (is(levelBiome, Biomes.FLOWER_FOREST)) {
             return new Cover(flowers, 0.3, 0.25, 0, 0);

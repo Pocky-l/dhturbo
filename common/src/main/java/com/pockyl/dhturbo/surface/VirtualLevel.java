@@ -5,7 +5,6 @@ import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
 import net.minecraft.core.RegistryAccess;
@@ -182,13 +181,13 @@ final class VirtualLevel {
             // two chunks would otherwise sink in the first and float in the second).
             return natural;
         }
-        return Math.max(natural, placedTops.getOrDefault(ChunkPos.asLong(x, z), Integer.MIN_VALUE));
+        return Math.max(natural, placedTops.getOrDefault(ChunkPos.pack(x, z), Integer.MIN_VALUE));
     }
 
     private void place(BlockPos pos, BlockState state) {
         writes.put(pos.asLong(), state);
         if (!state.isAir()) {
-            long column = ChunkPos.asLong(pos.getX(), pos.getZ());
+            long column = ChunkPos.pack(pos.getX(), pos.getZ());
             if (pos.getY() + 1 > placedTops.getOrDefault(column, Integer.MIN_VALUE)) {
                 placedTops.put(column, pos.getY() + 1);
             }
@@ -580,11 +579,6 @@ final class VirtualLevel {
         @Override
         public BiomeManager getBiomeManager() {
             throw unsupported("getBiomeManager");
-        }
-
-        @Override
-        public float getShade(Direction direction, boolean shade) {
-            throw unsupported("getShade");
         }
 
         @Override

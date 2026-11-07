@@ -14,11 +14,6 @@ neoForge {
     version = project.neo_version
     accessTransformers.from(project(':common').file('src/main/resources/META-INF/accesstransformer.cfg'))
 
-    parchment {
-        mappingsVersion = project.parchment_mappings_version
-        minecraftVersion = project.parchment_minecraft_version
-    }
-
     runs {
         client {
             client()
@@ -77,7 +72,7 @@ neoForge {
         }
 
         data {
-            data()
+            clientData()
             programArguments.addAll '--mod', project.mod_id, '--all',
                     '--output', file('src/generated/resources/').absolutePath,
                     '--existing', file('src/main/resources/').absolutePath

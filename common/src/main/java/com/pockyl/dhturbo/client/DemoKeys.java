@@ -95,7 +95,7 @@ public final class DemoKeys {
     private static void show(MutableComponent message) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player != null) {
-            minecraft.player.displayClientMessage(Component.literal("DH Turbo: ").append(message), true);
+            minecraft.player.sendOverlayMessage(Component.literal("DH Turbo: ").append(message));
         }
     }
 }

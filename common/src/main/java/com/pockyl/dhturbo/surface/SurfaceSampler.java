@@ -309,8 +309,8 @@ public final class SurfaceSampler {
         }
 
         @Override
-        public DensityFunction mapAll(Visitor visitor) {
-            return visitor.apply(this);
+        public DensityFunction mapChildren(Visitor visitor) {
+            return this;
         }
 
         @Override

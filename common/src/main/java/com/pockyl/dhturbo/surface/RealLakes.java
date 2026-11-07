@@ -93,11 +93,11 @@ public final class RealLakes {
     @Nullable
     public Lake[] plan(int minX, int minZ, int spacing, int width) {
         int size = width * spacing;
-        // A lake starts up to 15 blocks into its chunk and is 16 blocks wide.
-        int fromChunkX = (minX - 31) >> 4;
-        int fromChunkZ = (minZ - 31) >> 4;
-        int toChunkX = (minX + size - 1) >> 4;
-        int toChunkZ = (minZ + size - 1) >> 4;
+        // A lake reaches 8 blocks to either side of its spot, and the spot can be anywhere in its chunk.
+        int fromChunkX = (minX - 22) >> 4;
+        int fromChunkZ = (minZ - 22) >> 4;
+        int toChunkX = (minX + size + 7) >> 4;
+        int toChunkZ = (minZ + size + 7) >> 4;
         Lake[] columns = new Lake[width * width];
         boolean[] any = new boolean[1];
         List<Runnable> rows = new ArrayList<>();
@@ -139,7 +139,7 @@ public final class RealLakes {
         if (origin.getY() <= sampler.minY() + 4) {
             return;
         }
-        BlockPos base = origin.below(4);
+        BlockPos base = origin.offset(-8, -4, -8);
         boolean[] shape = new boolean[2048];
         int blobs = random.nextInt(4) + 4;
         for (int blob = 0; blob < blobs; blob++) {
@@ -162,7 +162,7 @@ public final class RealLakes {
                 }
             }
         }
-        BlockState fluid = config.fluid().getState(random, base);
+        BlockState fluid = config.fluid().getState(level.view, random, base);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
@@ -173,6 +173,9 @@ public final class RealLakes {
                             return;
                         }
                         if (y < 4 && !state.isSolid() && state != fluid) {
+                            return;
+                        }
+                        if (!config.canPlaceFeature().test(level.view, pos)) {
                             return;
                         }
                     }
@@ -229,7 +232,7 @@ public final class RealLakes {
         private int hint = sampler.seaLevel();
 
         private int corner(int x, int z) {
-            long key = ChunkPos.asLong(x, z);
+            long key = ChunkPos.pack(x, z);
             int height = lattice.getOrDefault(key, Integer.MIN_VALUE);
             if (height == Integer.MIN_VALUE) {
                 height = sampler.surfaceHeight(x, z, hint);
