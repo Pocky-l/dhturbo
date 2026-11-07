@@ -1,0 +1,24 @@
+accessWidener v2 named
+# The entries of common/src/main/resources/META-INF/accesstransformer.cfg for Fabric; change the two together.
+# Vanilla surface rules on columns that were never generated as chunks (surface/VanillaSurface): the rule context and
+# the two surface extensions (badlands hoodoos, frozen ocean icebergs) are not public.
+accessible class net/minecraft/world/level/levelgen/SurfaceRules$Context
+accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context <init> (Lnet/minecraft/world/level/levelgen/SurfaceSystem;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/world/level/levelgen/NoiseChunk;Ljava/util/function/Function;Lnet/minecraft/core/Registry;Lnet/minecraft/world/level/levelgen/WorldGenerationContext;)V
+accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context updateXZ (II)V
+accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context updateY (IIIIII)V
+accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context getMinSurfaceLevel ()I
+accessible class net/minecraft/world/level/levelgen/SurfaceRules$SurfaceRule
+accessible method net/minecraft/world/level/levelgen/SurfaceSystem erodedBadlandsExtension (Lnet/minecraft/world/level/chunk/BlockColumn;IIILnet/minecraft/world/level/LevelHeightAccessor;)V
+accessible method net/minecraft/world/level/levelgen/SurfaceSystem frozenOceanExtension (ILnet/minecraft/world/level/biome/Biome;Lnet/minecraft/world/level/chunk/BlockColumn;Lnet/minecraft/core/BlockPos$MutableBlockPos;III)V
+accessible class net/minecraft/world/level/levelgen/DensityFunctions$BeardifierMarker
+# A generator that only answers height questions (surface/SampledHeightGenerator); NeoForge opens this class itself,
+# common and Fabric do not get that.
+extendable class net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator
+# Real generation on chunks of our own (surface/ExactChunks), on our threads: the public methods only hand these two to
+# the game's background executor.
+accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doCreateBiomes (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/chunk/ChunkAccess;)V
+accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doFill (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/chunk/ChunkAccess;II)Lnet/minecraft/world/level/chunk/ChunkAccess;
+# Saved chunks without the side effects of ChunkSerializer.read (surface/SavedChunks).
+accessible field net/minecraft/world/level/chunk/storage/ChunkSerializer BLOCK_STATE_CODEC Lcom/mojang/serialization/Codec;
+accessible method net/minecraft/world/level/chunk/storage/ChunkSerializer makeBiomeCodec (Lnet/minecraft/core/Registry;)Lcom/mojang/serialization/Codec;
+accessible method net/minecraft/server/level/ChunkMap upgradeChunkTag (Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;

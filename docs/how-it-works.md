@@ -25,6 +25,12 @@ and caves make every column expensive. Three things make it cheap here:
   `interpolated` marker), not the squeezed final density. Columns between corners interpolate the corner densities
   trilinearly, as vanilla does, using the real values with caves.
 
+Terrain and biomes read the same noises (continentalness, erosion, ridges): one set of column caches serves both,
+as vanilla's noise chunk does, so each is computed once per column.
+
+Wider columns stand on cell corners, where the search gives the real height directly, so every column gets its own
+search instead of a blend of its neighbours.
+
 Result: heights equal the real world on 98% of full-detail columns (the rest are mostly cave openings, which the
 distant terrain leaves closed).
 
@@ -40,10 +46,13 @@ badlands bands, hoodoos and icebergs come out as in the real world. Snow layers 
 
 Vanilla decorates a chunk by seeding one random per feature from the world seed, the chunk position and the feature's
 index in its generation step. Seeds do not depend on other features, so the vegetation of a chunk can be replayed on
-its own. Near the player the mod replays every surface vegetation feature (trees, grass, flowers, sugar cane, pumpkins)
-with vanilla's seeds on a `VirtualLevel`: a `WorldGenLevel` implementation that reads the computed terrain and records
-the blocks placed. Trees therefore stand where the game will grow them, with the same species and shape. Farther away,
-where one column covers several blocks, trees and plants are approximated per biome.
+its own. Up to 4-block columns the mod replays every surface vegetation feature (trees, grass, flowers, sugar cane,
+pumpkins) with vanilla's seeds on a `VirtualLevel`: a `WorldGenLevel` implementation that reads the computed terrain and
+records the blocks placed. Trees get the game's species and shape, and most of them its spot: columns with a tree here or
+in the real world agree on 71% at 1-block columns and 54% at 4-block columns, in jungles far less (all trees of a chunk
+share one random, so one difference moves every later tree); a wide
+column shows what stands on its corner, block by block with the air between, except trunks: a column over 2 blocks wide
+would make them as thick as itself, so it shows the crown only. Farther away trees and plants are approximated per biome.
 
 ## 4. Structures (`surface/RealStructures`)
 
@@ -73,7 +82,28 @@ are built from the full vertical profile: the density on every cell level of the
 block, then the surface rules over the whole column (netherrack, soul sand valleys, nylium, basalt deltas, bedrock
 floor and roof). Fortresses, bastions and end cities are built as in section 4.
 
-## 6. Speed
+## 6. Exact terrain near the player (`surface/ExactChunks`, `dh/ExactRefiner`)
+
+The sections above are a fast approximation. While the generator has nothing else to do, the chunks within `exact_radius`
+of a player are generated for real: biomes, noise, surface, carvers, features and structures run as in chunk generation,
+on proto chunks of our own, without the chunk map, lighting or saving, and the real level never hears of their blocks
+(a vanilla region would register their beds and bells as villager points of interest). Decorating a chunk needs its neighbours up to the
+carver step, so chunks come in batches of 8 x 8 sharing a two-chunk border (2.25 proto chunks per chunk; the idea is from
+[Horizon](https://github.com/horizon-rust/horizon)). Chunks three apart are decorated in parallel. They reach Distant
+Horizons through its API for real chunks, so it lights and stores them like chunks a player loaded, and chunks it
+already holds as real are left alone. Those include everything inside the render distance, so a radius below it does
+nothing. A chunk costs about 75 ms of CPU, against about 6 ms for the fast tile, so this runs on half of the workers at
+the lowest thread priority (which most Linux hosts ignore) and only while ticks stay under 35 ms and no player has moved
+faster than 10 blocks a second for 3 seconds. `exact_radius` (default 16) counts for singleplayer; dedicated servers pay
+for it with their tick time and opt in with `exact_radius_server`.
+
+Before any of that come the chunks the world has saved (`surface/SavedChunks`). The seed knows nothing of builds or of
+terrain from another generator, so each chunk on disk that Distant Horizons does not hold yet is handed to it as it is,
+nearest first, out to the LOD distance, through the same API. This does not wait for tiles and does not depend on
+`exact_radius`, and the exact pass never replaces a saved chunk. The game's own chunk reader cannot be used: it reports
+every section to the running level's points of interest and light engine, so blocks and biomes are decoded separately.
+
+## 7. Speed
 
 - One tile is split over every worker thread (fork-join), so a single request uses the whole CPU.
 - Structures, the most expensive part, are built once and cached.
@@ -81,6 +111,20 @@ floor and roof). Fortresses, bastions and end cities are built as in section 4.
   meshing set it), so the workers are idle much of the time. That time goes to the structures around the players:
   areas 256 blocks wide, nearest first, out to where tiles show structures. They land in the same caches, so the tile
   that needs them later does not wait. It pauses while tiles are queued or half of the workers are busy.
+- **Horizon first** (`dh/HorizonFill`, `mixin/LodQuadTreeMixin`). A tile costs about the same at every detail level, so
+  the coarsest tiles buy the most land. On ground without stored tiles (singleplayer) Distant Horizons is told to want
+  every section several levels coarser than it would: about 25 tiles cover the view. The wish comes down one level per
+  pass, once nearly all sections of the pass are on screen. Each pass halves the column width everywhere at once, so the near
+  ground sharpens first, and tiles are ordered from a point ahead of the player, so what the player looks at comes first.
+  A section replaces its parent when all four have terrain. Tiles a later pass replaces are previews: terrain and surface
+  only, marked below the step Distant Horizons needs, so it asks for the real tile if it ever wants that section for good.
+- **Less work in Distant Horizons.** Measured in the game, rebuilding sections took as much CPU as generating them. A tile
+  used to update up to eight parent levels and fill its children with stretched columns, and every update rebuilt the
+  section and its four neighbours. In singleplayer a tile now stays in its own section, and neighbours are rebuilt once
+  the tiles around them have settled. Where the detail level changes, the section next door often has no data then, which
+  would read as open air and draw a wall; it is read from the section above it instead, after the fill, for the edge only.
+  While the view fills, the workers run at Distant Horizons' own thread priority and
+  more tiles are under way at once.
 - Optionally (`real_chunks_nearby`), detailed terrain near the player is first drawn this way and then handed to
   Distant Horizons' own chunk generator, following the player's Distant Horizons generator plan.
 
@@ -96,13 +140,24 @@ by column and block by block:
 It starts a dedicated server on a fixed seed in `run/compare/`, writes `run/compare/dhturbo-compare.txt` and stops.
 To include terrain mods, put their jars in `run/compare/mods/` and add `-PcompareWorld=<new world name>`.
 
-Results on 2026-10-15 (seed 20261009, 48 random areas within 20 000 blocks):
+Results on 2026-11-06 (seed 20261009, 48 random areas within 20 000 blocks; real and generated columns go through the
+same check):
 
-| What | Full-detail columns | 4-block columns |
-|---|---|---|
-| Terrain height exact | 98.2% | 80.6% (97% with `full_resolution`) |
-| Top block kind | 98.2% | 97.1% |
-| Snowy columns | 99.7% | 100% |
+| What | 1 block | 4 blocks | 8 blocks | 16 blocks | Exact pass |
+|---|---|---|---|---|---|
+| Height exact, all columns | 98.1% | 96.3% | 97.5% | 98.6% | 100% |
+| Height exact, land above y 66 | 97.6% | 93.6% | 95.4% | 96.3% | 100% |
+| Top block kind | 98.3% | 97.7% | 98.6% | 99.3% | 100% |
+| Biome | 99.7% | 99.7% | 99.7% | 99.5% | 99.2% |
+| Blocks from 8 under the ground up | 99.3% | 99.1% | 98.5% | 98.6% | 99.75% |
+
+Exact pass: 6 to 8 areas, `-PcompareExact=1`, on the chunks as generated. Its biome line compares one block lower than
+the real column. Stored in Distant Horizons, which is what you see in game, runs of 128 chunks (`-PpregenExact=true`)
+gave the real top block and height, trees included, on 92.5 to 95.3% of columns.
+
+No generator can reach 100% of the blocks. The game's own result depends on the order chunks are generated in, because
+trees of neighbouring chunks overlap: the same chunks decorated in opposite orders agree on 99.73% of all blocks and on
+68% of whole columns. The exact pass stands at 99.72% against real chunks, which is that limit; its ground is identical.
 
 | Structures (12 per world, real chunks generated under them) | Result |
 |---|---|
@@ -116,9 +171,31 @@ Results on 2026-10-15 (seed 20261009, 48 random areas within 20 000 blocks):
 | End | 100% |
 
 With [Terralith](https://www.curseforge.com/minecraft/mc-mods/terralith) and
-[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic): top block kind 94.2%, land heights exact 95.7%.
+[Tectonic](https://www.curseforge.com/minecraft/mc-mods/tectonic): top block kind 93.5%, heights exact 98.1%, land 95.1%.
+
+With [ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes)
+0.0.22 (its default preset): top block kind 90.5%, heights exact 60.3% and within 4 blocks 99%. Its terrain comes from
+its own heightmap, which the generator reads; the erosion it adds while chunks generate is not drawn, so land comes out
+1-4 blocks higher and eroded slopes keep their grass.
+
+Before drawing a world the generator compares 32 of its columns with the world's own generator (heights within 6
+blocks; the Nether and the End block by block) and needs 75% to agree. Vanilla and ReTerraForged worlds agree on 32 of
+32; the ReTerraForged world read without its heightmap (what 1.4.0 drew) on 0, amplified terrain checked against the
+normal overworld on 18. Worlds that fail are left to Distant Horizons' own generator.
 
 ### Speed
+
+Filling the view of a new world, in the game: fresh world, seed 20261009, 300 blocks up, LOD radius 256 chunks, 6 Distant
+Horizons threads, 6-core / 12-thread PC, 3 runs each in turns, medians. Seconds after joining:
+
+| | This mod | This mod, before |
+|---|---|---|
+| Half of the land on screen | 3 or less | 11 |
+| 99% of the land on screen | 3 or less | 32 |
+| 95% of the picture as it ends up | 15 | 28 |
+
+Every tile is done after about 27 seconds. The first frames are coarse: 32-block columns for a moment. With a limit of 60 FPS
+the frame rate stays at 58 (lowest 52).
 
 In Distant Horizons' own pipeline: `/dh pregen` on a dedicated server with Distant Horizons 3.3.3 (its 6 world
 generator threads), 64 chunks around 0 0 (16 384 chunks, full detail), seed 20261009, a fresh world per run:
@@ -129,10 +206,13 @@ generator threads), 64 chunks around 0 0 (16 384 chunks, full detail), seed 2026
 
 | Generator | Time | Chunks per second | CPU time |
 |---|---|---|---|
-| This mod | 35.1 s | 467 | 236 s |
-| This mod, `structures = false` | 33.1 s | 496 | 231 s |
-| Distant Horizons, default plan (real chunks) | 131.1 s | 125 | 821 s |
-| Distant Horizons, `SURFACE_ONLY` (rough surface) | 164.2 s | 100 | 989 s |
+| This mod | 18 s | about 900 | 146 s |
+| This mod 1.5.0 | 33 s | about 500 | 224 s |
+| Distant Horizons, default plan (real chunks) | 131 to 214 s | 77 to 125 | 821 to 1081 s |
+| Distant Horizons, `SURFACE_ONLY` (rough surface) | 164 to 197 s | 83 to 100 | 989 to 1137 s |
+
+Medians of six runs alternating with the old version, on a machine doing other work too; single runs vary by 20%. The
+Distant Horizons rows are the two runs we have, the faster one from 2026-10-16.
 
 Switch the mod off (`enabled = false`) and set Distant Horizons' `generatorPlan` for the other rows. Full detail is
 the costliest part of the horizon; farther out the mod samples fewer columns, while the default plan still generates
@@ -145,14 +225,15 @@ Filling the horizon around a player, without Distant Horizons (the generator alo
 ```
 
 fills the horizon around three fresh spawns the way Distant Horizons asks for it: tiles of 64 columns, finer near the
-player, nearest first, as many in flight as Distant Horizons allows. Results on 2026-10-15, 6 worker threads, 4096
+player, nearest first, as many in flight as Distant Horizons allows. 6 worker threads in 1.5.0, 8 in this version, 4096
 blocks around the player:
 
 | | Horizon filled |
 |---|---|
-| Terrain only (`structures = false`) | 4.1-6.0 s |
+| Terrain only (`structures = false`), 1.3.0 | 4.1-6.0 s |
 | With structures, first version | 12.9-15.2 s |
-| With structures, two builds and cheaper searches | 7.2-8.9 s |
+| With structures, 1.5.0 | 7.4-9.6 s |
+| With structures, more trees and exact heights, this version | 5.1-8.7 s |
 
 At Distant Horizons' pace in game (20 tiles a second here), the idle time prepares the structures ahead. Time per tile
 1-2 km out (detail 3): p95 310-710 ms without, 40-45 ms with it.

@@ -4,6 +4,62 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0+1.20.1] - Unreleased
+Everything of 1.5.0 and 1.6.0 for Minecraft 1.21.1, on Forge 1.20.1 and, new, on [Fabric](https://fabricmc.net). Needs
+[Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3.3 or a later 3.3 for Minecraft
+1.20.1: the mod reaches into it, and other versions are untested. The Fabric version also needs
+[Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api) and
+[Forge Config API Port](https://www.curseforge.com/minecraft/mc-mods/forge-config-api-port); its settings live in
+`config/dhturbo-common.toml`, there is no config screen on Fabric for Minecraft 1.20.1.
+[ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes) support was not
+checked on Minecraft 1.20.1.
+
+### Added
+- Horizon first: in singleplayer, ground you have not seen shows at once. The whole view fills with coarse terrain within
+  about 3 seconds of joining a new world, then sharpens pass by pass, starting with what you look at.
+- Saved chunks show in the distance: builds, adventure maps and pregenerated terrain reach Distant Horizons as the world
+  saved them, nearest first, in the background. Before, an existing world showed the seed's terrain until you went there.
+- `/dhturbo regenerate` for operators and the host: deletes the world's distant terrain, which is then drawn again.
+  Terrain drawn by an older version keeps its old look until then.
+- Exact terrain near you: while the generator has nothing else to do, the chunks around you are redrawn by the game's
+  real generator in the background: caves, ores on cliffs, lakes above sea level, trees and plants. It waits while the
+  server is busy or you move fast. Config `exact_radius` (chunks, default 16, 0 = off); dedicated servers opt in with
+  `exact_radius_server`. Chunks the world has saved are left as they are.
+- Distant End islands get their chorus and small islands, and the distant Nether its huge fungi, vines, basalt and
+  glowstone: the game's own features, with its own seeds, up to 4-block columns in the End and 2-block columns in the
+  Nether.
+- The game's tree placement is replayed up to 4-block columns (before: full detail only).
+- A line on the F3 screen shows what the generator is doing, the exact pass included.
+- Worlds whose terrain the mod cannot read (for example a mod with its own chunk generator) are detected when they load
+  and left to the Distant Horizons generator, with a line in the log and in chat for whoever runs the world, instead of
+  being drawn wrong.
+### Changed
+- Distant Horizons does far less work per tile in singleplayer: a tile no longer rewrites and rebuilds its parents, and a
+  section is rebuilt once when the tiles around it have settled, not once for each of them.
+- Forests on 2- and 4-block columns are as dense as real ones in Distant Horizons: wide columns take wood and leaves from
+  their whole width, not only from their corner.
+- A server with Distant Horizons no longer sends players the world seed: it sends them the distant terrain anyway.
+- The generator is faster: terrain and biomes now share what they compute per column.
+- Distant heights are exact: every column gets its own height instead of a blend of its neighbours.
+- Distant biomes follow the game's own blur at their borders, so grass and water colours line up.
+- `threads` now defaults to two thirds of the CPU cores (was half): the generator runs below normal priority.
+- `full_resolution` now only adds the pull of caves on columns up to 4 blocks wide; every column has its own height
+  anyway.
+### Fixed
+- Pieces of distant structures no longer go missing when two threads place the same template at once.
+- Structures in the Nether and the End no longer count as lit by a sky those worlds do not have.
+- On some starts the mod did nothing: Distant Horizons picked its own generator before this one was ready and kept it for
+  the session, so the distance came out bare and slow with no message. Distant Horizons now waits for the choice.
+- A Distant Horizons generator plan set to "disabled", or "chunks only" with existing chunks only, is respected: nothing
+  is generated, also not by this mod.
+- The End keeps its detail around the islands: sections of pure void counted as not generated yet, so the coarse terrain
+  next to them never gave way to finer terrain.
+- After leaving a dimension and coming back on a server, structures around you are prepared ahead again.
+- Distant trees keep their shape: branches no longer grow into walls of logs down to the ground, bushes no longer join
+  the crowns above them, and the leaves of far forests no longer reach the ground.
+- Trunks no longer stand as thick as a wide LOD column: columns over 2 blocks wide show crowns only.
+- Near you, forests of terrain mods with trees of their own were bare in the distance: they get the mod's tree shapes now.
+
 ## [1.4.0+1.20.1] - 2026-10-26
 ### Added
 - Config `excluded_dimensions`: dimensions listed there (by id, for example `minecraft:the_end` or a mod's dimension)
@@ -22,6 +78,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the game's own trees, plants and surface, lava lakes, soft plant colours, multiplayer generation on the client.
 - The config editor (*Mods -> Turbo for Distant Horizons -> Config*) is a simple screen of the mod's own, since Forge
   for 1.20.1 has none.
+## [1.6.0-fabric] - 2026-11-07
+### Added
+- A [Fabric](https://fabricmc.net/) version for Minecraft 1.21.1, with the same generator, commands and config file as on
+  NeoForge. It needs [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons),
+  [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api) and
+  [Forge Config API Port](https://www.curseforge.com/minecraft/mc-mods/forge-config-api-port).
+
+## [1.6.0] - 2026-11-06
+### Added
+- Horizon first: in singleplayer, ground you have not seen shows at once. The whole view fills with coarse terrain within
+  about 3 seconds of joining a new world, then sharpens pass by pass, starting with what you look at. In test runs (6-core PC,
+  LOD radius 256 chunks) half the view took 11 seconds before and all of it 32; the picture is now 95% final after 15 seconds
+  instead of 28, and every tile is done in about 27.
+- Saved chunks show in the distance: builds, adventure maps and pregenerated terrain reach Distant Horizons as the world
+  saved them, nearest first, in the background. Before, an existing world showed the seed's terrain until you went there.
+- `/dhturbo regenerate` for operators and the host: deletes the world's distant terrain, which is then drawn again.
+  Terrain drawn by an older version keeps its old look until then.
+- Exact terrain near you: while the generator has nothing else to do, the chunks around you are redrawn by the game's
+  real generator in the background: caves, ores on cliffs, lakes above sea level, trees and plants. In test runs 92 to
+  95% of columns then matched the real world. It waits while the server is busy or you move fast. Config
+  `exact_radius` (chunks, default 16, 0 = off); dedicated servers opt in with `exact_radius_server`. Chunks the world has
+  saved are left as they are.
+- Distant End islands get their chorus and small islands, and the distant Nether its huge fungi, vines, basalt and glowstone:
+  the game's own features, with its own seeds, up to 4-block columns in the End and 2-block columns in the Nether.
+- The game's tree placement is replayed up to 4-block columns (before: full detail only): about 7 in 10 tree columns land
+  on the real spot at full detail, over half at 4-block columns, jungles far fewer.
+- A line on the F3 screen shows what the generator is doing, the exact pass included.
+- A line in chat for whoever runs the world when the mod cannot read a dimension's terrain and leaves it to Distant
+  Horizons.
+### Changed
+- Distant Horizons does far less work per tile in singleplayer: a tile no longer rewrites and rebuilds its parents, and a
+  section is rebuilt once when the tiles around it have settled, not once for each of them.
+- Forests on 2- and 4-block columns are as dense as real ones in Distant Horizons: wide columns take wood and leaves from
+  their whole width, not only from their corner.
+- Needs Distant Horizons 3.3.3 or a later 3.3 version: it reaches into Distant Horizons, and other versions are untested.
+- A server with Distant Horizons no longer sends players the world seed: it sends them the distant terrain anyway.
+- The generator is 1.8x as fast in Distant Horizons' own pregeneration with a third less CPU time, and fills the
+  horizon about 20% sooner, with more trees and exact heights included: terrain and biomes now share what they compute
+  per column. With Terralith and Tectonic tiles take less than half the time.
+- Distant heights are exact: every column gets its own height instead of a blend of its neighbours. On land, 4-block
+  columns match the real world on 94% of columns instead of 56%, 16-block columns on 96% instead of 42%.
+- Distant biomes follow the game's own blur at their borders: they differ on 0.3% of columns, before 2 to 17%, so grass
+  and water colours line up.
+- `threads` now defaults to two thirds of the CPU cores (was half): the generator runs below normal priority, and it
+  measured 12% faster.
+- `full_resolution` now only adds the pull of caves on columns up to 4 blocks wide; every column has its own height
+  anyway.
+- The accuracy figures are measured more fairly: real and generated columns go through the same check, and blocks are
+  also compared one by one.
+### Fixed
+- Structures in the Nether and the End no longer count as lit by a sky those worlds do not have.
+- On some starts the mod did nothing: Distant Horizons picked its own generator before this one was ready and kept it for
+  the session, so the distance came out bare and slow with no message. In test runs on a fast PC this happened on one
+  start in four, and more often the longer the world took to load. Distant Horizons now waits for the choice.
+- A Distant Horizons generator plan set to "disabled", or "chunks only" with existing chunks only, is respected: nothing
+  is generated, also not by this mod.
+- The End keeps its detail around the islands: sections of pure void counted as not generated yet, so the coarse terrain
+  next to them never gave way to finer terrain.
+- After leaving a dimension and coming back on a server, structures around you are prepared ahead again.
+- Distant trees keep their shape: branches no longer grow into walls of logs down to the ground, bushes no longer join
+  the crowns above them, and the leaves of far forests no longer reach the ground.
+- Trunks no longer stand as thick as a wide LOD column: columns over 2 blocks wide show crowns only.
+
+## [1.5.0] - 2026-10-26
+### Added
+- [ReTerraForged: From the Ashes](https://www.curseforge.com/minecraft/mc-mods/reterraforged-from-the-ashes) support:
+  its continents, mountains and rivers now show in the distance as it generates them. Before, the distant terrain of
+  its worlds did not match the real one at all. Its erosion is not drawn, so distant land can sit a few blocks higher than the real chunks.
+  In multiplayer the server draws these worlds; players do not generate them themselves.
+- Worlds whose terrain the mod cannot read (for example a mod with its own chunk generator) are detected when they
+  load and left to the Distant Horizons generator, with a line in the log saying why, instead of being drawn wrong.
+### Fixed
+- Near you, forests of terrain mods with trees of their own (ReTerraForged) were bare in the distance: they get the
+  mod's tree shapes now.
+
+## [1.4.0] - 2026-10-25
+### Added
+- Config `excluded_dimensions`: dimensions listed there (by id, for example `minecraft:the_end` or a mod's dimension)
+  get their distant terrain from the Distant Horizons generator, the rest still from this mod. Works in singleplayer,
+  on servers and for clients that generate the distance themselves, and takes effect without restarting the game.
+### Removed
+- The "DH Turbo: ... tiles" status line. It showed up on the screen even with the debug screen (F3) closed.
 
 ## [1.3.0] - 2026-10-16
 ### Added

@@ -1,0 +1,216 @@
+plugins {
+    id 'multiloader-loader'
+    id 'idea'
+    id 'net.neoforged.moddev.legacyforge'
+}
+
+sourceSets.main.resources {
+    srcDir('src/generated/resources')
+    exclude('**/*.bbmodel')
+    exclude('src/generated/**/.cache')
+}
+
+legacyForge {
+    version = "${minecraft_version}-${forge_version}"
+    accessTransformers.from(project(':common').file('src/main/resources/META-INF/accesstransformer.cfg'))
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+            // -PclientWorld=<save name>: the dev client opens that world directly.
+            providers.gradleProperty('clientWorld').map { [it] }.getOrElse([]).each {
+                programArguments.addAll '--quickPlaySingleplayer', it
+            }
+        }
+
+        server {
+            server()
+            // Separate directory, so a dedicated server can run next to the dev client.
+            gameDirectory = project.file('run-server')
+            programArgument '--nogui'
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        // Compares our columns with chunks the game really generates (compare/GenerationComparison): a normal world
+        // with a fixed seed in run/compare/, report in run/compare/dhturbo-compare.txt, stops when done.
+        compareServer {
+            server()
+            gameDirectory = project.file('run/compare')
+            programArgument '--nogui'
+            systemProperty 'dhturbo.compare', providers.gradleProperty('compareAreas').getOrElse('48')
+            systemProperty 'dhturbo.compare.exit', 'true'
+            systemProperty 'dhturbo.compare.spacings', providers.gradleProperty('compareSpacings').getOrElse('1,4')
+            // -PcompareExact=<spacing>: tiles up to this column width come from real generation (surface/ExactChunks).
+            systemProperty 'dhturbo.compare.exact', providers.gradleProperty('compareExact').getOrElse('0')
+            systemProperty 'dhturbo.compare.probe', providers.gradleProperty('compareProbe').getOrElse('')
+            // -PcompareHorizon=<radius>: instead of comparing, time filling the horizon around fresh spawns.
+            systemProperty 'dhturbo.compare.horizon', providers.gradleProperty('compareHorizon').getOrElse('0')
+            systemProperty 'dhturbo.compare.horizonRate', providers.gradleProperty('compareHorizonRate').getOrElse('0')
+            systemProperty 'dhturbo.compare.prefetch', providers.gradleProperty('comparePrefetch').getOrElse('false')
+            // -PcompareJvmArgs="...": extra JVM arguments, e.g. a flight recording for profiling.
+            providers.gradleProperty('compareJvmArgs').getOrElse('').split(' ').findAll { it }.each { jvmArgument it }
+        }
+
+        // Times Distant Horizons' own /dh pregen with and without this mod (compare/PregenBenchmark): a dedicated
+        // server with Distant Horizons in run/pregen/, report in run/pregen/dhturbo-pregen.txt, stops when done.
+        pregenServer {
+            server()
+            gameDirectory = project.file('run/pregen')
+            programArgument '--nogui'
+            systemProperty 'dhturbo.pregen', providers.gradleProperty('pregenRadius').getOrElse('64')
+            systemProperty 'dhturbo.pregen.label', providers.gradleProperty('pregenLabel').getOrElse('run')
+            // -PpregenExact=true: afterwards checks the exact pass through Distant Horizons' own chunk path.
+            systemProperty 'dhturbo.pregen.exact', providers.gradleProperty('pregenExact').getOrElse('false')
+        }
+
+        gameTestServer {
+            type = 'gameTestServer'
+            // Own directory: run/mods holds Distant Horizons for the dev client, which crashes the game test server.
+            gameDirectory = project.file('run/gametest')
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', project.mod_id, '--all',
+                    '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.INFO
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+// Forge 1.20.1 runs with SRG names: the annotation processor writes the refmap that maps the mixin targets to them.
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
+
+// Dependencies added to localRuntime are available in dev runs but are not published as dependencies.
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+    distantHorizons {
+        transitive = false
+    }
+}
+// Distant Horizons for the dev runs, remapped from SRG to the Mojang names of the development environment.
+obfuscation.createRemappingConfiguration(configurations.distantHorizons)
+
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // MixinExtras ships inside the jar, so the mixins work on every Forge 47 and on NeoForge for 1.20.1.
+    compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${mixinextras_version}"))
+    implementation(jarJar("io.github.llamalad7:mixinextras-forge:${mixinextras_version}"))
+    // Distant Horizons ships its API inside the mod jar; compile against it. The mod only uses its API and core
+    // classes, which do not depend on Minecraft names, so the jar needs no remapping for that.
+    compileOnly "maven.modrinth:distanthorizons:${distanthorizons_version}"
+    modDistantHorizons "maven.modrinth:distanthorizons:${distanthorizons_version}"
+}
+
+// Distant Horizons runs in the dev client and server as a real mod from their mods/ folders. Not in the game test
+// server: DH crashes it (casts every non-integrated server to DedicatedServer).
+var installDistantHorizonsClient = tasks.register('installDistantHorizonsClient', Copy) {
+    from configurations.distantHorizons
+    into 'run/mods'
+}
+// -PserverDh=false runs the dev server without Distant Horizons (tests client-side generation).
+var serverDh = providers.gradleProperty('serverDh').map { it != 'false' }.getOrElse(true)
+var installDistantHorizonsServer = serverDh
+        ? tasks.register('installDistantHorizonsServer', Copy) {
+            from configurations.distantHorizons
+            into 'run-server/mods'
+        }
+        : tasks.register('removeDistantHorizonsServer', Delete) {
+            // An empty copy would be skipped (NO-SOURCE) and leave the jar of an earlier run behind.
+            delete fileTree('run-server/mods') { include 'distanthorizons-*.jar' }
+        }
+tasks.named('runClient') { dependsOn installDistantHorizonsClient }
+tasks.named('runServer') { dependsOn installDistantHorizonsServer }
+var installDistantHorizonsPregen = tasks.register('installDistantHorizonsPregen', Copy) {
+    from configurations.distantHorizons
+    into 'run/pregen/mods'
+}
+tasks.named('runPregenServer') { dependsOn installDistantHorizonsPregen }
+
+// The comparison server needs an accepted EULA and a fixed seed; the watchdog is off (the comparison blocks the
+// first tick for a while).
+var prepareCompareServer = tasks.register('prepareCompareServer') {
+    var dir = project.file('run/compare')
+    // -PcompareWorld=<name>: a separate world, e.g. for a run with terrain mods in run/compare/mods.
+    var levelName = providers.gradleProperty('compareWorld').getOrElse('world')
+    inputs.property('levelName', levelName)
+    outputs.files(new File(dir, 'eula.txt'), new File(dir, 'server.properties'))
+    doLast {
+        dir.mkdirs()
+        new File(dir, 'eula.txt').text = 'eula=true' + System.lineSeparator()
+        new File(dir, 'server.properties').text = [
+                'level-seed=20261009', 'online-mode=false', 'max-tick-time=-1', 'spawn-protection=0',
+                'view-distance=4', 'simulation-distance=4', 'level-name=' + levelName
+        ].join(System.lineSeparator()) + System.lineSeparator()
+    }
+}
+tasks.named('runCompareServer') { dependsOn prepareCompareServer }
+
+var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            mod_url                : mod_url,
+            distanthorizons_range  : distanthorizons_range,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/main/templates'
+    into 'build/generated/sources/modMetadata'
+}
+sourceSets.main.resources.srcDir generateModMetadata
+legacyForge.ideSyncTask generateModMetadata
+
+tasks.named('jar', Jar) {
+    // Forge 47 reads mixin configs from the manifest, not from mods.toml.
+    manifest.attributes('MixinConfigs': "${mod_id}.mixins.json")
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
+
+publishMods {
+    // The reobfuscated (SRG) jar is the one that runs outside the development environment.
+    file = tasks.named('reobfJar').flatMap { it.archiveFile }
+    displayName = "${mod_name} ${mod_version}+${minecraft_version} (Forge)"
+    modLoaders.add('forge')
+
+    curseforge {
+        curseforge_requires.split(',')*.trim().findAll().each { requires(it) }
+        curseforge_optional.split(',')*.trim().findAll().each { optional(it) }
+    }
+}

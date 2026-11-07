@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${mod_version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": ["${mod_authors}"],
+  "contact": {
+    "homepage": "${mod_url}",
+    "sources": "${mod_url}",
+    "issues": "${mod_url}/issues"
+  },
+  "license": "${mod_license}",
+  "icon": "logo.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.pockyl.dhturbo.fabric.DhTurboFabric"],
+    "client": ["com.pockyl.dhturbo.fabric.DhTurboFabricClient"]
+  },
+  "mixins": ["dhturbo.mixins.json", "dhturbo.fabric.mixins.json"],
+  "accessWidener": "dhturbo.accesswidener",
+  "depends": {
+    "fabricloader": ">=${fabric_loader_version}",
+    "fabric-api": ">=${fabric_api_version}",
+    "forgeconfigapiport": ">=8.0.0",
+    "minecraft": "${minecraft_version}",
+    "java": ">=17"
+  },
+  "recommends": {
+    "distanthorizons": ">=3.3.3 <3.4"
+  },
+  "breaks": {
+    "distanthorizons": ["<3.3.3", ">=3.4"]
+  }
+}
