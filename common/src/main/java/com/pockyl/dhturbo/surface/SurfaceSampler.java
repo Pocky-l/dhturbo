@@ -1,23 +1,35 @@
 package com.pockyl.dhturbo.surface;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
-import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.util.Interval;
 import net.minecraft.util.Mth;
+import net.minecraft.util.context.ContextKey;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeResolver;
 import net.minecraft.world.level.biome.BiomeSource;
-import net.minecraft.world.level.biome.Climate;
-import net.minecraft.util.KeyDispatchDataCodec;
-import net.minecraft.world.level.levelgen.DensityFunction;
-import net.minecraft.world.level.levelgen.DensityFunctions;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
 import net.minecraft.world.level.levelgen.NoiseRouter;
 import net.minecraft.world.level.levelgen.NoiseSettings;
 import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.levelgen.densityfunction.ContextBoundSampler;
+import net.minecraft.world.level.levelgen.densityfunction.DensityBuffer;
+import net.minecraft.world.level.levelgen.densityfunction.DensityFunction;
+import net.minecraft.world.level.levelgen.densityfunction.DensityFunctions;
+import net.minecraft.world.level.levelgen.densityfunction.DensitySampler;
+import net.minecraft.world.level.levelgen.densityfunction.DensitySamplerSet;
+import net.minecraft.world.level.levelgen.densityfunction.DensityVolume;
+import net.minecraft.world.level.levelgen.densityfunction.DfRewriteRule;
+import net.minecraft.world.level.levelgen.densityfunction.SamplerContext;
+import net.minecraft.world.level.levelgen.densityfunction.op.InterpolatedFunction;
 
-import com.pockyl.dhturbo.world.version.WorldgenApi;
+import com.pockyl.dhturbo.DhTurbo;
+
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,34 +42,50 @@ import java.util.Random;
  * <ul>
  *     <li>the density is sampled only on vanilla's cell corners (every {@code cellHeight} blocks) and the surface is
  *     found by linear interpolation between them, which is exactly how vanilla interpolates terrain;</li>
- *     <li>2D parts of the density are cached per column ({@link ColumnCachingVisitor});</li>
+ *     <li>2D parts of the density are cached per column: the game compiles a function that does not depend on Y down
+ *     to a sample at Y 0, and every thread's sampler context remembers the last value of each {@code cache} node;</li>
  *     <li>caves are removed ({@link CaveStripper}) and the search starts at the height of the previous column, so a
  *     typical column needs two or three probes.</li>
  * </ul>
  * <p>
- * The density probed is the one inside vanilla's {@code interpolated} marker, not the final density: vanilla
+ * The density probed is the one inside vanilla's {@code interpolated} node, not the final density: vanilla
  * interpolates that value between cell corners and only then squeezes (and clamps) it, which keeps the sign but bends
  * the values. Interpolating the squeezed final density put the surface up to several blocks off between corners.
  * When a world's final density is not a sign-keeping function of a single interpolated value (checked on sample
  * points), the final density is used.
  * <p>
- * Thread-safe: every thread gets its own copy of the cached density function.
+ * Thread-safe: every thread samples through its own context.
  */
 public final class SurfaceSampler {
+    private static final int SIGNAL_CHECKS = 256;
+    /** A world whose density has no interpolated node: vanilla's overworld cells. */
+    private static final int DEFAULT_CELL_WIDTH = 4;
+    private static final int DEFAULT_CELL_HEIGHT = 8;
+    /** Takes out cell interpolation: the value at a point is then the function's own, as it is on a cell corner. */
+    private static final DfRewriteRule PLAIN = new DfRewriteRule() {
+        @Override
+        public DensityFunction rewrite(DensityFunction function) {
+            return function instanceof InterpolatedFunction interpolated ? rewrite(interpolated.input()) : function.rewriteChildren(this);
+        }
+    };
+
     private final NoiseBinder binder;
     private final RandomState randomState;
     private final BiomeSource biomeSource;
     private final ThreadLocal<ColumnNoises> noises;
+    /** The density the surface search probes, with its cell interpolation taken out. */
+    private final DensityFunction density;
     /**
      * The same value with caves, as vanilla interpolates it: below the surface it carries the cave noises, which pull
      * the surface between cell corners. Only used inside the cell the cave-free search found.
      */
-    private final ThreadLocal<DensityFunction> realDensity;
+    private final DensityFunction realDensity;
     /**
      * The final density (without caves) computed from a given interpolated value: the world's final density with its
-     * {@code interpolated} marker replaced by {@link Probe}. Null when the probed value is the final density itself.
+     * {@code interpolated} node replaced by {@link Probe}. Null when the probed value is the final density itself.
      */
-    private final ThreadLocal<Probe> finalFromProbe;
+    @Nullable
+    private final DensityFunction finalFromProbe;
     private final int minY;
     private final int maxY;
     private final int cellHeight;
@@ -73,52 +101,54 @@ public final class SurfaceSampler {
                           NoiseBinder binder) {
         this.binder = binder;
         NoiseRouter router = settings.noiseRouter();
-        Registry<DensityFunction> functions = registries.lookupOrThrow(Registries.DENSITY_FUNCTION);
-        DensityFunction surfaceDensity = CaveStripper.strip(functions, router.finalDensity());
-        // Same seed and settings apart from the final density: noises are wired identically to the real world.
-        this.randomState = RandomState.create(withFinalDensity(settings, surfaceDensity),
-                registries.lookupOrThrow(Registries.NOISE), seed);
+        DensityFunction surfaceDensity = CaveStripper.strip(router.finalDensity());
+        // Same seed and settings: the noises are the real world's, whatever function is compiled from them.
+        this.randomState = RandomState.create(registries.lookupOrThrow(Registries.NOISE), seed, settings.useLegacyRandomSource(),
+                settings.defaultBlock(), settings.seaLevel(), withCachedSurfaceCorners(router));
         binder.bind(randomState);
         this.biomeSource = biomeSource;
-        DensityFunction strippedFinal = randomState.router().finalDensity();
-        DensityFunction wired = signal(strippedFinal, settings.noiseSettings());
-        NoiseRouter wiredRouter = randomState.router();
-        this.noises = ThreadLocal.withInitial(() -> new ColumnNoises(wired, wiredRouter));
+        DensityFunction wired = signal(surfaceDensity, settings.noiseSettings());
+        this.density = plain(wired);
         // With caves the final density holds more interpolated values (noodle caves have their own, and vanilla adds
         // them per block, outside the terrain's). The terrain's is the one that loses its caves the same way.
         DensityFunction realInner = null;
-        List<DensityFunction> stripped = interpolated(surfaceDensity);
-        if (wired != strippedFinal && stripped.size() == 1) {
-            for (DensityFunction candidate : interpolated(router.finalDensity())) {
-                if (CaveStripper.strip(functions, candidate).equals(stripped.getFirst())) {
-                    realInner = candidate;
+        List<InterpolatedFunction> stripped = interpolated(surfaceDensity);
+        if (wired != surfaceDensity && stripped.size() == 1) {
+            for (InterpolatedFunction candidate : interpolated(router.finalDensity())) {
+                if (CaveStripper.strip(candidate.input()).equals(stripped.getFirst().input())) {
+                    realInner = candidate.input();
                     break;
                 }
             }
         }
-        RandomState realState = RandomState.create(withFinalDensity(settings, realInner != null ? realInner : router.finalDensity()),
-                registries.lookupOrThrow(Registries.NOISE), seed);
-        binder.bind(realState);
-        DensityFunction realWired = realState.router().finalDensity();
-        this.realDensity = ThreadLocal.withInitial(() -> realWired.mapAll(new ColumnCachingVisitor()));
-        this.finalFromProbe = wired != strippedFinal && realInner != null
-                ? ThreadLocal.withInitial(() -> Probe.into(strippedFinal))
-                : null;
+        this.realDensity = plain(realInner != null ? realInner : router.finalDensity());
+        this.finalFromProbe = wired != surfaceDensity && realInner != null ? Probe.into(surfaceDensity) : null;
+        this.noises = ThreadLocal.withInitial(ColumnNoises::new);
         NoiseSettings noise = settings.noiseSettings();
         this.minY = noise.minY();
         this.maxY = noise.minY() + noise.height();
-        this.cellHeight = noise.getCellHeight();
-        this.cellWidth = noise.getCellWidth();
+        // The cell size moved from the noise settings into the interpolated nodes of the density.
+        List<InterpolatedFunction> cells = stripped.isEmpty() ? interpolated(router.finalDensity()) : stripped;
+        this.cellHeight = cells.isEmpty() ? DEFAULT_CELL_HEIGHT : cells.getFirst().cellSizeY();
+        this.cellWidth = cells.isEmpty() ? DEFAULT_CELL_WIDTH : cells.getFirst().cellSizeXz();
         this.seaLevel = settings.seaLevel();
     }
 
-    @SuppressWarnings("deprecation") // disableMobGeneration has to be copied over to rebuild the settings record
-    private static NoiseGeneratorSettings withFinalDensity(NoiseGeneratorSettings settings, DensityFunction finalDensity) {
-        NoiseRouter changed = WorldgenApi.withFinalDensity(settings.noiseRouter(), finalDensity);
-        return new NoiseGeneratorSettings(settings.noiseSettings(), settings.defaultBlock(), settings.defaultFluid(),
-                changed, settings.surfaceRule(), settings.spawnTarget(), settings.seaLevel(),
-                settings.disableMobGeneration(), settings.aquifersEnabled(), settings.oreVeinsEnabled(),
-                settings.useLegacyRandomSource());
+    /**
+     * The surface rules ask for the preliminary surface of every column, interpolated between corners that each cost a
+     * search down the column: columns of one cell share them this way. The router is only read for this function here.
+     */
+    private static NoiseRouter withCachedSurfaceCorners(NoiseRouter router) {
+        DensityFunction surfaceLevel = new DfRewriteRule() {
+            @Override
+            public DensityFunction rewrite(DensityFunction function) {
+                return function instanceof InterpolatedFunction(DensityFunction input, int cellSizeXz, int cellSizeY)
+                        ? new InterpolatedFunction(DensityFunctions.cache(input), cellSizeXz, cellSizeY)
+                        : function.rewriteChildren(this);
+            }
+        }.rewrite(router.chunkSurfaceLevel());
+        return new NoiseRouter(router.temperature(), router.vegetation(), router.continents(), router.erosion(), router.depth(),
+                router.ridges(), surfaceLevel, router.finalDensity());
     }
 
     public int minY() {
@@ -138,16 +168,16 @@ public final class SurfaceSampler {
      * heightmap (water is not solid). {@code hintY} is where the search starts: the height of a nearby column.
      */
     public int surfaceHeight(int x, int z, int hintY) {
-        DensityFunction function = noises.get().density;
+        DensitySampler.Bound function = noises.get().density;
         int y = Mth.clamp(Math.floorDiv(hintY - minY, cellHeight) * cellHeight + minY, minY, maxY - cellHeight);
-        double value = function.compute(new DensityFunction.SinglePointContext(x, y, z));
+        double value = function.sampleValue(x, y, z);
         if (value > 0) {
             while (true) {
                 int above = y + cellHeight;
                 if (above >= maxY) {
                     return maxY;
                 }
-                double aboveValue = function.compute(new DensityFunction.SinglePointContext(x, above, z));
+                double aboveValue = function.sampleValue(x, above, z);
                 if (aboveValue <= 0) {
                     return crossing(y, value, aboveValue);
                 }
@@ -160,7 +190,7 @@ public final class SurfaceSampler {
             if (below < minY) {
                 return minY;
             }
-            double belowValue = function.compute(new DensityFunction.SinglePointContext(x, below, z));
+            double belowValue = function.sampleValue(x, below, z);
             if (belowValue > 0) {
                 return crossing(below, belowValue, value);
             }
@@ -169,60 +199,60 @@ public final class SurfaceSampler {
         }
     }
 
-    private static final KeyDispatchDataCodec<? extends DensityFunction> INTERPOLATED =
-            DensityFunctions.interpolated(DensityFunctions.zero()).codec();
-    private static final int SIGNAL_CHECKS = 256;
+    /** The function without cell interpolation. */
+    public static DensityFunction plain(DensityFunction function) {
+        return PLAIN.rewrite(function);
+    }
 
-    /**
-     * The value vanilla interpolates between cell corners, if the final density is a sign-keeping function of it
-     * (vanilla: {@code min(squeeze(0.64 * interpolated(...)), caves)} with caves stripped); otherwise the final density.
-     */
-    public static List<DensityFunction> interpolated(DensityFunction function) {
-        List<DensityFunction> interpolated = new ArrayList<>();
-        function.mapAll(node -> {
-            if (node instanceof DensityFunctions.MarkerOrMarked marker && marker.codec() == INTERPOLATED) {
-                interpolated.add(marker.wrapped());
+    /** The interpolated nodes of a function. */
+    public static List<InterpolatedFunction> interpolated(DensityFunction function) {
+        List<InterpolatedFunction> interpolated = new ArrayList<>();
+        new DfRewriteRule() {
+            @Override
+            public DensityFunction rewrite(DensityFunction node) {
+                if (node instanceof InterpolatedFunction found) {
+                    interpolated.add(found);
+                }
+                return node.rewriteChildren(this);
             }
-            return node;
-        });
+        }.rewrite(function);
         return interpolated;
     }
 
-    private static DensityFunction signal(DensityFunction finalDensity, NoiseSettings noise) {
-        List<DensityFunction> interpolated = interpolated(finalDensity);
+    /**
+     * The value vanilla interpolates between cell corners, if the final density is a sign-keeping function of it
+     * (vanilla: {@code min(squeeze(interpolated(0.64 * ...)), caves)} with caves stripped); otherwise the final density.
+     */
+    private DensityFunction signal(DensityFunction finalDensity, NoiseSettings noise) {
+        List<InterpolatedFunction> interpolated = interpolated(finalDensity);
         if (interpolated.size() != 1) {
             return finalDensity;
         }
-        DensityFunction inner = interpolated.getFirst();
-        DensityFunction plainFinal = finalDensity.mapAll(new ColumnCachingVisitor());
-        DensityFunction plainInner = inner.mapAll(new ColumnCachingVisitor());
+        DensityFunction inner = interpolated.getFirst().input();
+        SamplerContext context = SamplerContext.builder().enableCaches().build();
+        DensitySampler.Bound plainFinal = randomState.getSampler(plain(finalDensity)).bind(context);
+        DensitySampler.Bound plainInner = randomState.getSampler(plain(inner)).bind(context);
         Random random = new Random(1);
         for (int i = 0; i < SIGNAL_CHECKS; i++) {
             int x = random.nextInt(60_000) - 30_000;
             int z = random.nextInt(60_000) - 30_000;
             int y = noise.minY() + random.nextInt(noise.height());
-            DensityFunction.SinglePointContext point = new DensityFunction.SinglePointContext(x, y, z);
-            double outer = plainFinal.compute(point);
-            if (Math.abs(outer) > 1e-9 && Math.signum(outer) != Math.signum(plainInner.compute(point))) {
+            double outer = plainFinal.sampleValue(x, y, z);
+            if (Math.abs(outer) > 1e-9 && Math.signum(outer) != Math.signum(plainInner.sampleValue(x, y, z))) {
                 return finalDensity;
             }
         }
         return inner;
     }
 
-    /** A density function rewritten with this mod's column caches (for comparisons). */
-    public static DensityFunction columnCached(DensityFunction function) {
-        return function.mapAll(new ColumnCachingVisitor());
-    }
-
     /** The probed density at a block: positive is solid. Only meaningful on cell corners. */
     public double density(int x, int y, int z) {
-        return noises.get().density.compute(new DensityFunction.SinglePointContext(x, y, z));
+        return noises.get().density.sampleValue(x, y, z);
     }
 
     /** The interpolated density with caves at a cell corner, as vanilla interpolates it. */
     public double realDensity(int x, int y, int z) {
-        return realDensity.get().compute(new DensityFunction.SinglePointContext(x, y, z));
+        return noises.get().realDensity.sampleValue(x, y, z);
     }
 
     /**
@@ -247,9 +277,7 @@ public final class SurfaceSampler {
         double value = Mth.lerp3(fx, fy, fz,
                 corners.at(x0, y0, z0), corners.at(x1, y0, z0), corners.at(x0, y1, z0), corners.at(x1, y1, z0),
                 corners.at(x0, y0, z1), corners.at(x1, y0, z1), corners.at(x0, y1, z1), corners.at(x1, y1, z1));
-        Probe probe = finalFromProbe.get();
-        probe.value = value;
-        return probe.function.compute(new DensityFunction.SinglePointContext(x, y, z));
+        return finalDensity(value, x, y, z);
     }
 
     /**
@@ -261,9 +289,9 @@ public final class SurfaceSampler {
         if (finalFromProbe == null) {
             return interpolated;
         }
-        Probe probe = finalFromProbe.get();
-        probe.value = interpolated;
-        return probe.function.compute(new DensityFunction.SinglePointContext(x, y, z));
+        ColumnNoises column = noises.get();
+        column.probe.value = (float) interpolated;
+        return column.finalFromProbe.sampleValue(x, y, z);
     }
 
     /** Interpolated values at cell corners, see {@link #blockDensity}. */
@@ -273,58 +301,70 @@ public final class SurfaceSampler {
     }
 
     /** One thread's terrain density and climate, sharing the caches of what they have in common. */
-    private static final class ColumnNoises {
-        final DensityFunction density;
-        final Climate.Sampler climate;
+    private final class ColumnNoises {
+        final ProbeValue probe = new ProbeValue();
+        final SamplerContext context = SamplerContext.builder()
+                .setUserFields(ContextMap.builder().set(Probe.VALUE, probe).build()).enableCaches().build();
+        final DensitySampler.Bound density = randomState.getSampler(SurfaceSampler.this.density).bind(context);
+        final DensitySampler.Bound realDensity = randomState.getSampler(SurfaceSampler.this.realDensity).bind(context);
+        @Nullable
+        final DensitySampler.Bound finalFromProbe = SurfaceSampler.this.finalFromProbe == null ? null
+                : randomState.getSampler(SurfaceSampler.this.finalFromProbe).bind(context);
+        final BiomeResolver biomes = biomeSource.createResolver(randomState.createClimateSampler(context));
+    }
 
-        ColumnNoises(DensityFunction wired, NoiseRouter router) {
-            ColumnCachingVisitor visitor = new ColumnCachingVisitor();
-            this.density = wired.mapAll(visitor);
-            this.climate = new Climate.Sampler(router.temperature().mapAll(visitor), router.vegetation().mapAll(visitor),
-                    router.continents().mapAll(visitor), router.erosion().mapAll(visitor),
-                    router.depth().mapAll(visitor), router.ridges().mapAll(visitor), List.of());
+    /** What one thread's {@link Probe} answers. */
+    private static final class ProbeValue implements DensitySampler {
+        private float value;
+
+        @Override
+        public void sampleVolume(SamplerContext context, DensityBuffer outputBuffer, DensityVolume volume) {
+            outputBuffer.fill(value);
+        }
+
+        @Override
+        public float sampleValue(SamplerContext context, int blockX, int blockY, int blockZ) {
+            return value;
         }
     }
 
-    /** Stands in for the interpolated value inside a final density; holds the value to use. */
-    private static final class Probe implements DensityFunction {
-        private double value;
-        private DensityFunction function;
+    /** Stands in for the interpolated value inside a final density; each thread's context holds the value to use. */
+    private enum Probe implements DensityFunction {
+        INSTANCE;
 
-        static Probe into(DensityFunction finalDensity) {
-            Probe probe = new Probe();
-            probe.function = finalDensity.mapAll(node -> node instanceof DensityFunctions.MarkerOrMarked marker
-                    && marker.codec() == INTERPOLATED ? probe : node).mapAll(new ColumnCachingVisitor());
-            return probe;
+        static final ContextKey<ProbeValue> VALUE = new ContextKey<>(DhTurbo.id("probe"));
+
+        static DensityFunction into(DensityFunction finalDensity) {
+            return new DfRewriteRule() {
+                @Override
+                public DensityFunction rewrite(DensityFunction function) {
+                    return function instanceof InterpolatedFunction ? INSTANCE : function.rewriteChildren(this);
+                }
+            }.rewrite(finalDensity);
         }
 
         @Override
-        public double compute(FunctionContext context) {
-            return value;
+        public DensitySampler compileSampler(CompileContext context) {
+            return new ContextBoundSampler(VALUE, new ProbeValue());
         }
 
         @Override
-        public void fillArray(double[] array, ContextProvider contextProvider) {
-            contextProvider.fillAllDirectly(array, this);
-        }
-
-        @Override
-        public DensityFunction mapChildren(Visitor visitor) {
+        public DensityFunction rewriteChildren(DfRewriteRule rule) {
             return this;
         }
 
         @Override
-        public double minValue() {
-            return -1e6;
+        public Interval range() {
+            return Interval.of(-1e6F, 1e6F);
         }
 
         @Override
-        public double maxValue() {
-            return 1e6;
+        public int domainAxes() {
+            return ALL_AXES;
         }
 
         @Override
-        public KeyDispatchDataCodec<? extends DensityFunction> codec() {
+        public MapCodec<? extends DensityFunction> codec() {
             throw new UnsupportedOperationException("Probes are not serializable");
         }
     }
@@ -343,20 +383,24 @@ public final class SurfaceSampler {
         return binder;
     }
 
-    /** The world's noises (same seed and wiring as the real world; the final density has no caves). */
+    /** The world's noises (same seed and wiring as the real world). */
     public RandomState randomState() {
         return randomState;
     }
 
+    /** Density samplers of the calling thread; use them on that thread only. */
+    public DensitySamplerSet samplers() {
+        return randomState.samplersWithContext(noises.get().context);
+    }
+
     /** Biome of a quart (4x4x4 blocks), as chunk generation stores it. */
     public Holder<Biome> noiseBiome(int quartX, int quartY, int quartZ) {
-        return biomeSource.getNoiseBiome(quartX, quartY, quartZ, noises.get().climate);
+        return noises.get().biomes.getNoiseBiome(quartX, quartY, quartZ);
     }
 
     /** Biome at the given block, sampled the way chunk generation does. */
     public Holder<Biome> biome(int x, int y, int z) {
-        return biomeSource.getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z),
-                noises.get().climate);
+        return noises.get().biomes.getNoiseBiome(QuartPos.fromBlock(x), QuartPos.fromBlock(y), QuartPos.fromBlock(z));
     }
 
     /** First non-solid Y between a solid cell corner {@code lowY} and the non-solid corner above it. */

@@ -8,6 +8,7 @@ import net.minecraft.gametest.framework.TestData;
 import net.minecraft.gametest.framework.TestEnvironmentDefinition;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Rotation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.event.RegisterGameTestsEvent;
@@ -50,7 +51,7 @@ public final class GameTests {
                     new TestEnvironmentDefinition.AllOf(List.of()));
             for (Test test : tests) {
                 Identifier id = DhTurbo.id(test.name());
-                TestData<Holder<TestEnvironmentDefinition<?>>> data = new TestData<>(environment, DhTurbo.id(test.settings().template()),
+                TestData<Holder<TestEnvironmentDefinition<?>>> data = new TestData<>(environment, Level.OVERWORLD, DhTurbo.id(test.settings().template()),
                         test.settings().timeoutTicks(), 0, true, Rotation.NONE, false, 1, 1, false, 0);
                 event.registerTest(id, new FunctionGameTestInstance(ResourceKey.create(Registries.TEST_FUNCTION, id), data));
             }

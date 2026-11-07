@@ -94,7 +94,7 @@ public final class WorldgenLoader {
         CloseableResourceManager packs = new MultiPackResourceManager(PackType.SERVER_DATA, repository.openAllSelected());
         LayeredRegistryAccess<RegistryLayer> layers = RegistryLayer.createRegistryAccess();
         RegistryAccess.Frozen worldgen = WorldgenRegistries.load(packs, layers);
-        RegistryAccess.Frozen access = layers.replaceFrom(RegistryLayer.WORLDGEN, worldgen).compositeAccess();
+        RegistryAccess.Frozen access = layers.replaceFrom(RegistryLayer.WORLD, worldgen).compositeAccess();
         resources = packs;
         DhTurbo.LOGGER.info("Loaded world generation data from {} packs in {} ms", selected.size(),
                 (System.nanoTime() - start) / 1_000_000);

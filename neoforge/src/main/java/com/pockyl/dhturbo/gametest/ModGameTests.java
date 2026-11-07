@@ -15,6 +15,7 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeResolver;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSource;
 import net.minecraft.world.level.biome.MultiNoiseBiomeSourceParameterLists;
@@ -128,7 +129,7 @@ public final class ModGameTests {
     public static void previewTilesShowTheRealGround(GameTestHelper helper) {
         RegistryAccess registries = helper.getLevel().registryAccess();
         ColumnBuilder builder = new ColumnBuilder(overworldGenerator(registries), registries,
-                helper.getLevel().dimensionType(), SEED, UnaryOperator.identity(), helper.getLevel().getStructureManager());
+                helper.getLevel().dimensionType(), SEED, UnaryOperator.identity(), helper.getLevel().getStructureTemplateManager());
         for (int spacing : new int[]{4, 16}) {
             int[] real = new int[64 * 64];
             int[] preview = new int[64 * 64];
@@ -169,14 +170,19 @@ public final class ModGameTests {
     @GameTest(template = "empty")
     public static void exactChunksStayOutOfTheWorld(GameTestHelper helper) {
         ServerLevel nether = helper.getLevel().getServer().getLevel(Level.NETHER);
-        helper.assertTrue(nether != null && nether.getChunkSource().getGenerator() instanceof NoiseBasedChunkGenerator,
-                "the nether is a noise level");
+        helper.assertTrue(nether != null, "the test world has a nether");
+        // Every dimension of 26.3's test world is flat, so the generator is built here; writing a block does not use it.
+        RegistryAccess registries = nether.registryAccess();
+        NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(MultiNoiseBiomeSource.createFromPreset(registries
+                .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
+                .getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER)),
+                registries.lookupOrThrow(Registries.NOISE_SETTINGS).getOrThrow(NoiseGeneratorSettings.NETHER));
         BlockPos pos = new BlockPos(9000, 70, 9000);
         // Points of interest are saved with the world, so a failed run would fail every later one.
         if (nether.getPoiManager().getType(pos).isPresent()) {
             nether.getPoiManager().remove(pos);
         }
-        ExactChunks exact = new ExactChunks(nether, (NoiseBasedChunkGenerator) nether.getChunkSource().getGenerator());
+        ExactChunks exact = new ExactChunks(nether, generator);
         helper.assertTrue(exact.writeForTest(pos, Blocks.BELL.defaultBlockState()), "the region accepts the block");
         // The level hands point of interest changes to the server thread, so look a few ticks later.
         helper.runAfterDelay(5, () -> {
@@ -201,7 +207,7 @@ public final class ModGameTests {
                 chunk.getNoiseBiome(pos.getX() >> 2, pos.getY() >> 2, pos.getZ() >> 2)), "biomes are read too");
         helper.assertTrue(read.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX() & 15, pos.getZ() & 15) >= pos.getY(),
                 "heights are there for Distant Horizons");
-        tag.putString("Status", "minecraft:carvers");
+        tag.putString("Status", "minecraft:terrain");
         helper.assertTrue(new SavedChunks(level).decode(chunk.getPos(), tag).isEmpty(), "an unfinished chunk is not");
         helper.succeed();
     }
@@ -302,7 +308,7 @@ public final class ModGameTests {
                 .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
                 .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         NoiseBasedChunkGenerator real = new NoiseBasedChunkGenerator(biomes, overworld);
-        RandomState realState = RandomState.create(overworld.value(), registries.lookupOrThrow(Registries.NOISE), SEED);
+        RandomState realState = RandomState.create(registries.lookupOrThrow(Registries.NOISE), SEED, overworld.value());
         LevelHeightAccessor heights = LevelHeightAccessor.create(-64, 384);
         long start = System.nanoTime();
         TerrainCheck.Result same = TerrainCheck.run(new SurfaceSampler(registries, overworld.value(), biomes, SEED), null,
@@ -324,7 +330,7 @@ public final class ModGameTests {
         SurfaceSampler netherSampler = new SurfaceSampler(registries, netherSettings.value(), netherBiomes, SEED);
         TerrainCheck.Result nether = TerrainCheck.run(netherSampler, new ProfileTerrain(netherSampler),
                 new NoiseBasedChunkGenerator(netherBiomes, netherSettings),
-                RandomState.create(netherSettings.value(), registries.lookupOrThrow(Registries.NOISE), SEED),
+                RandomState.create(registries.lookupOrThrow(Registries.NOISE), SEED, netherSettings.value()),
                 LevelHeightAccessor.create(0, 256), SEED);
         helper.assertTrue(nether.passed(), "the Nether's caverns are read right: " + nether);
 
@@ -533,7 +539,7 @@ public final class ModGameTests {
                 .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         NoiseBasedChunkGenerator generator = new NoiseBasedChunkGenerator(biomes, settings);
         SurfaceSampler sampler = new SurfaceSampler(registries, settings.value(), biomes, SEED);
-        RealStructures structures = new RealStructures(generator, sampler, helper.getLevel().getStructureManager(), SEED,
+        RealStructures structures = new RealStructures(generator, sampler, helper.getLevel().getStructureTemplateManager(), SEED,
                 registries, helper.getLevel().dimensionType());
         long start = System.nanoTime();
         List<RealStructures.Built> found = structures.around(-2000, -2000, 2000, 2000);
@@ -562,7 +568,7 @@ public final class ModGameTests {
         int width = SurfaceBenchmark.TILE_WIDTH;
         for (int spacing : new int[]{1, 8}) {
             ColumnBuilder builder = new ColumnBuilder(generator, registries, helper.getLevel().dimensionType(), SEED,
-                    UnaryOperator.identity(), helper.getLevel().getStructureManager());
+                    UnaryOperator.identity(), helper.getLevel().getStructureTemplateManager());
             RealStructures.Built target = same(builder.realStructures().around(village.minX(), village.minZ(),
                     village.minX() + village.sizeX() - 1, village.minZ() + village.sizeZ() - 1,
                     spacing <= RealStructures.FINE_MAX_SPACING), village);
@@ -623,7 +629,7 @@ public final class ModGameTests {
                 .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
                 .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         return new RealStructures(new NoiseBasedChunkGenerator(biomes, settings),
-                new SurfaceSampler(registries, settings.value(), biomes, SEED), helper.getLevel().getStructureManager(),
+                new SurfaceSampler(registries, settings.value(), biomes, SEED), helper.getLevel().getStructureTemplateManager(),
                 SEED, registries, helper.getLevel().dimensionType());
     }
 
@@ -716,7 +722,7 @@ public final class ModGameTests {
                 .getOrThrow(MultiNoiseBiomeSourceParameterLists.NETHER));
         DimensionType nether = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.NETHER).value();
         ColumnBuilder builder = new ColumnBuilder(new NoiseBasedChunkGenerator(biomes, settings), registries, nether, SEED,
-                UnaryOperator.identity(), helper.getLevel().getStructureManager());
+                UnaryOperator.identity(), helper.getLevel().getStructureTemplateManager());
         Set<Block> blocks = new HashSet<>();
         int[] counts = new int[4];
         long start = System.nanoTime();
@@ -802,7 +808,7 @@ public final class ModGameTests {
         TheEndBiomeSource biomes = TheEndBiomeSource.create(registries.lookupOrThrow(Registries.BIOME));
         DimensionType end = registries.lookupOrThrow(Registries.DIMENSION_TYPE).getOrThrow(BuiltinDimensionTypes.END).value();
         ColumnBuilder builder = new ColumnBuilder(new NoiseBasedChunkGenerator(biomes, settings), registries, end, SEED,
-                UnaryOperator.identity(), helper.getLevel().getStructureManager());
+                UnaryOperator.identity(), helper.getLevel().getStructureTemplateManager());
         int[] counts = new int[2];
         builder.build(-32, -32, 1, 64, (i, j, biome, layers) -> {
             boolean stone = false;
@@ -934,7 +940,7 @@ public final class ModGameTests {
             return;
         }
         RealStructures serverStructures = new RealStructures(new NoiseBasedChunkGenerator(biomes, settings), original,
-                helper.getLevel().getStructureManager(), SEED, server, helper.getLevel().dimensionType());
+                helper.getLevel().getStructureTemplateManager(), SEED, server, helper.getLevel().dimensionType());
         RealStructures clientStructures = new RealStructures(resolved.generator(), rebuilt, WorldgenLoader.templates(), SEED,
                 loaded, helper.getLevel().dimensionType());
         Set<String> expected = new HashSet<>();
@@ -962,6 +968,7 @@ public final class ModGameTests {
                 .lookupOrThrow(Registries.MULTI_NOISE_BIOME_SOURCE_PARAMETER_LIST)
                 .getOrThrow(MultiNoiseBiomeSourceParameterLists.OVERWORLD));
         SurfaceSampler sampler = new SurfaceSampler(registries, settings, biomes, SEED);
+        BiomeResolver game = biomes.createUncachedResolver(sampler.randomState());
         Random random = new Random(7);
         for (int i = 0; i < 4000; i++) {
             int x = random.nextInt(200_000) - 100_000;
@@ -971,7 +978,7 @@ public final class ModGameTests {
             int quartX = x >> 2;
             int quartY = height >> 2;
             int quartZ = z >> 2;
-            Holder<Biome> expected = biomes.getNoiseBiome(quartX, quartY, quartZ, sampler.randomState().sampler());
+            Holder<Biome> expected = game.getNoiseBiome(quartX, quartY, quartZ);
             if (sampler.noiseBiome(quartX, quartY, quartZ) != expected) {
                 helper.fail("Biome differs from the game's sampler at quart " + quartX + " " + quartY + " " + quartZ);
                 return;

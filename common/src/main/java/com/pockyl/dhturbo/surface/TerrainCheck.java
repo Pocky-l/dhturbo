@@ -36,8 +36,8 @@ public final class TerrainCheck {
     /** Profiled worlds: every this many blocks of a column are compared. */
     private static final int PROFILE_STEP = 4;
     private static final int PROFILE_COLUMNS = 12;
-    /** {@code fillFromNoise}, also by the names the game runs with outside development: Forge 1.20.1's and Fabric's. */
-    private static final Set<String> FILL_METHODS = Set.of("fillFromNoise", "m_213974_", "method_12088");
+    /** The method a noise generator fills chunks with: 26.x is not obfuscated, so this name holds outside development too. */
+    private static final Set<String> FILL_METHODS = Set.of("buildTerrain");
 
     private TerrainCheck() {
     }

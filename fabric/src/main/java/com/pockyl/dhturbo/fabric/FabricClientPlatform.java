@@ -16,6 +16,6 @@ public final class FabricClientPlatform implements ClientPlatform {
     /** The game itself only reads keys while no screen is open. */
     @Override
     public KeyMapping inGameKey(String name, int key, KeyMapping.Category category) {
-        return new KeyMapping(name, InputConstants.Type.KEYSYM, key, category);
+        return new KeyMapping(name, InputConstants.Type.KEYBOARD, key, category);
     }
 }

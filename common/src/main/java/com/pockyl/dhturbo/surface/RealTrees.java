@@ -29,6 +29,7 @@ import net.minecraft.world.level.levelgen.placement.HeightmapPlacement;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -215,7 +216,7 @@ public final class RealTrees {
                     tops[index] = state;
                 }
             } else if (relative >= 0) {
-                if (!state.blocksMotion() && !state.is(BlockTags.LEAVES)) {
+                if (!WorldgenApi.blocksMotion(state) && !state.is(BlockTags.LEAVES)) {
                     // Grass, flowers, sugar cane: the lowest one stands on the ground.
                     if (relative == 0 && state.getFluidState().isEmpty()) {
                         plantsOnGround[index] = state;
@@ -350,7 +351,7 @@ public final class RealTrees {
         for (int index : features) {
             random.setFeatureSeed(decorationSeed, index, STEP);
             try {
-                stepFeatures.get(index).placeWithBiomeCheck(level.view, generator, random, origin);
+                WorldgenApi.place(stepFeatures.get(index), level.view, generator, random, origin);
             } catch (VirtualLevel.NoEntities e) {
                 // Features that spawn something (bees in a nest) do so after placing their blocks.
             } catch (RuntimeException e) {
@@ -388,8 +389,7 @@ public final class RealTrees {
 
     /** Trees and huge mushrooms, also inside random selectors (most tree features are selectors). */
     private static boolean growsTrees(PlacedFeature feature) {
-        return feature.getFeatures().anyMatch(configured ->
-                configured.value().feature() instanceof TreeFeature
-                        || configured.value().feature() instanceof AbstractHugeMushroomFeature);
+        return feature.getFeatures().anyMatch(holder ->
+                holder.value() instanceof TreeFeature || holder.value() instanceof AbstractHugeMushroomFeature);
     }
 }

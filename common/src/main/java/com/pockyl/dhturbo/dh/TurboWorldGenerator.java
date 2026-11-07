@@ -75,7 +75,7 @@ final class TurboWorldGenerator implements IDhApiWorldGenerator {
         // A world created without structures gets none in the distance either.
         boolean structures = WorldgenApi.generateStructures(level);
         this.writer = new LodTileWriter(levelWrapper, generator, level.registryAccess(), level.dimensionType(),
-                level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureManager() : null, stats,
+                level.getSeed(), UnaryOperator.identity(), structures ? level.getStructureTemplateManager() : null, stats,
                 () -> Players.positions(level), NoiseBinder.of(level));
         this.refiner = new ExactRefiner(level, levelWrapper, new ExactChunks(level, generator), new SavedChunks(level),
                 () -> Players.positions(level), this::realData);

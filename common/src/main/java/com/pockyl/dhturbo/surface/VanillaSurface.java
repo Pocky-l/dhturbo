@@ -3,8 +3,6 @@ package com.pockyl.dhturbo.surface;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
@@ -12,31 +10,31 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.BlockColumn;
-import net.minecraft.world.level.chunk.PalettedContainerFactory;
-import net.minecraft.world.level.chunk.ProtoChunk;
-import net.minecraft.world.level.chunk.UpgradeData;
-import net.minecraft.world.level.levelgen.Aquifer;
-import net.minecraft.world.level.levelgen.DensityFunctions;
-import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
-import net.minecraft.world.level.levelgen.NoiseChunk;
 import net.minecraft.world.level.levelgen.NoiseGeneratorSettings;
-import net.minecraft.world.level.levelgen.SurfaceRules;
-import net.minecraft.world.level.levelgen.SurfaceSystem;
 import net.minecraft.world.level.levelgen.WorldGenerationContext;
-import net.minecraft.world.level.levelgen.blending.Blender;
+import net.minecraft.world.level.levelgen.densityfunction.DensityVolume;
+import net.minecraft.world.level.levelgen.material.MaterialRuleContext;
+import net.minecraft.world.level.levelgen.material.MaterialSystem;
+import net.minecraft.world.level.levelgen.material.rule.ConditionRule;
+import net.minecraft.world.level.levelgen.material.rule.MaterialRule;
+import net.minecraft.world.level.levelgen.material.rule.OreVeinRule;
+import net.minecraft.world.level.levelgen.material.rule.RuleEvaluator;
+import net.minecraft.world.level.levelgen.material.rule.SequenceRule;
 
 import java.util.Arrays;
+import java.util.List;
 
 /**
- * The world's own surface rules on columns that were never generated as chunks: grass, dirt, sand, gravel shores,
+ * The world's own material rules on columns that were never generated as chunks: grass, dirt, sand, gravel shores,
  * calcite, coarse dirt, mud, snow and ice on mountains, badlands clay bands, plus vanilla's two surface extensions
  * (badlands hoodoos, frozen ocean icebergs). Works for every data pack and mod that defines its surface with rules.
  * <p>
  * A column is laid out the way the noise step leaves it (rock up to the ground, water up to sea level, air above) and
- * then goes through the same loop as {@code SurfaceSystem.buildSurface}, but only over the top {@link #DEPTH} blocks:
+ * then goes through the same loop as {@code MaterialSystem.buildSurface}, but only over the top {@link #DEPTH} blocks:
  * deeper rules (deepslate, bedrock) are never seen from afar. Caves are ignored, so the rock reaches down to the bottom
- * of the world.
+ * of the world. Ore veins are material rules too, but they are left out: they cost more than the rest of a column and
+ * only show on the sea floor, where nobody looks from afar.
  * <p>
  * Not thread-safe: every tile uses its own {@link Pass}.
  */
@@ -44,35 +42,50 @@ public final class VanillaSurface {
     /** Blocks below the surface that get rules; badlands cliffs show their bands deeper. */
     private static final int DEPTH = 8;
     private static final int BADLANDS_DEPTH = 96;
-    /**
-     * A pass costs about a millisecond to set up, so each thread reuses its own; renewed now and then, since the noise
-     * chunk inside keeps every preliminary surface level it computed.
-     */
+    /** A pass takes a while to set up, so each thread reuses its own; renewed now and then, as its biomes pile up. */
     private static final int PASS_REUSE = 32;
     /** Biome quarts kept per pass (they never change, but the cache must not grow without end). */
     private static final int MAX_CACHED_QUARTS = 1 << 16;
 
     private final SurfaceSampler sampler;
-    private final SurfaceRules.RuleSource rules;
+    private final MaterialRule rules;
     private final NoiseGeneratorSettings settings;
-    private final SurfaceSystem system;
-    private final PalettedContainerFactory containers;
+    private final MaterialSystem system;
     private final WorldGenerationContext context;
     private final LevelHeightAccessor heightAccessor;
     private final BlockState defaultBlock;
     private final long zoomSeed;
     private final ThreadLocal<Pass> passes = new ThreadLocal<>();
 
-    public VanillaSurface(NoiseBasedChunkGenerator generator, SurfaceSampler sampler, RegistryAccess registries, long seed) {
+    public VanillaSurface(NoiseBasedChunkGenerator generator, SurfaceSampler sampler, long seed) {
         this.sampler = sampler;
         this.settings = generator.generatorSettings().value();
-        this.rules = settings.surfaceRule();
+        this.rules = withoutVeins(settings.materialRule().value());
         this.system = sampler.randomState().surfaceSystem();
-        this.containers = PalettedContainerFactory.create(registries);
         this.heightAccessor = LevelHeightAccessor.create(sampler.minY(), sampler.maxY() - sampler.minY());
         this.context = new WorldGenerationContext(generator, heightAccessor);
         this.defaultBlock = settings.defaultBlock();
         this.zoomSeed = BiomeManager.obfuscateSeed(seed);
+    }
+
+    /** The rule without its ore veins; vanilla's stand at the top of its sequence, beside the surface. */
+    private static MaterialRule withoutVeins(MaterialRule rule) {
+        return switch (rule) {
+            case MaterialRule.HolderHolder(Holder<MaterialRule> holder) -> withoutVeins(holder.value());
+            case ConditionRule(var condition, MaterialRule then) -> new ConditionRule(condition, withoutVeins(then));
+            case SequenceRule(List<MaterialRule> sequence) -> new SequenceRule(sequence.stream()
+                    .filter(entry -> !veins(entry)).map(VanillaSurface::withoutVeins).toList());
+            default -> rule;
+        };
+    }
+
+    private static boolean veins(MaterialRule rule) {
+        return switch (rule) {
+            case MaterialRule.HolderHolder(Holder<MaterialRule> holder) -> veins(holder.value());
+            case ConditionRule(var condition, MaterialRule then) -> veins(then);
+            case OreVeinRule vein -> true;
+            default -> false;
+        };
     }
 
     /** Ground heights the {@code steep} rule compares. */
@@ -136,15 +149,15 @@ public final class VanillaSurface {
         }
     }
 
-    /** The surface rules set up for one thread; see {@link #pass}. Use it on that thread only, one tile at a time. */
+    /** The material rules set up for one thread; see {@link #pass}. Use it on that thread only, one tile at a time. */
     public final class Pass {
         private final Long2ObjectOpenHashMap<Holder<Biome>> quarts = new Long2ObjectOpenHashMap<>();
         private int uses;
         private Heights heights;
         private boolean exactBiomes;
         private final Column column = new Column();
-        private final SurfaceRules.Context rulesContext;
-        private final SurfaceRules.SurfaceRule rule;
+        private final MaterialRuleContext rulesContext;
+        private final RuleEvaluator rule;
         private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
         private final BiomeManager biomeManager;
         private int columnX;
@@ -172,20 +185,22 @@ public final class VanillaSurface {
             // Biomes per quart, cached: the rules ask for the biome of nearly every block they look at.
             this.biomeManager = new BiomeManager((qx, qy, qz) -> quarts.computeIfAbsent(BlockPos.asLong(qx, qy, qz),
                     key -> sampler.noiseBiome(qx, qy, qz)), zoomSeed);
-            // The chunk only answers the steep rule's heightmap questions, in local coordinates of the column's chunk.
-            ProtoChunk chunk = new ProtoChunk(new ChunkPos(0, 0), UpgradeData.EMPTY, heightAccessor, containers, null) {
-                @Override
-                public int getHeight(Heightmap.Types type, int x, int z) {
-                    return heights.at((columnX & ~15) | x, (columnZ & ~15) | z) - 1;
-                }
-            };
-            // Only its preliminary surface level is used (the abovePreliminarySurface rule, icebergs).
-            NoiseChunk noiseChunk = new NoiseChunk(1, sampler.randomState(), originX, originZ, settings.noiseSettings(),
-                    DensityFunctions.BeardifierMarker.INSTANCE, settings,
-                    (x, y, z) -> new Aquifer.FluidStatus(settings.seaLevel(), settings.defaultFluid()), Blender.empty());
-            this.rulesContext = new SurfaceRules.Context(system, sampler.randomState(), chunk, noiseChunk,
+            // The volume only says what the context may fill ahead of time; a column is answered one value at a time.
+            this.rulesContext = new MaterialRuleContext(system, sampler.randomState(),
+                    new DensityVolume(1, 1, 1, originX, sampler.minY(), originZ), sampler.samplers(),
                     pos -> exactBiomes ? biomeManager.getBiome(pos) : columnBiome, context, null);
-            this.rule = rules.apply(rulesContext);
+            this.rule = rules.compile(rulesContext);
+        }
+
+        /** Hands the column to the rules, with the height differences the {@code steep} rule compares inside its chunk. */
+        private void startColumn(int x, int z) {
+            int chunkX = x & ~15;
+            int chunkZ = z & ~15;
+            int localX = x & 15;
+            int localZ = z & 15;
+            rulesContext.updateXZ(x, z,
+                    heights.at(chunkX | Math.min(localX + 1, 15), z) - heights.at(chunkX | Math.max(localX - 1, 0), z),
+                    heights.at(x, chunkZ | Math.min(localZ + 1, 15)) - heights.at(x, chunkZ | Math.max(localZ - 1, 0)));
         }
 
         /** The column's biome as the level reports it (vanilla's fuzzy zoom of the noise biomes). */
@@ -219,7 +234,7 @@ public final class VanillaSurface {
             if (topBiome.is(Biomes.ERODED_BADLANDS)) {
                 system.erodedBadlandsExtension(blockColumn, x, z, surface, heightAccessor);
             }
-            rulesContext.updateXZ(x, z);
+            startColumn(x, z);
             int stoneDepthAbove = 0;
             int waterHeight = Integer.MIN_VALUE;
             for (int y = column.top - 1; y >= column.bottom; y--) {
@@ -258,7 +273,7 @@ public final class VanillaSurface {
          * Runs the surface step on a whole column of a world without a single surface (the Nether, the End): solid
          * blocks from {@code solid} (index 0 = the bottom of the world), the default fluid in open blocks below sea
          * level, then the rules over every block with vanilla's stone depths above and below, like
-         * {@code SurfaceSystem.buildSurface}. The result is valid until the next call.
+         * {@code MaterialSystem.buildSurface}. The result is valid until the next call.
          */
         public Column profileColumn(int x, int z, boolean[] solid) {
             int seaLevel = sampler.seaLevel();
@@ -276,7 +291,7 @@ public final class VanillaSurface {
                         : y < seaLevel ? (y < Math.min(-54, seaLevel) ? Blocks.LAVA.defaultBlockState() : fluid)
                         : Blocks.AIR.defaultBlockState();
             }
-            rulesContext.updateXZ(x, z);
+            startColumn(x, z);
             int stoneDepthAbove = 0;
             int waterHeight = Integer.MIN_VALUE;
             int stoneBottom = Integer.MAX_VALUE;

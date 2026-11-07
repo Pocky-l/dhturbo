@@ -1,12 +1,12 @@
 package com.pockyl.dhturbo.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.Util;
-import org.lwjgl.glfw.GLFW;
 
 import com.pockyl.dhturbo.DhTurbo;
 import com.pockyl.dhturbo.dh.DhIntegration;
@@ -23,9 +23,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class DemoKeys {
     private static final KeyMapping.Category CATEGORY = ClientPlatform.INSTANCE.keyCategory(DhTurbo.id("keys"));
     private static final KeyMapping TOGGLE = ClientPlatform.INSTANCE.inGameKey("key." + DhTurbo.MOD_ID + ".toggle",
-            GLFW.GLFW_KEY_F7, CATEGORY);
+            InputConstants.KEY_F7, CATEGORY);
     private static final KeyMapping CLEAR = ClientPlatform.INSTANCE.inGameKey("key." + DhTurbo.MOD_ID + ".clear_lods",
-            GLFW.GLFW_KEY_F8, CATEGORY);
+            InputConstants.KEY_F8, CATEGORY);
     private static final AtomicBoolean CLEARING = new AtomicBoolean();
 
     private DemoKeys() {

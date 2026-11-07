@@ -112,7 +112,7 @@ public final class GenerationComparison {
             return List.of("The overworld does not use a noise generator: nothing to compare");
         }
         ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
-                level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
+                level.getSeed(), UnaryOperator.identity(), level.getStructureTemplateManager(), NoiseBinder.of(level));
         int exactSpacing = Integer.getInteger(DhTurbo.MOD_ID + ".compare.exact", 0);
         if (exactSpacing > 0) {
             builder.useExact(new ExactChunks(level, generator), exactSpacing);
@@ -208,31 +208,31 @@ public final class GenerationComparison {
             stats[0].probes.add(line.toString());
             // Density on the cell corners around the surface: vanilla's router as is, vanilla's router through our
             // column caches, and the sampler (caves stripped, interpolated value).
-            net.minecraft.world.level.levelgen.DensityFunction vanilla = level.getChunkSource().randomState().router().finalDensity();
-            net.minecraft.world.level.levelgen.DensityFunction cached = com.pockyl.dhturbo.surface.SurfaceSampler.columnCached(vanilla);
+            net.minecraft.world.level.levelgen.RandomState realState = level.getChunkSource().randomState();
+            net.minecraft.world.level.levelgen.densityfunction.DensityFunction vanilla =
+                    generator.generatorSettings().value().noiseRouter().finalDensity();
+            net.minecraft.world.level.levelgen.densityfunction.DensityFunction cached = com.pockyl.dhturbo.surface.SurfaceSampler.plain(vanilla);
             StringBuilder densities = new StringBuilder("  densities (vanilla / vanilla cached / ours):");
             int cell = builder.sampler().cellHeight();
             for (int y = Math.floorDiv(height - 24 - minY, cell) * cell + minY; y <= height + 16; y += cell) {
-                var point = new net.minecraft.world.level.levelgen.DensityFunction.SinglePointContext(x, y, z);
-                densities.append(String.format(Locale.ROOT, " y%d %.3f/%.3f/%.3f", y, vanilla.compute(point),
-                        cached.compute(point), builder.sampler().density(x, y, z)));
+                densities.append(String.format(Locale.ROOT, " y%d %.3f/%.3f/%.3f", y, realState.sampleBlockValueUncached(vanilla, x, y, z),
+                        realState.sampleBlockValueUncached(cached, x, y, z), builder.sampler().density(x, y, z)));
             }
             densities.append(" | vanilla height ").append(generator.getBaseHeight(x, z, Heightmap.Types.OCEAN_FLOOR_WG,
                     level, level.getChunkSource().randomState())).append(", ours ")
                     .append(builder.sampler().surfaceHeight(x, z, height));
             stats[0].probes.add(densities.toString());
             // The four cell corners around the column: our interpolated value with caves next to vanilla's.
-            net.minecraft.world.level.levelgen.DensityFunction vanillaInner = com.pockyl.dhturbo.surface.SurfaceSampler
-                    .columnCached(com.pockyl.dhturbo.surface.SurfaceSampler.interpolated(vanilla).getFirst());
+            net.minecraft.world.level.levelgen.densityfunction.DensityFunction vanillaInner = com.pockyl.dhturbo.surface.SurfaceSampler
+                    .plain(com.pockyl.dhturbo.surface.SurfaceSampler.interpolated(vanilla).getFirst().input());
             int cx = x & ~3;
             int cz = z & ~3;
             StringBuilder corners = new StringBuilder("  corners (ours with caves / vanilla interpolated):");
             for (int[] c : new int[][] {{cx, cz}, {cx + 4, cz}, {cx, cz + 4}, {cx + 4, cz + 4}}) {
                 corners.append(" [").append(c[0]).append(',').append(c[1]).append(']');
                 for (int y = Math.floorDiv(height - 12 - minY, cell) * cell + minY; y <= height + 8; y += cell) {
-                    var point = new net.minecraft.world.level.levelgen.DensityFunction.SinglePointContext(c[0], y, c[1]);
                     corners.append(String.format(Locale.ROOT, " y%d %.4f/%.4f", y, builder.sampler().realDensity(c[0], y, c[1]),
-                            vanillaInner.compute(point)));
+                            realState.sampleBlockValueUncached(vanillaInner, c[0], y, c[1])));
                 }
             }
             com.pockyl.dhturbo.surface.SurfaceTile tile = com.pockyl.dhturbo.surface.SurfaceTile.generate(builder.sampler(),
@@ -298,7 +298,7 @@ public final class GenerationComparison {
         // The coarse builds wide tiles use, from a second builder with empty caches.
         RealStructures coarse = profiled ? null : new ColumnBuilder(
                 (NoiseBasedChunkGenerator) level.getChunkSource().getGenerator(), level.registryAccess(),
-                level.dimensionType(), level.getSeed(), UnaryOperator.identity(), level.getStructureManager(),
+                level.dimensionType(), level.getSeed(), UnaryOperator.identity(), level.getStructureTemplateManager(),
                 NoiseBinder.of(level)).realStructures();
         long coarseColumns = 0;
         long coarseNear = 0;
@@ -513,7 +513,7 @@ public final class GenerationComparison {
             return List.of();
         }
         ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
-                level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
+                level.getSeed(), UnaryOperator.identity(), level.getStructureTemplateManager(), NoiseBinder.of(level));
         int minY = level.getMinY();
         int height = level.getHeight();
         Random random = new Random(level.getSeed() ^ 0xBEEF);
@@ -551,8 +551,8 @@ public final class GenerationComparison {
                 for (int y = 0; y < height; y++) {
                     BlockState real = chunk.getBlockState(pos.set(x, minY + y, z));
                     // Plants, roots and fire do not count: features put them there, not the terrain.
-                    boolean realSolid = real.blocksMotion();
-                    boolean ourSolid = ours[y] != null && ours[y].blocksMotion();
+                    boolean realSolid = WorldgenApi.blocksMotion(real);
+                    boolean ourSolid = ours[y] != null && WorldgenApi.blocksMotion(ours[y]);
                     totals[0]++;
                     if (realSolid == ourSolid) {
                         totals[1]++;
@@ -560,7 +560,7 @@ public final class GenerationComparison {
                     // Floors: a solid block with an open one above it in the real world.
                     if (realSolid && y + 1 < height) {
                         BlockState above = chunk.getBlockState(pos.set(x, minY + y + 1, z));
-                        if (!above.blocksMotion()) {
+                        if (!WorldgenApi.blocksMotion(above)) {
                             totals[2]++;
                             if (ourSolid) {
                                 totals[3]++;
@@ -692,7 +692,7 @@ public final class GenerationComparison {
                 tree = true;
                 continue;
             }
-            if (!state.blocksMotion() && !state.liquid() && !state.is(Blocks.POWDER_SNOW)) {
+            if (!WorldgenApi.blocksMotion(state) && !state.liquid() && !state.is(Blocks.POWDER_SNOW)) {
                 plant = true;
                 continue;
             }

@@ -46,7 +46,7 @@ public final class FabricPlatform implements Platform {
 
     @Override
     public List<RegistryDataLoader.RegistryData<?>> worldgenRegistries() {
-        return DynamicRegistries.getDynamicRegistries();
+        return DynamicRegistries.getWorldRegistries();
     }
 
     /** Fabric adds the mods' packs only to repositories with a world folder; this one stays empty. */

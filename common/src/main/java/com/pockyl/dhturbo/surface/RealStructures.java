@@ -23,13 +23,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkGeneratorStructureState;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.Beardifier;
-import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.LegacyRandomSource;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.RandomState;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
+import net.minecraft.world.level.levelgen.densityfunction.SamplerContext;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.PoolElementStructurePiece;
 import net.minecraft.world.level.levelgen.structure.Structure;
@@ -153,10 +153,11 @@ public final class RealStructures {
         this.seaLevel = sampler.seaLevel();
         this.heightAccessor = LevelHeightAccessor.create(minY, height);
         // The real noises (with caves): structures probe heights the way chunk generation does.
-        this.randomState = RandomState.create(generator.generatorSettings().value(),
-                registries.lookupOrThrow(Registries.NOISE), seed);
+        this.randomState = RandomState.create(registries.lookupOrThrow(Registries.NOISE), seed,
+                generator.generatorSettings().value());
         sampler.binder().bind(randomState);
-        this.state = ChunkGeneratorStructureState.createForNormal(randomState, seed, generator.getBiomeSource(),
+        // The origin only places concentric rings, which are left out below.
+        this.state = ChunkGeneratorStructureState.createForNormal(randomState, seed, ChunkPos.ZERO, generator.getBiomeSource(),
                 registries.lookupOrThrow(Registries.STRUCTURE_SET));
         this.sets = state.possibleStructureSets().stream()
                 .filter(set -> !(set.value().placement() instanceof ConcentricRingsStructurePlacement))
@@ -367,8 +368,7 @@ public final class RealStructures {
         for (int qx = fromX; qx <= toX; qx += stepX) {
             for (int qz = fromZ; qz <= toZ; qz += stepZ) {
                 for (int qy = fromY; qy <= toY; qy += stepY) {
-                    if (!generator.getBiomeSource().getNoiseBiome(qx, qy, qz, randomState.sampler())
-                            .is(BiomeTags.REQUIRED_OCEAN_MONUMENT_SURROUNDING)) {
+                    if (!sampler.noiseBiome(qx, qy, qz).is(BiomeTags.REQUIRED_OCEAN_MONUMENT_SURROUNDING)) {
                         return false;
                     }
                 }
@@ -914,7 +914,7 @@ public final class RealStructures {
                         int surface = raw;
                         for (int y = from; y >= to; y--) {
                             double density = sampler.blockDensity(x, y, z, cornerSource)
-                                    + beard.compute(new DensityFunction.SinglePointContext(x, y, z));
+                                    + beard.sampleValue(SamplerContext.EMPTY_UNCACHED, x, y, z);
                             if (density > 0) {
                                 surface = y + 1;
                                 break;

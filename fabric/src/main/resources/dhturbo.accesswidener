@@ -1,22 +1,21 @@
 accessWidener v2 official
 # The entries of common/src/main/resources/META-INF/accesstransformer.cfg for Fabric; change the two together.
-# Vanilla surface rules on columns that were never generated as chunks (surface/VanillaSurface): the rule context and
+# Vanilla material rules on columns that were never generated as chunks (surface/VanillaSurface): the rule context and
 # the two surface extensions (badlands hoodoos, frozen ocean icebergs) are not public.
-accessible class net/minecraft/world/level/levelgen/SurfaceRules$Context
-accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context <init> (Lnet/minecraft/world/level/levelgen/SurfaceSystem;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/world/level/levelgen/NoiseChunk;Ljava/util/function/Function;Lnet/minecraft/world/level/levelgen/WorldGenerationContext;Ljava/util/Set;)V
-accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context updateXZ (II)V
-accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context updateY (IIII)V
-accessible method net/minecraft/world/level/levelgen/SurfaceRules$Context getMinSurfaceLevel ()I
-accessible class net/minecraft/world/level/levelgen/SurfaceRules$SurfaceRule
-accessible method net/minecraft/world/level/levelgen/SurfaceSystem erodedBadlandsExtension (Lnet/minecraft/world/level/chunk/BlockColumn;IIILnet/minecraft/world/level/LevelHeightAccessor;)V
-accessible method net/minecraft/world/level/levelgen/SurfaceSystem frozenOceanExtension (ILnet/minecraft/world/level/biome/Biome;Lnet/minecraft/world/level/chunk/BlockColumn;Lnet/minecraft/core/BlockPos$MutableBlockPos;III)V
-accessible class net/minecraft/world/level/levelgen/DensityFunctions$BeardifierMarker
+accessible method net/minecraft/world/level/levelgen/material/MaterialRuleContext <init> (Lnet/minecraft/world/level/levelgen/material/MaterialSystem;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/levelgen/densityfunction/DensityVolume;Lnet/minecraft/world/level/levelgen/densityfunction/DensitySamplerSet;Ljava/util/function/Function;Lnet/minecraft/world/level/levelgen/WorldGenerationContext;Ljava/util/Set;)V
+accessible method net/minecraft/world/level/levelgen/material/MaterialRuleContext updateXZ (IIII)V
+accessible method net/minecraft/world/level/levelgen/material/MaterialRuleContext updateY (IIII)V
+accessible method net/minecraft/world/level/levelgen/material/MaterialSystem erodedBadlandsExtension (Lnet/minecraft/world/level/chunk/BlockColumn;IIILnet/minecraft/world/level/LevelHeightAccessor;)V
+accessible method net/minecraft/world/level/levelgen/material/MaterialSystem frozenOceanExtension (ILnet/minecraft/world/level/biome/Biome;Lnet/minecraft/world/level/chunk/BlockColumn;Lnet/minecraft/core/BlockPos$MutableBlockPos;III)V
 # A generator that only answers height questions (surface/SampledHeightGenerator); NeoForge opens this class itself,
 # common and Fabric do not get that.
 extendable class net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator
-# Real generation on chunks of our own (surface/ExactChunks), on our threads: the public methods only hand these two to
+# Real generation on chunks of our own (surface/ExactChunks), on our threads: the public methods only hand these steps to
 # the game's background executor.
-accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doCreateBiomes (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/chunk/ChunkAccess;)V
-accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doFill (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/chunk/ChunkAccess;II)Lnet/minecraft/world/level/chunk/ChunkAccess;
+accessible method net/minecraft/world/level/chunk/ChunkGenerator doCreateBiomes (Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/chunk/ChunkAccess;)V
+accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator createNoiseChunk (Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/world/level/StructureManager;Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/levelgen/NoiseSettings;)Lnet/minecraft/world/level/levelgen/NoiseChunk;
+accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator doFill (Lnet/minecraft/world/level/levelgen/NoiseChunk;Lnet/minecraft/world/level/chunk/ChunkAccess;)V
+accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator buildSurface (Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/world/level/levelgen/NoiseChunk;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/biome/BiomeManager;Ljava/util/Set;Lnet/minecraft/world/level/levelgen/material/rule/MaterialRule;)V
+accessible method net/minecraft/world/level/levelgen/NoiseBasedChunkGenerator generateCarvers (Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/world/level/levelgen/blending/Blender;Lnet/minecraft/world/level/levelgen/NoiseChunk;Lnet/minecraft/world/level/levelgen/RandomState;Lnet/minecraft/world/level/biome/BiomeManager;Lnet/minecraft/server/level/WorldGenRegion;Lnet/minecraft/world/level/levelgen/material/rule/MaterialRule;)V
 # Saved chunks in the current format (surface/SavedChunks).
 accessible method net/minecraft/server/level/ChunkMap upgradeChunkTag (Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/nbt/CompoundTag;

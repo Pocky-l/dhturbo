@@ -3,9 +3,14 @@ package com.pockyl.dhturbo.bench;
 import net.minecraft.core.Holder;
 import net.minecraft.core.QuartPos;
 import net.minecraft.world.level.biome.Biome;
+import net.minecraft.world.level.biome.BiomeResolver;
 import net.minecraft.world.level.biome.BiomeSource;
-import net.minecraft.world.level.levelgen.DensityFunction;
 import net.minecraft.world.level.levelgen.RandomState;
+import net.minecraft.world.level.levelgen.densityfunction.DensityFunction;
+import net.minecraft.world.level.levelgen.densityfunction.DensitySampler;
+import net.minecraft.world.level.levelgen.densityfunction.SamplerContext;
+
+import com.pockyl.dhturbo.surface.SurfaceSampler;
 
 /**
  * Reference implementation of the rough surface search used by Distant Horizons 3.3 on Minecraft 1.21.1, written
@@ -16,16 +21,15 @@ import net.minecraft.world.level.levelgen.RandomState;
 final class DhStyleSurface {
     private static final int MARCH_STEP = 8;
 
-    private final DensityFunction density;
-    private final RandomState randomState;
-    private final BiomeSource biomeSource;
+    private final DensitySampler.Bound density;
+    private final BiomeResolver biomes;
     private final int minY;
     private final int maxY;
 
-    DhStyleSurface(RandomState randomState, BiomeSource biomeSource, int minY, int maxY) {
-        this.density = randomState.router().finalDensity();
-        this.randomState = randomState;
-        this.biomeSource = biomeSource;
+    DhStyleSurface(RandomState randomState, DensityFunction finalDensity, BiomeSource biomeSource, int minY, int maxY) {
+        SamplerContext context = SamplerContext.builder().enableCaches().build();
+        this.density = randomState.getSampler(SurfaceSampler.plain(finalDensity)).bind(context);
+        this.biomes = biomeSource.createResolver(randomState.createClimateSampler(context));
         this.minY = minY;
         this.maxY = maxY;
     }
@@ -44,8 +48,8 @@ final class DhStyleSurface {
                 }
                 int x = minX + i * spacing;
                 int z = minZ + j * spacing;
-                biomes[i + j * width] = biomeSource.getNoiseBiome(QuartPos.fromBlock(x),
-                        QuartPos.fromBlock(heights[i + j * width]), QuartPos.fromBlock(z), randomState.sampler());
+                biomes[i + j * width] = this.biomes.getNoiseBiome(QuartPos.fromBlock(x),
+                        QuartPos.fromBlock(heights[i + j * width]), QuartPos.fromBlock(z));
             }
         }
         return heights;
@@ -73,7 +77,7 @@ final class DhStyleSurface {
     }
 
     private boolean solid(int x, int y, int z) {
-        return density.compute(new DensityFunction.SinglePointContext(x, y, z)) > 0;
+        return density.sampleValue(x, y, z) > 0;
     }
 
     private static int interpolate(int i, int j, int width, int[] heights) {

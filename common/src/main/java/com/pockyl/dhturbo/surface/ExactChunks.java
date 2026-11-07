@@ -5,14 +5,16 @@ import com.google.common.cache.CacheBuilder;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ChunkLevel;
+import net.minecraft.server.level.GenerationChunkHolder;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
-import net.minecraft.util.Mth;
 import net.minecraft.util.StaticCache2D;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.BiomeManager;
+import net.minecraft.world.level.biome.BiomeResolver;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -23,9 +25,8 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 import net.minecraft.world.level.chunk.status.ChunkStep;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
-import net.minecraft.world.level.levelgen.NoiseSettings;
+import net.minecraft.world.level.levelgen.NoiseChunk;
 import net.minecraft.world.level.levelgen.RandomState;
-import net.minecraft.world.level.levelgen.WorldGenerationContext;
 import net.minecraft.world.level.levelgen.blending.Blender;
 
 import com.pockyl.dhturbo.DhTurbo;
@@ -66,6 +67,7 @@ public final class ExactChunks {
     /** Finished batches kept: a batch serves four full-detail tiles. */
     private static final int CACHED_BATCHES = 16;
     private static final int CACHED_STUBS = 8192;
+    private static final GenerationChunkHolder NO_CHUNKS = new EmptyHolder();
 
     private final ServerLevel level;
     private final NoiseBasedChunkGenerator generator;
@@ -75,9 +77,7 @@ public final class ExactChunks {
     private final long seed;
     private final int minY;
     private final int levelTop;
-    private final int minCellY;
-    private final int cellCountY;
-    private final ChunkStep surfaceStep = ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.SURFACE);
+    private final ChunkStep terrainStep = ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.TERRAIN);
     private final ChunkStep featureStep = ChunkPyramid.GENERATION_PYRAMID.getStepTo(ChunkStatus.FEATURES);
     /** Chunks outside batches: they only answer for their structure starts and their carver biome. */
     private final Cache<Long, ProtoChunk> stubs = CacheBuilder.newBuilder().maximumSize(CACHED_STUBS).build();
@@ -102,9 +102,6 @@ public final class ExactChunks {
         this.seed = level.getSeed();
         this.minY = level.getMinY();
         this.levelTop = level.getHeight();
-        NoiseSettings noise = generator.generatorSettings().value().noiseSettings().clampToHeightAccessor(level);
-        this.minCellY = Mth.floorDiv(noise.minY(), noise.getCellHeight());
-        this.cellCountY = Mth.floorDiv(noise.height(), noise.getCellHeight());
     }
 
     /**
@@ -245,12 +242,12 @@ public final class ExactChunks {
     /** Structure references and biomes of a chunk. */
     private void biomes(Grid chunks, ProtoChunk chunk) {
         long begin = System.nanoTime();
-        Region region = new Region(level, surfaceStep, chunk, chunks);
+        Region region = new Region(level, terrainStep, chunk, chunks);
         StructureManager manager = level.structureManager().forWorldGenRegion(region);
         if (structures) {
             generator.createReferences(region, manager, chunk);
         }
-        generator.doCreateBiomes(Blender.empty(), random, manager, chunk);
+        generator.doCreateBiomes(Blender.empty(), random, chunk);
         chunk.setPersistedStatus(ChunkStatus.BIOMES);
         BuildProfile.lap(Stage.EXACT_BIOMES, begin);
     }
@@ -258,17 +255,16 @@ public final class ExactChunks {
     /** A chunk from its biomes up to the carver step. */
     private void terrain(Grid chunks, ProtoChunk chunk) {
         long begin = System.nanoTime();
-        Region region = new Region(level, surfaceStep, chunk, chunks);
+        Region region = new Region(level, terrainStep, chunk, chunks);
         StructureManager manager = level.structureManager().forWorldGenRegion(region);
-        generator.doFill(Blender.empty(), manager, random, chunk, minCellY, cellCountY);
-        chunk.setPersistedStatus(ChunkStatus.NOISE);
-        begin = BuildProfile.lap(Stage.EXACT_NOISE, begin);
-        WorldgenApi.buildSurface(generator, chunk, new WorldGenerationContext(generator, region), random, manager,
-                region.getBiomeManager(), Blender.empty());
-        chunk.setPersistedStatus(ChunkStatus.SURFACE);
-        begin = BuildProfile.lap(Stage.EXACT_SURFACE, begin);
-        WorldgenApi.carve(generator, region, seed, random, level.getBiomeManager(), manager, chunk);
-        chunk.setPersistedStatus(ChunkStatus.CARVERS);
+        try (NoiseChunk noise = WorldgenApi.noiseChunk(generator, chunk, manager, random)) {
+            generator.doFill(noise, chunk);
+            begin = BuildProfile.lap(Stage.EXACT_NOISE, begin);
+            WorldgenApi.buildSurface(generator, chunk, noise, random, region.getBiomeManager());
+            begin = BuildProfile.lap(Stage.EXACT_SURFACE, begin);
+            WorldgenApi.carve(generator, region, random, region.getBiomeManager(), chunk, noise);
+        }
+        chunk.setPersistedStatus(ChunkStatus.TERRAIN);
         BuildProfile.lap(Stage.EXACT_CARVERS, begin);
     }
 
@@ -309,10 +305,10 @@ public final class ExactChunks {
     private void extract(Batch batch, Grid chunks, int chunkX, int chunkZ) {
         ChunkAccess chunk = chunks.at(chunkX, chunkZ);
         LevelChunkSection[] sections = chunk.getSections();
+        BiomeResolver noiseBiomes = generator.getBiomeSource().createCachingResolver(random);
         BiomeManager zoom = new BiomeManager((x, y, z) -> {
             ChunkAccess source = chunks.at(x >> 2, z >> 2);
-            return source != null ? source.getNoiseBiome(x, y, z)
-                    : generator.getBiomeSource().getNoiseBiome(x, y, z, random.sampler());
+            return source != null ? source.getNoiseBiome(x, y, z) : noiseBiomes.getNoiseBiome(x, y, z);
         }, BiomeManager.obfuscateSeed(seed));
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         BlockState[] states = new BlockState[levelTop + 1];
@@ -407,11 +403,32 @@ public final class ExactChunks {
     }
 
     /** A vanilla region over the batch's chunks. */
+    /** The region's base class asks its holders for their chunks; here the chunks come from the grid instead. */
+    private static final class EmptyHolder extends GenerationChunkHolder {
+        EmptyHolder() {
+            super(ChunkPos.ZERO);
+        }
+
+        @Override
+        protected void addSaveDependency(CompletableFuture<?> sync) {
+        }
+
+        @Override
+        public int getTicketLevel() {
+            return ChunkLevel.MAX_LEVEL;
+        }
+
+        @Override
+        public int getQueueLevel() {
+            return ChunkLevel.MAX_LEVEL;
+        }
+    }
+
     private final class Region extends WorldGenRegion {
         private final Grid chunks;
 
         Region(ServerLevel level, ChunkStep step, ChunkAccess center, Grid chunks) {
-            super(level, StaticCache2D.create(center.getPos().x(), center.getPos().z(), 0, (x, z) -> null), step, center);
+            super(level, StaticCache2D.create(center.getPos().x(), center.getPos().z(), 0, (x, z) -> NO_CHUNKS), step, center);
             this.chunks = chunks;
         }
 

@@ -18,16 +18,19 @@ import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.FeatureSorter;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.ChunkGenerator;
 import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.NoiseBasedChunkGenerator;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
+import net.minecraft.world.level.levelgen.feature.AbstractOreFeature;
 import net.minecraft.world.level.levelgen.feature.Feature;
+import net.minecraft.world.level.levelgen.feature.ReplaceBlobsFeature;
+import net.minecraft.world.level.levelgen.feature.SpringFeature;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 
 import com.pockyl.dhturbo.DhTurbo;
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
@@ -56,8 +59,6 @@ final class ProfileFeatures {
     private static final GenerationStep.Decoration[] STEPS = {GenerationStep.Decoration.RAW_GENERATION,
             GenerationStep.Decoration.SURFACE_STRUCTURES, GenerationStep.Decoration.UNDERGROUND_DECORATION,
             GenerationStep.Decoration.VEGETAL_DECORATION};
-    /** Inside the rock or too small to see. */
-    private static final Set<Feature<?>> HIDDEN = Set.of(Feature.ORE, Feature.SCATTERED_ORE, Feature.SPRING, Feature.REPLACE_BLOBS);
     private static final Map<String, Boolean> REPORTED = new ConcurrentHashMap<>();
 
     private final NoiseBasedChunkGenerator generator;
@@ -118,7 +119,12 @@ final class ProfileFeatures {
     }
 
     private static boolean visible(PlacedFeature feature) {
-        return feature.getFeatures().noneMatch(configured -> HIDDEN.contains(configured.value().feature()));
+        return feature.getFeatures().noneMatch(holder -> hidden(holder.value()));
+    }
+
+    /** Inside the rock or too small to see. */
+    private static boolean hidden(Feature feature) {
+        return feature instanceof AbstractOreFeature || feature instanceof SpringFeature || feature instanceof ReplaceBlobsFeature;
     }
 
     /** Whether tiles with columns this wide get the features. */
@@ -243,7 +249,7 @@ final class ProfileFeatures {
                 random.setFeatureSeed(decorationSeed, index, STEPS[s].ordinal());
                 PlacedFeature feature = stepFeatures.get(s).get(index);
                 try {
-                    feature.placeWithBiomeCheck(level.view, (ChunkGenerator) generator, random, origin);
+                    WorldgenApi.place(feature, level.view, generator, random, origin);
                 } catch (VirtualLevel.NoEntities e) {
                     // End crystals on the spikes: the blocks are placed by then.
                 } catch (RuntimeException e) {

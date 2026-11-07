@@ -17,6 +17,6 @@ public final class NeoForgeClientPlatform implements ClientPlatform {
 
     @Override
     public KeyMapping inGameKey(String name, int key, KeyMapping.Category category) {
-        return new KeyMapping(name, KeyConflictContext.IN_GAME, InputConstants.Type.KEYSYM, key, category);
+        return new KeyMapping(name, KeyConflictContext.IN_GAME, InputConstants.Type.KEYBOARD, key, category);
     }
 }

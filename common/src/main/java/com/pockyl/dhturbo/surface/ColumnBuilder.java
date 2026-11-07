@@ -141,7 +141,7 @@ public final class ColumnBuilder {
     private static VanillaSurface vanillaSurface(NoiseBasedChunkGenerator generator, SurfaceSampler sampler,
                                                  RegistryAccess registries, long seed) {
         try {
-            VanillaSurface surface = new VanillaSurface(generator, sampler, registries, seed);
+            VanillaSurface surface = new VanillaSurface(generator, sampler, seed);
             // A first column, so a rule set that cannot run here fails now and not in every tile.
             surface.pass(0, 0, (x, z) -> sampler.seaLevel(), true).column(0, 0, sampler.seaLevel());
             return surface;

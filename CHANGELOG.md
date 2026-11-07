@@ -4,6 +4,13 @@ All notable changes to this mod are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0+26.3] - 2026-11-07
+### Added
+- A version for Minecraft 26.3, for [NeoForge](https://neoforged.net/) and [Fabric](https://fabricmc.net/) (with
+  [Fabric API](https://www.curseforge.com/minecraft/mc-mods/fabric-api) and
+  [Forge Config API Port](https://www.curseforge.com/minecraft/mc-mods/forge-config-api-port)), with everything of 1.6.0.
+  It needs [Distant Horizons](https://www.curseforge.com/minecraft/mc-mods/distant-horizons) 3.3.4 for 26.3.
+
 ## [1.6.0+26.2] - 2026-11-07
 ### Added
 - A version for Minecraft 26.2, for [NeoForge](https://neoforged.net/) and [Fabric](https://fabricmc.net/) (with

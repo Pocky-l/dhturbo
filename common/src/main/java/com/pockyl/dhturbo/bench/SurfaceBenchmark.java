@@ -52,8 +52,8 @@ public final class SurfaceBenchmark {
                             long seed) {
         NoiseGeneratorSettings value = settings.value();
         this.fast = new SurfaceSampler(registries, value, biomeSource, seed);
-        this.randomState = RandomState.create(value, registries.lookupOrThrow(Registries.NOISE), seed);
-        this.dhStyle = new DhStyleSurface(randomState, biomeSource, fast.minY(), fast.maxY());
+        this.randomState = RandomState.create(registries.lookupOrThrow(Registries.NOISE), seed, value);
+        this.dhStyle = new DhStyleSurface(randomState, value.noiseRouter().finalDensity(), biomeSource, fast.minY(), fast.maxY());
         this.vanilla = new NoiseBasedChunkGenerator(biomeSource, settings);
         this.heightAccessor = LevelHeightAccessor.create(value.noiseSettings().minY(), value.noiseSettings().height());
         this.realTrees = new RealTrees(vanilla, fast, seed, registries,

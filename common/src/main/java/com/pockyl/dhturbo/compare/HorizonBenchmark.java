@@ -59,7 +59,7 @@ final class HorizonBenchmark {
             int originX = random.nextInt(20_000) - 10_000;
             int originZ = random.nextInt(20_000) - 10_000;
             ColumnBuilder builder = new ColumnBuilder(generator, level.registryAccess(), level.dimensionType(),
-                    level.getSeed(), UnaryOperator.identity(), level.getStructureManager(), NoiseBinder.of(level));
+                    level.getSeed(), UnaryOperator.identity(), level.getStructureTemplateManager(), NoiseBinder.of(level));
             List<Tile> tiles = tiles(originX, originZ, radius);
             RealStructures structures = builder.realStructures();
             StructurePrefetch prefetcher = prefetch && structures != null ? new StructurePrefetch(structures,

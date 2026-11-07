@@ -15,19 +15,16 @@ import net.minecraft.world.level.dimension.DimensionType;
 import net.minecraft.world.level.levelgen.GenerationStep;
 import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.XoroshiroRandomSource;
-import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
 import net.minecraft.world.level.levelgen.feature.LakeFeature;
 import net.minecraft.world.level.levelgen.placement.HeightmapPlacement;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
-import net.minecraft.world.level.levelgen.placement.PlacementContext;
-import net.minecraft.world.level.levelgen.placement.PlacementModifier;
+
+import com.pockyl.dhturbo.world.version.WorldgenApi;
 
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Stream;
 
 /**
  * Surface lakes (vanilla: lava lakes, one in ~200 chunks) exactly where the game puts them, without generating chunks.
@@ -48,7 +45,7 @@ public final class RealLakes {
     public record Lake(BlockState fluid, int bottom, int top) {
     }
 
-    private record SurfaceLake(PlacedFeature placed, LakeFeature.Configuration config, int index) {
+    private record SurfaceLake(PlacedFeature placed, LakeFeature config, int index) {
     }
 
     private final ChunkGenerator generator;
@@ -74,9 +71,7 @@ public final class RealLakes {
             // Surface lakes stand on a heightmap; underground ones never reach the surface (vanilla keeps them 5+
             // blocks below it).
             boolean surface = placed.placement().stream().anyMatch(HeightmapPlacement.class::isInstance);
-            ConfiguredFeature<?, ?> configured = placed.feature().value();
-            if (surface && configured.feature() instanceof LakeFeature
-                    && configured.config() instanceof LakeFeature.Configuration config) {
+            if (surface && placed.feature().value() instanceof LakeFeature config) {
                 lakes.add(new SurfaceLake(placed, config, i));
             }
         }
@@ -123,18 +118,14 @@ public final class RealLakes {
         BlockPos origin = new BlockPos(blockX, sampler.minY(), blockZ);
         for (SurfaceLake lake : lakes) {
             random.setFeatureSeed(decorationSeed, lake.index, STEP);
-            PlacementContext context = new PlacementContext(level.view, generator, Optional.of(lake.placed));
-            Stream<BlockPos> positions = Stream.of(origin);
-            for (PlacementModifier modifier : lake.placed.placement()) {
-                positions = positions.flatMap(pos -> modifier.getPositions(context, random, pos));
-            }
-            // Lazily, like vanilla: modifiers and the feature draw from the random in turn.
-            positions.forEach(pos -> place(level, random, pos, lake.config, minX, minZ, spacing, width, columns, any));
+            // In vanilla's order: modifiers and the feature draw from the random in turn.
+            WorldgenApi.placements(lake.placed, level.view, generator, random, origin,
+                    pos -> place(level, random, pos, lake.config, minX, minZ, spacing, width, columns, any));
         }
     }
 
     /** {@link LakeFeature#place} on the approximate terrain, recording the fluid per tile column. */
-    private void place(VirtualLevel level, WorldgenRandom random, BlockPos origin, LakeFeature.Configuration config,
+    private void place(VirtualLevel level, WorldgenRandom random, BlockPos origin, LakeFeature config,
                        int minX, int minZ, int spacing, int width, Lake[] columns, boolean[] any) {
         if (origin.getY() <= sampler.minY() + 4) {
             return;
@@ -162,7 +153,7 @@ public final class RealLakes {
                 }
             }
         }
-        BlockState fluid = config.fluid().getState(level.view, random, base);
+        BlockState fluid = config.fluid().value().getState(level.view, random, base);
         BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {

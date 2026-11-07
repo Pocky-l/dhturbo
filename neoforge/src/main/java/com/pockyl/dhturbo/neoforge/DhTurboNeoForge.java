@@ -16,7 +16,8 @@ import com.pockyl.dhturbo.network.WorldgenSharing;
 @Mod(DhTurbo.MOD_ID)
 public final class DhTurboNeoForge {
     public DhTurboNeoForge(IEventBus modBus, ModContainer container) {
-        container.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        // The file keeps the name of the other lines and of Fabric; NeoForge calls this type local now.
+        container.registerConfig(ModConfig.Type.LOCAL, Config.SPEC, DhTurbo.MOD_ID + "-common.toml");
         GameTests.register(modBus);
         modBus.addListener(DhTurboNeoForge::registerPayloads);
         modBus.addListener(ModConfigEvent.Reloading.class, event -> {

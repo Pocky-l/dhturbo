@@ -36,7 +36,7 @@ public final class NeoForgePlatform implements Platform {
 
     @Override
     public List<RegistryDataLoader.RegistryData<?>> worldgenRegistries() {
-        return DataPackRegistriesHooks.getDataPackRegistries();
+        return DataPackRegistriesHooks.getWorldRegistries();
     }
 
     @Override

@@ -27,7 +27,7 @@ final class WorldgenRegistries {
         // the loader binds the tags of what it loads (a structure's biomes are a biome tag).
         List<Registry.PendingTags<?>> staticTags = TagLoader.loadTagsForExistingRegistries(packs, layers.getLayer(RegistryLayer.STATIC));
         List<HolderLookup.RegistryLookup<?>> lookups =
-                TagLoader.buildUpdatedLookups(layers.getAccessForLoading(RegistryLayer.WORLDGEN), staticTags);
+                TagLoader.buildUpdatedLookups(layers.getAccessForLoading(RegistryLayer.WORLD), staticTags);
         return RegistryDataLoader.load(packs, lookups, Platform.INSTANCE.worldgenRegistries(), Util.backgroundExecutor()).join();
     }
 
